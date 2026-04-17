@@ -61,6 +61,7 @@ const LABEL_FILE_BY_KEY: Record<string, string> = {
   eb: "eb.png",
   captainjack: "capjack.png",
   guinness: "guinness.png",
+  kozel: "kozel.png",
   pilsnerurquell: "pilsner.png",
   budweiser: "budweiser.png",
   budlight: "budlight.png",
@@ -76,6 +77,9 @@ const LABEL_FILE_BY_KEY: Record<string, string> = {
 };
 const LEGACY_WRAP_FILE_BY_KEY: Record<string, string> = {
   kozel: "kozel.png",
+};
+const LABEL_DRAW_SCALE_BY_KEY: Record<string, number> = {
+  kozel: 0.72,
 };
 
 function normalizeBeerKey(value: string): string {
@@ -107,6 +111,17 @@ function resolveLegacyWrapPath(beerName: string): string | null {
     if (normalized.includes(key)) return `${LEGACY_WRAP_DIR}/${file}`;
   }
   return null;
+}
+
+function resolveLabelDrawScale(beerName: string): number {
+  const normalized = normalizeBeerKey(beerName);
+  const direct = LABEL_DRAW_SCALE_BY_KEY[normalized];
+  if (typeof direct === "number") return direct;
+
+  for (const [key, scale] of Object.entries(LABEL_DRAW_SCALE_BY_KEY)) {
+    if (normalized.includes(key)) return scale;
+  }
+  return 1;
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -159,6 +174,9 @@ async function createCanWrapTexture(beerName: string): Promise<string> {
 
   const bandTop = Math.round(height * 0.03);
   const bandHeight = Math.round(height * 0.46);
+  const labelDrawScale = Math.max(0.2, Math.min(1, resolveLabelDrawScale(beerName)));
+  const drawWidth = Math.round(width * labelDrawScale);
+  const drawX = Math.round((width - drawWidth) / 2);
 
   if (labelImage) {
     ctx.save();
@@ -167,16 +185,16 @@ async function createCanWrapTexture(beerName: string): Promise<string> {
     ctx.shadowOffsetY = 3;
     ctx.filter = "saturate(1.02) contrast(1.01)";
 
-    const scaleToWidth = width / labelImage.width;
+    const scaleToWidth = drawWidth / labelImage.width;
     const targetH = labelImage.height * scaleToWidth;
 
     if (targetH >= bandHeight) {
       const srcH = Math.max(1, bandHeight / scaleToWidth);
       const srcY = Math.max(0, (labelImage.height - srcH) / 2);
-      ctx.drawImage(labelImage, 0, srcY, labelImage.width, srcH, 0, bandTop, width, bandHeight);
+      ctx.drawImage(labelImage, 0, srcY, labelImage.width, srcH, drawX, bandTop, drawWidth, bandHeight);
     } else {
       const destY = bandTop + (bandHeight - targetH) / 2;
-      ctx.drawImage(labelImage, 0, 0, labelImage.width, labelImage.height, 0, destY, width, targetH);
+      ctx.drawImage(labelImage, 0, 0, labelImage.width, labelImage.height, drawX, destY, drawWidth, targetH);
     }
     ctx.restore();
   } else {
@@ -289,8 +307,6 @@ export default function BeerCan3D({ beer }: BeerCan3DProps) {
     </div>
   );
 }
-
-
 
 
 
