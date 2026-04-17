@@ -1,0 +1,263 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+
+type Bracket = "single" | "winners" | "losers" | "grand_final";
+
+type Match = {
+  id: string;
+  bracket: Bracket;
+  roundNo: number;
+  matchNo: number;
+  bo: number;
+  scoreA: number | null;
+  scoreB: number | null;
+  status: string;
+  teamA: { id: string; name: string } | null;
+  teamB: { id: string; name: string } | null;
+  winnerTeamId: string | null;
+};
+
+function bracketLabel(bracket: Bracket): string {
+  if (bracket === "winners") return "Winners";
+  if (bracket === "losers") return "Losers";
+  if (bracket === "grand_final") return "Grand Final";
+  return "Single";
+}
+
+function bracketTone(bracket: Bracket): string {
+  if (bracket === "winners") return "tour-bracket-winners";
+  if (bracket === "losers") return "tour-bracket-losers";
+  if (bracket === "grand_final") return "tour-bracket-gf";
+  return "tour-bracket-single";
+}
+
+function statusTone(status: string): string {
+  return status === "finished" ? "tour-match-status-finished" : "tour-match-status-pending";
+}
+
+export default function AdminMatchesPanel({ tournamentId }: { tournamentId: string }) {
+  const [localPass, setLocalPass] = useState("");
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  async function load() {
+    const res = await fetch(`/api/public/tournaments/${tournamentId}/matches`, { cache: "no-store" });
+    const json = await res.json().catch(() => ({}));
+    if (res.ok) {
+      setMatches(json.matches ?? []);
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function bootstrap() {
+      const res = await fetch(`/api/public/tournaments/${tournamentId}/matches`, { cache: "no-store" });
+      const json = await res.json().catch(() => ({}));
+      if (!cancelled && res.ok) {
+        setMatches(json.matches ?? []);
+      }
+    }
+
+    void bootstrap();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tournamentId]);
+
+  async function start() {
+    setMsg(null);
+    const res = await fetch(`/api/admin/tournaments/${tournamentId}/matches/start`, {
+      method: "POST",
+      headers: { "x-tournament-admin-password": localPass },
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg(`Blad startu: ${json.error ?? res.statusText}`);
+      return;
+    }
+    setMsg("Wystartowano turniej.");
+    await load();
+  }
+
+  async function report(matchId: string, scoreA: number, scoreB: number) {
+    setMsg(null);
+
+    const res = await fetch(`/api/admin/tournaments/${tournamentId}/matches/report`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-tournament-admin-password": localPass,
+      },
+      body: JSON.stringify({ matchId, scoreA, scoreB }),
+    });
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg(`Blad wyniku: ${json.error ?? res.statusText}`);
+      return;
+    }
+
+    await load();
+    setMsg("Zapisano wynik.");
+  }
+
+  const grouped = useMemo(() => {
+    const map: Record<string, Record<string, Match[]>> = {};
+    for (const m of matches) {
+      map[m.bracket] ??= {};
+      map[m.bracket][String(m.roundNo)] ??= [];
+      map[m.bracket][String(m.roundNo)].push(m);
+    }
+
+    for (const bracket of Object.keys(map)) {
+      for (const round of Object.keys(map[bracket])) {
+        map[bracket][round].sort((a, b) => a.matchNo - b.matchNo);
+      }
+    }
+
+    return map;
+  }, [matches]);
+
+  const bracketOrder: Bracket[] = ["winners", "losers", "grand_final", "single"];
+
+  return (
+    <main className="tour-root">
+      <div className="tour-shell">
+        <div className="tour-topbar">
+          <Link className="underline opacity-80" href={`/tournaments/${tournamentId}/matches`}>
+            Back
+          </Link>
+          <span className="tour-kicker">Admin meczow</span>
+        </div>
+
+        <section className="tour-detail-main mt-4">
+          <h1 className="tour-title">Admin - Mecze</h1>
+        </section>
+
+        <section className="tour-admin-panel mt-4">
+          <div className="tour-admin-grid">
+            <div>
+              <label className="tour-admin-label">Haslo lokalnego admina</label>
+              <input
+                className="tour-admin-input"
+                type="password"
+                value={localPass}
+                onChange={(e) => setLocalPass(e.target.value)}
+              />
+            </div>
+
+            <div className="tour-admin-actions">
+              <button className="tour-action-btn" disabled={!localPass} onClick={start}>
+                Start turnieju
+              </button>
+            </div>
+
+            {msg && (
+              <p className={`tour-admin-msg ${msg.toLowerCase().includes("blad") ? "tour-admin-msg-error" : ""}`}>
+                {msg}
+              </p>
+            )}
+          </div>
+        </section>
+
+        {bracketOrder.map((bracket) => {
+          const rounds = grouped[bracket];
+          if (!rounds) return null;
+
+          const roundNos = Object.keys(rounds)
+            .map(Number)
+            .sort((a, b) => a - b);
+
+          return (
+            <section key={bracket} className="tour-match-bracket mt-4">
+              <div className="tour-match-bracket-head">
+                <h2 className="tour-section-title">{bracketLabel(bracket)}</h2>
+                <span className={`tour-bracket-pill ${bracketTone(bracket)}`}>{roundNos.length} rund</span>
+              </div>
+
+              <div className="tour-round-list mt-3">
+                {roundNos.map((roundNo) => (
+                  <article key={roundNo} className="tour-round-card">
+                    <p className="tour-round-title">Runda {roundNo}</p>
+
+                    <div className="tour-match-list mt-3">
+                      {(rounds[String(roundNo)] ?? []).map((m) => (
+                        <AdminMatchRow key={m.id} m={m} disabled={!localPass} onReport={report} />
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </main>
+  );
+}
+
+function AdminMatchRow({
+  m,
+  onReport,
+  disabled,
+}: {
+  m: Match;
+  onReport: (matchId: string, scoreA: number, scoreB: number) => Promise<void>;
+  disabled: boolean;
+}) {
+  const [a, setA] = useState(Number(m.scoreA ?? 0));
+  const [b, setB] = useState(Number(m.scoreB ?? 0));
+
+  const teamAName = m.teamA?.name ?? "TBD";
+  const teamBName = m.teamB?.name ?? "TBD";
+  const winnerName = m.winnerTeamId ? (m.winnerTeamId === m.teamA?.id ? teamAName : teamBName) : null;
+
+  return (
+    <article className="tour-match-card">
+      <div className="tour-match-head">
+        <span className="tour-match-meta">Mecz {m.matchNo} - BO{m.bo}</span>
+        <span className={`tour-match-status ${statusTone(m.status)}`}>{m.status}</span>
+      </div>
+
+      <div className="tour-score-row">
+        <span className="tour-team-name">{teamAName}</span>
+        <span className="tour-score-box">{m.teamB ? `${a}:${b}` : "BYE"}</span>
+        <span className="tour-team-name">{teamBName}</span>
+      </div>
+
+      {!m.teamB ? (
+        <p className="tour-winner-line">BYE (auto-win)</p>
+      ) : (
+        <div className="tour-match-edit mt-3">
+          <input
+            className="tour-match-input"
+            type="number"
+            min={0}
+            max={5}
+            value={a}
+            onChange={(e) => setA(Number(e.target.value))}
+          />
+          <span className="tour-match-sep">:</span>
+          <input
+            className="tour-match-input"
+            type="number"
+            min={0}
+            max={5}
+            value={b}
+            onChange={(e) => setB(Number(e.target.value))}
+          />
+
+          <button className="tour-action-btn tour-match-save" disabled={disabled} onClick={() => onReport(m.id, a, b)}>
+            Zapisz
+          </button>
+        </div>
+      )}
+
+      {winnerName && <p className="tour-winner-line">Zwyciezca: {winnerName}</p>}
+    </article>
+  );
+}
