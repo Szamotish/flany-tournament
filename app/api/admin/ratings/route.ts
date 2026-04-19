@@ -1,13 +1,9 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
-
-function assertAdmin(req: Request) {
-  const pass = req.headers.get("x-admin-password");
-  return !!pass && pass === process.env.ADMIN_PASSWORD;
-}
+import { assertMainAdmin } from "@/app/api/admin/_auth";
 
 export async function POST(req: Request) {
-  if (!assertAdmin(req)) {
+  if (!assertMainAdmin(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
