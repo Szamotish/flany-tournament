@@ -1898,46 +1898,67 @@ body {
   --rank-glow: rgba(74, 84, 96, 0.32);
 }
 
-.player-rank-tier-1 {
+.player-rank-tier-bronze {
   --rank-border: rgba(131, 85, 45, 0.52);
   --rank-edge: rgba(176, 123, 72, 0.58);
   --rank-accent: rgba(212, 161, 112, 0.54);
   --rank-glow: rgba(166, 112, 54, 0.4);
 }
 
-.player-rank-tier-2 {
+.player-rank-tier-silver {
   --rank-border: rgba(99, 122, 142, 0.56);
   --rank-edge: rgba(136, 168, 194, 0.62);
   --rank-accent: rgba(189, 216, 238, 0.58);
   --rank-glow: rgba(116, 147, 173, 0.4);
 }
 
-.player-rank-tier-3 {
+.player-rank-tier-gold {
   --rank-border: rgba(161, 120, 34, 0.56);
   --rank-edge: rgba(205, 166, 73, 0.64);
   --rank-accent: rgba(243, 219, 138, 0.58);
   --rank-glow: rgba(196, 155, 61, 0.42);
 }
 
-.player-rank-tier-4 {
+.player-rank-tier-platinum {
+  --rank-border: rgba(64, 120, 167, 0.56);
+  --rank-edge: rgba(109, 166, 214, 0.64);
+  --rank-accent: rgba(167, 214, 246, 0.56);
+  --rank-glow: rgba(64, 134, 188, 0.42);
+}
+
+.player-rank-tier-emerald {
   --rank-border: rgba(34, 132, 115, 0.56);
   --rank-edge: rgba(64, 188, 168, 0.64);
   --rank-accent: rgba(121, 236, 210, 0.56);
   --rank-glow: rgba(36, 176, 151, 0.42);
 }
 
-.player-rank-tier-5 {
+.player-rank-tier-diamond {
   --rank-border: rgba(37, 86, 177, 0.56);
   --rank-edge: rgba(76, 140, 232, 0.64);
   --rank-accent: rgba(128, 182, 255, 0.56);
   --rank-glow: rgba(46, 111, 214, 0.42);
 }
 
-.player-rank-tier-6 {
+.player-rank-tier-master {
   --rank-border: rgba(133, 39, 137, 0.56);
   --rank-edge: rgba(184, 74, 190, 0.64);
   --rank-accent: rgba(222, 132, 232, 0.54);
   --rank-glow: rgba(157, 62, 176, 0.42);
+}
+
+.player-rank-tier-challenger {
+  --rank-border: rgba(92, 132, 199, 0.72);
+  --rank-edge: rgba(156, 208, 255, 0.78);
+  --rank-accent: rgba(214, 235, 255, 0.72);
+  --rank-glow: rgba(92, 181, 255, 0.55);
+}
+
+.player-rank-tier-challenger::after {
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--rank-edge), white 18%),
+    0 0 26px -2px color-mix(in oklab, var(--rank-glow), white 18%),
+    0 0 48px -16px rgba(255, 205, 102, 0.72);
 }
 
 @media (max-width: 760px) {

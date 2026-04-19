@@ -2,7 +2,6 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { trimmedMean } from "@/lib/rating";
-import { PRESTIGE_POINTS_PER_MMR } from "@/lib/ranked";
 import { loadPlayerPerformance } from "@/lib/playerPerformance";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +19,7 @@ type PlayerRow = {
 };
 
 type CooldownState = "ready" | "cooldown" | "soon";
+type MmrRank = "unranked" | "bronze" | "silver" | "gold" | "platinum" | "emerald" | "diamond" | "master";
 
 function cooldownStatus(updatedAtIso: string | null): { state: CooldownState; hint: string } {
   if (!updatedAtIso) {
@@ -66,22 +66,30 @@ function formatAverage(value: number | null): string {
   return value.toFixed(1);
 }
 
-function prestigeTier(pointsValue: number | null): number {
-  const points = Number(pointsValue ?? 0);
-  if (!Number.isFinite(points) || points <= 0) return 0;
-  return Math.floor(points / PRESTIGE_POINTS_PER_MMR);
+function mmrRank(hasFinishedMatch: boolean, mmrValue: number): MmrRank {
+  if (!hasFinishedMatch) return "unranked";
+  if (mmrValue >= 10) return "master";
+  if (mmrValue >= 9) return "diamond";
+  if (mmrValue >= 7) return "emerald";
+  if (mmrValue >= 5) return "platinum";
+  if (mmrValue >= 4) return "gold";
+  if (mmrValue >= 2) return "silver";
+  return "bronze";
 }
 
-function rankedFrameClass(tier: number): string {
-  if (tier <= 0) return "player-rank-tier-unranked";
-  const tierClass = ((tier - 1) % 6) + 1;
-  return `player-rank-tier-${tierClass}`;
+function rankLabel(rank: MmrRank): string {
+  if (rank === "unranked") return "Unranked";
+  if (rank === "bronze") return "Bronze";
+  if (rank === "silver") return "Silver";
+  if (rank === "gold") return "Gold";
+  if (rank === "platinum") return "Platyna";
+  if (rank === "emerald") return "Emerald";
+  if (rank === "diamond") return "Diament";
+  return "Master";
 }
 
-function formatPrestigePoints(value: number | null): string {
-  const points = Number(value ?? 0);
-  if (!Number.isFinite(points) || points <= 0) return "-";
-  return String(Math.floor(points));
+function rankedFrameClass(rank: MmrRank): string {
+  return `player-rank-tier-${rank}`;
 }
 
 function formatMmr(value: number | null): string {
@@ -137,6 +145,7 @@ export default async function PlayersPage() {
   }
 
   const effectiveMmrByPlayer = new Map<string, number>();
+  const hasFinishedMatchByPlayer = new Map<string, boolean>();
   if (playerIds.length > 0) {
     try {
       const perfByPlayer = await loadPlayerPerformance(playerIds);
@@ -144,6 +153,7 @@ export default async function PlayersPage() {
         const perf = perfByPlayer.get(playerId);
         if (!perf) continue;
         effectiveMmrByPlayer.set(playerId, perf.effectiveMmr);
+        hasFinishedMatchByPlayer.set(playerId, perf.hasFinishedMatch);
       }
     } catch {
       // Keep fallback to stored MMR when performance helper fails.
@@ -187,12 +197,16 @@ export default async function PlayersPage() {
       ) : (
         <div className="mt-4 grid gap-2 md:grid-cols-2">
           {players.map((p) => {
-            const tier = prestigeTier(p.prestige_points);
+            const mmr = Number(effectiveMmrByPlayer.get(p.id) ?? p.mmr ?? 0);
+            const hasFinishedMatch = hasFinishedMatchByPlayer.get(p.id) ?? mmr > 0;
+            const rank = mmrRank(hasFinishedMatch, mmr);
+            const prestigePoints = Math.max(0, Math.floor(Number(p.prestige_points ?? 0)));
+            const frameClass = prestigePoints > 0 ? "player-rank-tier-challenger" : rankedFrameClass(rank);
 
             return (
               <Link key={p.id} href={`/players/${p.id}`} className="no-underline">
                 <div
-                  className={`player-rank-card ${rankedFrameClass(tier)}`}
+                  className={`player-rank-card ${frameClass}`}
                 >
                   <div className="player-rank-main">
                     <span className="inline-grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border bg-white text-sm font-semibold">
@@ -212,11 +226,11 @@ export default async function PlayersPage() {
                     <span className="player-rank-state">{p.active ? "aktywny" : "nieaktywny"}</span>
                     <span
                       className="player-rank-pp"
-                      title={tier > 0 ? `Poziom rangi: ${tier}` : "UNRANKED"}
+                      title={`Ranga: ${rankLabel(rank)}`}
                     >
-                      <span className="player-rank-pp-label">MMR {formatMmr(effectiveMmrByPlayer.get(p.id) ?? p.mmr)}</span>
+                      <span className="player-rank-pp-label">MMR {formatMmr(mmr)}</span>
                       <span className="player-rank-pp-value">
-                        Prestige: {formatPrestigePoints(p.prestige_points)} / {tier > 0 ? `P+${tier}` : "Unranked"}
+                        Ranga: {rankLabel(rank)}
                       </span>
                     </span>
                     <span
