@@ -2,6 +2,8 @@
 import { supabaseServer } from "@/lib/supabaseServer";
 import { teamToneVars } from "@/lib/ui/teamTone";
 
+export const dynamic = "force-dynamic";
+
 type PlayerBrief = { id: string; name: string; avatarUrl: string | null };
 type TeamSummary = { id: string; name: string; players: PlayerBrief[] };
 

@@ -2,6 +2,8 @@
 import { supabaseServer } from "@/lib/supabaseServer";
 import BracketTree, { type BracketTreeRound } from "@/app/components/BracketTree";
 
+export const dynamic = "force-dynamic";
+
 type Match = {
   id: string;
   bracket: "single" | "winners" | "losers" | "grand_final";

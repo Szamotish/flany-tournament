@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabasePublic } from "@/lib/supabasePublic";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const q = (url.searchParams.get("q") ?? "").trim();
@@ -8,6 +10,7 @@ export async function GET(req: Request) {
   let query = supabasePublic
     .from("players")
     .select("id,name,active,created_at")
+    .eq("active", true)
     .order("created_at", { ascending: true })
     .limit(50);
 

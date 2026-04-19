@@ -2,6 +2,8 @@ import Link from "next/link";
 import { supabaseServer } from "@/lib/supabaseServer";
 import TrophyIcon from "@/app/components/TrophyIcon";
 
+export const dynamic = "force-dynamic";
+
 type TournamentRow = {
   id: string;
   name: string;

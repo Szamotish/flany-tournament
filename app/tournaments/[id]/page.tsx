@@ -5,6 +5,8 @@ import { supabaseServer } from "@/lib/supabaseServer";
 import { teamToneVars } from "@/lib/ui/teamTone";
 import { computeBeersFromFinishedMatches } from "@/lib/beers";
 
+export const dynamic = "force-dynamic";
+
 type PlayerRef = { id: string; name: string; avatarUrl: string | null };
 type Bracket = "single" | "winners" | "losers" | "grand_final";
 

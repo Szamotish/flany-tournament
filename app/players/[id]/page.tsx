@@ -6,6 +6,8 @@ import { supabaseServer } from "@/lib/supabaseServer";
 import TrophyIcon from "@/app/components/TrophyIcon";
 import BackNavButton from "@/app/components/BackNavButton";
 
+export const dynamic = "force-dynamic";
+
 type PlayerBrief = { id: string; name: string };
 
 type HistoryEntry = {

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabasePublic } from "@/lib/supabasePublic";
 
+export const dynamic = "force-dynamic";
+
 type PlayerBrief = { id: string; name: string };
 
 function parsePlayerBrief(value: unknown): PlayerBrief | null {

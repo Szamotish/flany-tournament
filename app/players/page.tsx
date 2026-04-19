@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { supabasePublic } from "@/lib/supabasePublic";
 
+export const dynamic = "force-dynamic";
+
 type PlayerRow = {
   id: string;
   name: string;
@@ -12,6 +14,7 @@ export default async function PlayersPage() {
   const { data, error } = await supabasePublic
     .from("players")
     .select("id,name,active,avatar_url")
+    .eq("active", true)
     .order("name", { ascending: true });
 
   const players = (data ?? []) as PlayerRow[];

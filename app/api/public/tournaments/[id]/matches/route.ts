@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { supabasePublic } from "@/lib/supabasePublic";
 import { computeBeersFromFinishedMatches } from "@/lib/beers";
 
+export const dynamic = "force-dynamic";
+
 type Bracket = "single" | "winners" | "losers" | "grand_final";
 type TeamRef = { id: string; name: string };
 type MatchView = {

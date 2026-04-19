@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { computeBeersFromFinishedMatches } from "@/lib/beers";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const { data, error } = await supabaseServer
     .from("tournament_matches")

@@ -4,6 +4,8 @@ import { computeBeersFromFinishedMatches } from "@/lib/beers";
 import BeerCan3D from "@/app/components/BeerCan3D";
 import NearbyLiquorCompassCard from "@/app/components/NearbyLiquorCompassCard";
 
+export const dynamic = "force-dynamic";
+
 type BeerOfTheDay = {
   name: string;
 };
