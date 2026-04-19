@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { trimmedMean } from "@/lib/rating";
 import { PRESTIGE_POINTS_PER_MMR } from "@/lib/ranked";
+import { loadPlayerPerformance } from "@/lib/playerPerformance";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,7 @@ type PlayerRow = {
   name: string;
   active: boolean;
   avatar_url: string | null;
+  mmr: number | null;
   prestige_points: number | null;
 };
 
@@ -78,14 +80,20 @@ function rankedFrameClass(tier: number): string {
 
 function formatPrestigePoints(value: number | null): string {
   const points = Number(value ?? 0);
-  if (!Number.isFinite(points) || points <= 0) return "0";
+  if (!Number.isFinite(points) || points <= 0) return "-";
   return String(Math.floor(points));
+}
+
+function formatMmr(value: number | null): string {
+  const mmr = Number(value ?? 0);
+  if (!Number.isFinite(mmr)) return "0.0";
+  return mmr.toFixed(1);
 }
 
 export default async function PlayersPage() {
   const { data, error } = await supabaseServer
     .from("players")
-    .select("id,name,active,avatar_url,prestige_points")
+    .select("id,name,active,avatar_url,mmr,prestige_points")
     .eq("active", true)
     .order("name", { ascending: true });
 
@@ -126,6 +134,20 @@ export default async function PlayersPage() {
   const cooldownByPlayer = new Map<string, { state: CooldownState; hint: string }>();
   for (const player of players) {
     cooldownByPlayer.set(player.id, { state: "ready", hint: "Mozesz teraz wystawic ocene." });
+  }
+
+  const effectiveMmrByPlayer = new Map<string, number>();
+  if (playerIds.length > 0) {
+    try {
+      const perfByPlayer = await loadPlayerPerformance(playerIds);
+      for (const playerId of playerIds) {
+        const perf = perfByPlayer.get(playerId);
+        if (!perf) continue;
+        effectiveMmrByPlayer.set(playerId, perf.effectiveMmr);
+      }
+    } catch {
+      // Keep fallback to stored MMR when performance helper fails.
+    }
   }
 
   let cooldownError: string | null = null;
@@ -192,8 +214,10 @@ export default async function PlayersPage() {
                       className="player-rank-pp"
                       title={tier > 0 ? `Poziom rangi: ${tier}` : "UNRANKED"}
                     >
-                      <span className="player-rank-pp-label">PP</span>
-                      <span className="player-rank-pp-value">{formatPrestigePoints(p.prestige_points)}</span>
+                      <span className="player-rank-pp-label">MMR {formatMmr(effectiveMmrByPlayer.get(p.id) ?? p.mmr)}</span>
+                      <span className="player-rank-pp-value">
+                        Prestige: {formatPrestigePoints(p.prestige_points)} / {tier > 0 ? `P+${tier}` : "Unranked"}
+                      </span>
                     </span>
                     <span
                       title={cooldownByPlayer.get(p.id)?.hint ?? "Status cooldownu niedostepny."}

@@ -1860,9 +1860,9 @@ body {
 .player-rank-pp {
   position: relative;
   display: inline-flex;
-  min-width: 3.65rem;
+  min-width: 10rem;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   border-radius: 0.62rem;
   border: 1px solid color-mix(in oklab, var(--rank-edge), rgba(40, 26, 8, 0.4) 44%);
@@ -1875,19 +1875,20 @@ body {
 }
 
 .player-rank-pp-label {
-  font-size: 0.56rem;
+  font-size: 0.62rem;
   line-height: 1;
-  letter-spacing: 0.09em;
+  letter-spacing: 0.05em;
   font-weight: 780;
   color: rgba(41, 28, 10, 0.68);
 }
 
 .player-rank-pp-value {
   margin-top: 0.14rem;
-  font-size: 0.88rem;
-  line-height: 1;
-  font-weight: 800;
+  font-size: 0.64rem;
+  line-height: 1.15;
+  font-weight: 760;
   color: rgba(26, 18, 8, 0.9);
+  white-space: nowrap;
 }
 
 .player-rank-tier-unranked {
@@ -1957,7 +1958,7 @@ body {
   }
 
   .player-rank-pp {
-    min-width: 3.25rem;
+    min-width: 7.6rem;
   }
 }
 
