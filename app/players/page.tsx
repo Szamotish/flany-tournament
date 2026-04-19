@@ -88,10 +88,6 @@ function rankLabel(rank: MmrRank): string {
   return "Master";
 }
 
-function rankedFrameClass(rank: MmrRank): string {
-  return `player-rank-tier-${rank}`;
-}
-
 function formatMmr(value: number | null): string {
   const mmr = Number(value ?? 0);
   if (!Number.isFinite(mmr)) return "0.0";
@@ -202,28 +198,21 @@ export default async function PlayersPage() {
             const rank = mmrRank(hasFinishedMatch, mmr);
             const prestigePoints = Math.max(0, Math.floor(Number(p.prestige_points ?? 0)));
             const isChallenger = prestigePoints > 0;
-            const frameClass = isChallenger ? "player-rank-tier-challenger" : rankedFrameClass(rank);
             const shownRankLabel = isChallenger ? "Challenger" : rankLabel(rank);
 
             return (
               <Link key={p.id} href={`/players/${p.id}`} className="no-underline">
-                <div
-                  className={`player-rank-card ${frameClass}`}
-                >
+                <div className="player-rank-card">
                   <div className="player-rank-main">
-                    <span className={`player-rank-avatar-wrap ${isChallenger ? "player-rank-avatar-wrap-challenger" : ""}`}>
-                      {isChallenger ? <span className="player-rank-challenger-wings" aria-hidden /> : null}
-                      <span className="player-rank-avatar">
-                        {p.avatar_url ? (
-                          <span
-                            className="block h-full w-full bg-cover bg-center"
-                            style={{ backgroundImage: `url('${p.avatar_url}')` }}
-                          />
-                        ) : (
-                          p.name.slice(0, 1).toUpperCase()
-                        )}
-                      </span>
-                      {isChallenger ? <span className="player-rank-challenger-gem" aria-hidden /> : null}
+                    <span className="inline-grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border bg-white text-sm font-semibold">
+                      {p.avatar_url ? (
+                        <span
+                          className="block h-full w-full bg-cover bg-center"
+                          style={{ backgroundImage: `url('${p.avatar_url}')` }}
+                        />
+                      ) : (
+                        p.name.slice(0, 1).toUpperCase()
+                      )}
                     </span>
                     <span className="truncate font-medium">{p.name}</span>
                   </div>
