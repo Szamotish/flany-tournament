@@ -201,7 +201,9 @@ export default async function PlayersPage() {
             const hasFinishedMatch = hasFinishedMatchByPlayer.get(p.id) ?? mmr > 0;
             const rank = mmrRank(hasFinishedMatch, mmr);
             const prestigePoints = Math.max(0, Math.floor(Number(p.prestige_points ?? 0)));
-            const frameClass = prestigePoints > 0 ? "player-rank-tier-challenger" : rankedFrameClass(rank);
+            const isChallenger = prestigePoints > 0;
+            const frameClass = isChallenger ? "player-rank-tier-challenger" : rankedFrameClass(rank);
+            const shownRankLabel = isChallenger ? "Challenger" : rankLabel(rank);
 
             return (
               <Link key={p.id} href={`/players/${p.id}`} className="no-underline">
@@ -209,15 +211,19 @@ export default async function PlayersPage() {
                   className={`player-rank-card ${frameClass}`}
                 >
                   <div className="player-rank-main">
-                    <span className="inline-grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border bg-white text-sm font-semibold">
-                      {p.avatar_url ? (
-                        <span
-                          className="block h-full w-full bg-cover bg-center"
-                          style={{ backgroundImage: `url('${p.avatar_url}')` }}
-                        />
-                      ) : (
-                        p.name.slice(0, 1).toUpperCase()
-                      )}
+                    <span className={`player-rank-avatar-wrap ${isChallenger ? "player-rank-avatar-wrap-challenger" : ""}`}>
+                      {isChallenger ? <span className="player-rank-challenger-wings" aria-hidden /> : null}
+                      <span className="player-rank-avatar">
+                        {p.avatar_url ? (
+                          <span
+                            className="block h-full w-full bg-cover bg-center"
+                            style={{ backgroundImage: `url('${p.avatar_url}')` }}
+                          />
+                        ) : (
+                          p.name.slice(0, 1).toUpperCase()
+                        )}
+                      </span>
+                      {isChallenger ? <span className="player-rank-challenger-gem" aria-hidden /> : null}
                     </span>
                     <span className="truncate font-medium">{p.name}</span>
                   </div>
@@ -226,11 +232,11 @@ export default async function PlayersPage() {
                     <span className="player-rank-state">{p.active ? "aktywny" : "nieaktywny"}</span>
                     <span
                       className="player-rank-pp"
-                      title={`Ranga: ${rankLabel(rank)}`}
+                      title={`Ranga: ${shownRankLabel}`}
                     >
                       <span className="player-rank-pp-label">MMR {formatMmr(mmr)}</span>
                       <span className="player-rank-pp-value">
-                        Ranga: {rankLabel(rank)}
+                        Ranga: {shownRankLabel}
                       </span>
                     </span>
                     <span

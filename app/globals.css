@@ -1786,13 +1786,17 @@ body {
   --rank-edge: rgba(138, 122, 103, 0.52);
   --rank-accent: rgba(142, 132, 120, 0.56);
   --rank-glow: rgba(80, 65, 47, 0.34);
+  --crest-main: #8d8f95;
+  --crest-light: #d1d5db;
+  --crest-edge: rgba(214, 218, 226, 0.78);
+  --crest-glow: rgba(102, 111, 125, 0.45);
   position: relative;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.72rem;
-  border: 1px solid var(--rank-border);
+  border: 2px solid var(--rank-border);
   border-radius: 0.95rem;
   padding: 0.52rem 0.72rem;
   backdrop-filter: blur(6px);
@@ -1800,8 +1804,8 @@ body {
     linear-gradient(160deg, rgba(255, 255, 255, 0.68) 0%, rgba(242, 250, 255, 0.54) 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.44),
-    0 10px 22px rgba(26, 14, 4, 0.14),
-    0 0 0 1px color-mix(in oklab, var(--rank-edge), transparent 40%);
+    0 12px 24px rgba(26, 14, 4, 0.16),
+    0 0 0 1px color-mix(in oklab, var(--rank-edge), transparent 28%);
   transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
 }
 
@@ -1842,6 +1846,113 @@ body {
   min-width: 0;
   align-items: center;
   gap: 0.72rem;
+}
+
+.player-rank-avatar-wrap {
+  position: relative;
+  display: inline-grid;
+  width: 58px;
+  height: 58px;
+  flex-shrink: 0;
+  place-items: center;
+}
+
+.player-rank-avatar-wrap::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  clip-path: polygon(18% 0, 82% 0, 100% 18%, 100% 82%, 82% 100%, 18% 100%, 0 82%, 0 18%);
+  background: linear-gradient(150deg, var(--crest-light) 0%, var(--crest-main) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.62),
+    0 0 0 2px color-mix(in oklab, var(--crest-edge), transparent 4%),
+    0 8px 16px color-mix(in oklab, var(--crest-glow), transparent 36%);
+  z-index: 0;
+}
+
+.player-rank-avatar-wrap::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border-radius: 10px;
+  clip-path: polygon(16% 0, 84% 0, 100% 16%, 100% 84%, 84% 100%, 16% 100%, 0 84%, 0 16%);
+  border: 2px solid color-mix(in oklab, var(--crest-edge), rgba(255, 255, 255, 0.26) 40%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0));
+  z-index: 1;
+}
+
+.player-rank-avatar {
+  position: relative;
+  z-index: 2;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.86);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: rgba(22, 18, 10, 0.9);
+  box-shadow: 0 4px 10px rgba(18, 14, 8, 0.28);
+}
+
+.player-rank-avatar-wrap-challenger .player-rank-avatar {
+  border-color: rgba(255, 247, 217, 0.95);
+  box-shadow:
+    0 0 0 2px rgba(246, 201, 111, 0.62),
+    0 8px 14px rgba(20, 44, 77, 0.42);
+}
+
+.player-rank-challenger-wings {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.player-rank-challenger-wings::before,
+.player-rank-challenger-wings::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 34px;
+  height: 24px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #dff8ff 0%, #62ccff 46%, #1f7fd0 100%);
+  filter:
+    drop-shadow(0 0 7px rgba(98, 197, 255, 0.86))
+    drop-shadow(0 0 2px rgba(205, 239, 255, 0.76));
+  clip-path: polygon(100% 50%, 40% 8%, 0 0, 28% 50%, 0 100%, 40% 92%);
+}
+
+.player-rank-challenger-wings::before {
+  left: -25px;
+  transform: translateY(-50%) rotate(-12deg);
+}
+
+.player-rank-challenger-wings::after {
+  right: -25px;
+  transform: translateY(-50%) scaleX(-1) rotate(-12deg);
+}
+
+.player-rank-challenger-gem {
+  position: absolute;
+  left: 50%;
+  bottom: -10px;
+  width: 14px;
+  height: 14px;
+  transform: translateX(-50%) rotate(45deg);
+  border-radius: 2px;
+  z-index: 3;
+  background:
+    linear-gradient(145deg, rgba(225, 245, 255, 0.96) 0%, rgba(86, 176, 243, 0.96) 52%, rgba(35, 108, 183, 0.98) 100%);
+  border: 1px solid rgba(198, 236, 255, 0.94);
+  box-shadow:
+    0 0 0 1px rgba(52, 127, 197, 0.62),
+    0 0 10px rgba(103, 194, 255, 0.8);
 }
 
 .player-rank-right {
@@ -1896,6 +2007,10 @@ body {
   --rank-edge: rgba(127, 136, 148, 0.5);
   --rank-accent: rgba(152, 160, 174, 0.42);
   --rank-glow: rgba(74, 84, 96, 0.32);
+  --crest-main: #8e949f;
+  --crest-light: #e1e4ea;
+  --crest-edge: rgba(220, 226, 236, 0.84);
+  --crest-glow: rgba(118, 126, 142, 0.5);
 }
 
 .player-rank-tier-bronze {
@@ -1903,6 +2018,10 @@ body {
   --rank-edge: rgba(176, 123, 72, 0.58);
   --rank-accent: rgba(212, 161, 112, 0.54);
   --rank-glow: rgba(166, 112, 54, 0.4);
+  --crest-main: #95582e;
+  --crest-light: #e1aa7a;
+  --crest-edge: rgba(243, 188, 136, 0.86);
+  --crest-glow: rgba(181, 109, 46, 0.56);
 }
 
 .player-rank-tier-silver {
@@ -1910,6 +2029,10 @@ body {
   --rank-edge: rgba(136, 168, 194, 0.62);
   --rank-accent: rgba(189, 216, 238, 0.58);
   --rank-glow: rgba(116, 147, 173, 0.4);
+  --crest-main: #7f97ac;
+  --crest-light: #dbe8f4;
+  --crest-edge: rgba(224, 238, 250, 0.9);
+  --crest-glow: rgba(122, 154, 184, 0.56);
 }
 
 .player-rank-tier-gold {
@@ -1917,6 +2040,10 @@ body {
   --rank-edge: rgba(205, 166, 73, 0.64);
   --rank-accent: rgba(243, 219, 138, 0.58);
   --rank-glow: rgba(196, 155, 61, 0.42);
+  --crest-main: #9f7422;
+  --crest-light: #f2d98c;
+  --crest-edge: rgba(255, 235, 160, 0.9);
+  --crest-glow: rgba(224, 175, 58, 0.6);
 }
 
 .player-rank-tier-platinum {
@@ -1924,6 +2051,10 @@ body {
   --rank-edge: rgba(109, 166, 214, 0.64);
   --rank-accent: rgba(167, 214, 246, 0.56);
   --rank-glow: rgba(64, 134, 188, 0.42);
+  --crest-main: #4e87b6;
+  --crest-light: #c0e0f7;
+  --crest-edge: rgba(200, 232, 252, 0.9);
+  --crest-glow: rgba(76, 155, 217, 0.62);
 }
 
 .player-rank-tier-emerald {
@@ -1931,6 +2062,10 @@ body {
   --rank-edge: rgba(64, 188, 168, 0.64);
   --rank-accent: rgba(121, 236, 210, 0.56);
   --rank-glow: rgba(36, 176, 151, 0.42);
+  --crest-main: #1f8e79;
+  --crest-light: #b9f0df;
+  --crest-edge: rgba(192, 247, 231, 0.92);
+  --crest-glow: rgba(43, 194, 168, 0.64);
 }
 
 .player-rank-tier-diamond {
@@ -1938,6 +2073,10 @@ body {
   --rank-edge: rgba(76, 140, 232, 0.64);
   --rank-accent: rgba(128, 182, 255, 0.56);
   --rank-glow: rgba(46, 111, 214, 0.42);
+  --crest-main: #305fbf;
+  --crest-light: #b7d6ff;
+  --crest-edge: rgba(205, 227, 255, 0.92);
+  --crest-glow: rgba(67, 133, 242, 0.68);
 }
 
 .player-rank-tier-master {
@@ -1945,6 +2084,10 @@ body {
   --rank-edge: rgba(184, 74, 190, 0.64);
   --rank-accent: rgba(222, 132, 232, 0.54);
   --rank-glow: rgba(157, 62, 176, 0.42);
+  --crest-main: #8f2f9c;
+  --crest-light: #e8b8f2;
+  --crest-edge: rgba(245, 206, 255, 0.92);
+  --crest-glow: rgba(184, 77, 208, 0.68);
 }
 
 .player-rank-tier-challenger {
@@ -1952,6 +2095,10 @@ body {
   --rank-edge: rgba(156, 208, 255, 0.78);
   --rank-accent: rgba(214, 235, 255, 0.72);
   --rank-glow: rgba(92, 181, 255, 0.55);
+  --crest-main: #2c7fcd;
+  --crest-light: #c9ebff;
+  --crest-edge: rgba(228, 246, 255, 0.95);
+  --crest-glow: rgba(111, 197, 255, 0.8);
 }
 
 .player-rank-tier-challenger::after {
