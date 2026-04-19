@@ -11,6 +11,12 @@ type StoreInfo = {
   address?: string;
 };
 
+type StoredStore = {
+  store: StoreInfo;
+  coords: { lat: number; lon: number };
+  ts: number;
+};
+
 type CompassState = "idle" | "loading" | "ready" | "error";
 type OrientationPermissionState = "checking" | "prompt" | "granted" | "denied" | "unsupported";
 
@@ -21,6 +27,10 @@ type OrientationEventIOS = DeviceOrientationEvent & {
 type DeviceOrientationWithPermission = typeof DeviceOrientationEvent & {
   requestPermission?: () => Promise<"granted" | "denied">;
 };
+
+const LAST_STORE_KEY = "mhufh_last_store";
+const STORED_STORE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+const STORED_STORE_MAX_DISTANCE_KM = 25;
 
 function normalizeDeg(value: number): number {
   let v = value % 360;
@@ -61,6 +71,51 @@ function kindLabel(kind: StoreInfo["kind"]): string {
   if (kind === "alcohol") return "Sklep alkoholowy";
   if (kind === "beverages") return "Sklep z napojami";
   return "Sklep";
+}
+
+function readStoredStore(): StoredStore | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(LAST_STORE_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<StoredStore>;
+    if (
+      !parsed ||
+      typeof parsed.ts !== "number" ||
+      !parsed.coords ||
+      typeof parsed.coords.lat !== "number" ||
+      typeof parsed.coords.lon !== "number" ||
+      !parsed.store ||
+      typeof parsed.store.name !== "string" ||
+      typeof parsed.store.lat !== "number" ||
+      typeof parsed.store.lon !== "number" ||
+      typeof parsed.store.distanceKm !== "number"
+    ) {
+      return null;
+    }
+
+    return parsed as StoredStore;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredStore(store: StoreInfo, coords: { lat: number; lon: number }) {
+  if (typeof window === "undefined") return;
+
+  const payload: StoredStore = {
+    store,
+    coords,
+    ts: Date.now(),
+  };
+
+  try {
+    window.localStorage.setItem(LAST_STORE_KEY, JSON.stringify(payload));
+  } catch {
+    // ignore local storage failures
+  }
 }
 
 function getScreenAngle(): number {
@@ -116,10 +171,15 @@ export default function NearbyLiquorCompassCard() {
   const desiredRotationRef = useRef(0);
   const currentRotationRef = useRef(0);
   const rotationVelocityRef = useRef(0);
+  const requestingOrientationRef = useRef(false);
 
   const requestOrientationPermission = useCallback(async () => {
+    if (requestingOrientationRef.current) return;
+    requestingOrientationRef.current = true;
+
     if (typeof DeviceOrientationEvent === "undefined") {
       setOrientationPermission("unsupported");
+      requestingOrientationRef.current = false;
       return;
     }
 
@@ -128,6 +188,7 @@ export default function NearbyLiquorCompassCard() {
     if (typeof ctor.requestPermission !== "function") {
       setOrientationPermission("granted");
       setOrientationEnabled(true);
+      requestingOrientationRef.current = false;
       return;
     }
 
@@ -140,7 +201,10 @@ export default function NearbyLiquorCompassCard() {
         setOrientationPermission("denied");
       }
     } catch {
-      setOrientationPermission("denied");
+      // Sometimes Safari throws when gesture context is lost; keep prompt and retry on next tap.
+      setOrientationPermission("prompt");
+    } finally {
+      requestingOrientationRef.current = false;
     }
   }, []);
 
@@ -247,6 +311,24 @@ export default function NearbyLiquorCompassCard() {
             setError(null);
             return;
           }
+
+          const stored = readStoredStore();
+          if (stored && Date.now() - stored.ts <= STORED_STORE_MAX_AGE_MS) {
+            const distanceFromSavedArea = haversineKm(
+              currentCoords.lat,
+              currentCoords.lon,
+              stored.coords.lat,
+              stored.coords.lon
+            );
+            if (distanceFromSavedArea <= STORED_STORE_MAX_DISTANCE_KM) {
+              setStore(stored.store);
+              lastGoodStoreRef.current = stored.store;
+              setState("ready");
+              setError(null);
+              return;
+            }
+          }
+
           setState("error");
           setError(`Blad wyszukiwania sklepu (${json.error ?? res.statusText}).`);
           return;
@@ -262,6 +344,7 @@ export default function NearbyLiquorCompassCard() {
 
         setStore(json.store);
         lastGoodStoreRef.current = json.store;
+        writeStoredStore(json.store, currentCoords);
         setState("ready");
         setError(null);
       } catch {
@@ -272,6 +355,24 @@ export default function NearbyLiquorCompassCard() {
           setError(null);
           return;
         }
+
+        const stored = readStoredStore();
+        if (stored && Date.now() - stored.ts <= STORED_STORE_MAX_AGE_MS) {
+          const distanceFromSavedArea = haversineKm(
+            currentCoords.lat,
+            currentCoords.lon,
+            stored.coords.lat,
+            stored.coords.lon
+          );
+          if (distanceFromSavedArea <= STORED_STORE_MAX_DISTANCE_KM) {
+            setStore(stored.store);
+            lastGoodStoreRef.current = stored.store;
+            setState("ready");
+            setError(null);
+            return;
+          }
+        }
+
         setState("error");
         setError("Nie udalo sie pobrac danych o sklepie.");
       }

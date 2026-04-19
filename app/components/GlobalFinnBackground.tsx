@@ -71,6 +71,14 @@ export default function GlobalFinnBackground() {
 
   useEffect(() => {
     const root = document.documentElement;
+    const isFinePointer = window.matchMedia("(pointer: fine)").matches;
+
+    if (!isFinePointer) {
+      root.style.setProperty("--finn-look-x", "0");
+      root.style.setProperty("--finn-look-y", "0");
+      return;
+    }
+
     let targetX = 0;
     let targetY = 0;
     let currentX = 0;
@@ -112,12 +120,6 @@ export default function GlobalFinnBackground() {
       updateTarget(event.clientX, event.clientY);
     };
 
-    const handleTouchMove = (event: TouchEvent) => {
-      const touch = event.touches[0];
-      if (!touch) return;
-      updateTarget(touch.clientX, touch.clientY);
-    };
-
     const handleLeave = () => {
       targetX = 0;
       targetY = 0;
@@ -127,13 +129,11 @@ export default function GlobalFinnBackground() {
     window.addEventListener("pointermove", handlePointerMove, {
       passive: true,
     });
-    window.addEventListener("touchmove", handleTouchMove, { passive: true });
     window.addEventListener("pointerleave", handleLeave);
     window.addEventListener("blur", handleLeave);
 
     return () => {
       window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("touchmove", handleTouchMove);
       window.removeEventListener("pointerleave", handleLeave);
       window.removeEventListener("blur", handleLeave);
       if (raf) {

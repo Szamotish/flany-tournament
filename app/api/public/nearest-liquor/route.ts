@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 type OverpassElement = {
   type: "node" | "way" | "relation";
   id: number;
@@ -31,7 +33,11 @@ type CacheEntry = {
 const SHOP_FILTER = "alcohol|beverages|convenience|supermarket|grocery|greengrocer|mini_market";
 const OVERPASS_ENDPOINTS = [
   "https://overpass-api.de/api/interpreter",
+  "https://lz4.overpass-api.de/api/interpreter",
+  "https://z.overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.openstreetmap.ru/cgi/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
 ] as const;
 const OVERPASS_TIMEOUT_MS = 8000;
 const OVERPASS_ATTEMPTS_PER_ENDPOINT = 2;
@@ -108,7 +114,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 function buildSearchRadii(maxRadiusM: number): number[] {
-  const steps = [3000, 7000, maxRadiusM]
+  const steps = [1500, 3500, 7000, maxRadiusM]
     .map((r) => Math.min(r, maxRadiusM))
     .filter((r) => r >= 1000);
   return [...new Set(steps)].sort((a, b) => a - b);
@@ -120,7 +126,6 @@ function buildOverpassQuery(lat: number, lon: number, radiusM: number): string {
 (
   node(around:${radiusM},${lat},${lon})["shop"~"${SHOP_FILTER}"];
   way(around:${radiusM},${lat},${lon})["shop"~"${SHOP_FILTER}"];
-  relation(around:${radiusM},${lat},${lon})["shop"~"${SHOP_FILTER}"];
 );
 out center tags qt;
 `;
@@ -135,13 +140,39 @@ async function fetchOverpass(query: string): Promise<{ elements?: OverpassElemen
       const timeout = setTimeout(() => controller.abort(), OVERPASS_TIMEOUT_MS);
 
       try {
-        const res = await fetch(endpoint, {
+        const headers = {
+          "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+          accept: "application/json,text/plain;q=0.9,*/*;q=0.8",
+          "user-agent": "flany-tournament/1.0 (contact: admin@flany-tournament.com)",
+        };
+
+        let res = await fetch(endpoint, {
           method: "POST",
-          headers: { "content-type": "application/x-www-form-urlencoded; charset=UTF-8" },
+          headers,
           body: new URLSearchParams({ data: query }),
           cache: "no-store",
           signal: controller.signal,
         });
+
+        if (!res.ok) {
+          const altController = new AbortController();
+          const altTimeout = setTimeout(() => altController.abort(), OVERPASS_TIMEOUT_MS);
+
+          try {
+            const url = `${endpoint}?${new URLSearchParams({ data: query }).toString()}`;
+            res = await fetch(url, {
+              method: "GET",
+              headers: {
+                accept: "application/json,text/plain;q=0.9,*/*;q=0.8",
+                "user-agent": "flany-tournament/1.0 (contact: admin@flany-tournament.com)",
+              },
+              cache: "no-store",
+              signal: altController.signal,
+            });
+          } finally {
+            clearTimeout(altTimeout);
+          }
+        }
 
         if (!res.ok) {
           throw new Error(`overpass_status_${res.status}`);

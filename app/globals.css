@@ -199,6 +199,12 @@ body {
   );
 }
 
+@media (max-width: 980px) {
+  .finn-bg-art.is-beer .finn-eye {
+    display: none;
+  }
+}
+
 @media (min-width: 980px) {
   .finn-bg-art.is-bmo {
     width: min(77vw, calc(100vh * 0.87));
