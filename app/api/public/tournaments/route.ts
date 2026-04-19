@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { supabasePublic } from "@/lib/supabasePublic";
+import { supabaseServer } from "@/lib/supabaseServer";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const { data, error } = await supabasePublic
-    .from("tournaments_public")
-    .select("id,name,created_at,format,bo_default,bo_finals")
+  const { data, error } = await supabaseServer
+    .from("tournaments")
+    .select("id,name,created_at,format,mode,bo_default,bo_finals")
     .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -9,6 +9,7 @@ type TournamentRow = {
   name: string;
   created_at: string;
   format: "single_elim" | "double_elim" | null;
+  mode: "normal" | "ranked" | null;
   bo_default: number | null;
   bo_finals: number | null;
 };
@@ -39,8 +40,8 @@ function parsePlayerBrief(value: unknown): PlayerBrief | null {
 
 export default async function TournamentsPage() {
   const { data, error } = await supabaseServer
-    .from("tournaments_public")
-    .select("id,name,created_at,format,bo_default,bo_finals")
+    .from("tournaments")
+    .select("id,name,created_at,format,mode,bo_default,bo_finals")
     .order("created_at", { ascending: false });
 
   const tournaments = (data ?? []) as TournamentRow[];
@@ -139,6 +140,7 @@ export default async function TournamentsPage() {
                     <div>
                       <p className="tour-card-title">{t.name}</p>
                       <p className="tour-card-sub">
+                        {t.mode === "ranked" ? "Ranked" : "Normal"} -{" "}
                         {t.format === "double_elim" ? "Double elimination" : "Single elimination"} - BO
                         {t.bo_default} / final BO{t.bo_finals}
                       </p>

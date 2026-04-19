@@ -4,6 +4,75 @@ import { assertTournamentAdmin } from "@/app/api/admin/tournaments/_auth";
 import { propagateFromMatch } from "@/lib/matches/propagate";
 import { autoAdvanceSingleElim } from "@/lib/matches/autoAdvanceSingle";
 import { nextStepDoubleElim } from "@/lib/matches/nextStepDouble";
+import {
+  applyRankedDelta,
+  normalizeMode,
+  parseRankedState,
+  RANKED_MATCH_LOSS_DELTA,
+  RANKED_MATCH_WIN_DELTA,
+  RANKED_TOURNAMENT_WIN_BONUS,
+} from "@/lib/ranked";
+
+async function mapTeamPlayers(teamIds: string[]): Promise<Map<string, string[]>> {
+  const uniqueTeamIds = Array.from(new Set(teamIds.filter(Boolean)));
+  const result = new Map<string, string[]>();
+
+  if (uniqueTeamIds.length === 0) return result;
+
+  const { data: members, error } = await supabaseServer
+    .from("team_members")
+    .select("team_id,player_id")
+    .in("team_id", uniqueTeamIds);
+
+  if (error) throw new Error(`ranked_team_members_failed: ${error.message}`);
+
+  for (const row of members ?? []) {
+    const teamId = String(row.team_id ?? "");
+    const playerId = String(row.player_id ?? "");
+    if (!teamId || !playerId) continue;
+    const current = result.get(teamId) ?? [];
+    current.push(playerId);
+    result.set(teamId, current);
+  }
+
+  return result;
+}
+
+async function applyDeltaToPlayers(playerIds: string[], delta: number): Promise<void> {
+  const uniquePlayerIds = Array.from(new Set(playerIds.filter(Boolean)));
+  if (uniquePlayerIds.length === 0) return;
+
+  const { data: players, error: playersErr } = await supabaseServer
+    .from("players")
+    .select("id,mmr,prestige_points")
+    .in("id", uniquePlayerIds);
+
+  if (playersErr) throw new Error(`ranked_players_load_failed: ${playersErr.message}`);
+
+  const updates = (players ?? []).map((row) => {
+    const state = parseRankedState(row);
+    const next = applyRankedDelta(state, delta);
+    return {
+      id: String(row.id),
+      mmr: next.mmr,
+      prestige_points: next.prestigePoints,
+    };
+  });
+
+  if (updates.length === 0) return;
+
+  const { error: updateErr } = await supabaseServer.from("players").upsert(updates, {
+    onConflict: "id",
+  });
+
+  if (updateErr) throw new Error(`ranked_players_update_failed: ${updateErr.message}`);
+}
+
+async function applyDeltaToTeams(teamIds: string[], delta: number): Promise<void> {
+  const teamPlayersMap = await mapTeamPlayers(teamIds);
+  const playerIds = Array.from(teamPlayersMap.values()).flat();
+  await applyDeltaToPlayers(playerIds, delta);
+}
 
 export async function POST(
   req: Request,
@@ -31,7 +100,7 @@ export async function POST(
 
   const { data: m, error: mErr } = await supabaseServer
     .from("tournament_matches")
-    .select("id,tournament_id,bo,team_a_id,team_b_id,status")
+    .select("id,tournament_id,bo,team_a_id,team_b_id,status,winner_team_id")
     .eq("id", matchId)
     .single();
 
@@ -44,6 +113,7 @@ export async function POST(
   }
 
   const need = Math.floor(Number(m.bo) / 2) + 1;
+  const wasFinishedBefore = m.status === "finished" && typeof m.winner_team_id === "string" && m.winner_team_id.length > 0;
   const finished = scoreA >= need || scoreB >= need;
 
   let winner: string | null = null;
@@ -84,11 +154,26 @@ export async function POST(
   try {
     const { data: t, error: tErr } = await supabaseServer
       .from("tournaments")
-      .select("id,format,gf_reset_enabled")
+      .select("id,format,gf_reset_enabled,mode")
       .eq("id", tournamentId)
       .single();
 
     if (tErr) throw new Error(tErr.message);
+    const tournamentMode = normalizeMode((t as { mode?: unknown }).mode);
+
+    if (
+      tournamentMode === "ranked" &&
+      updated.status === "finished" &&
+      updated.winner_team_id &&
+      !wasFinishedBefore
+    ) {
+      const winnerTeamId = String(updated.winner_team_id);
+      const loserTeamId = winnerTeamId === m.team_a_id ? m.team_b_id : m.team_a_id;
+      await applyDeltaToTeams([winnerTeamId], RANKED_MATCH_WIN_DELTA);
+      if (loserTeamId) {
+        await applyDeltaToTeams([loserTeamId], RANKED_MATCH_LOSS_DELTA);
+      }
+    }
 
     if (updated.status === "finished" && updated.winner_team_id) {
       if (t.format === "single_elim") {
@@ -98,7 +183,17 @@ export async function POST(
       }
     }
 
-    async function saveResults(championId: string, runnerUpId: string) {     
+    async function saveResults(championId: string, runnerUpId: string) {
+      const { data: existingChampion, error: existingErr } = await supabaseServer
+        .from("tournament_results")
+        .select("team_id")
+        .eq("tournament_id", tournamentId)
+        .eq("placement", 1)
+        .maybeSingle();
+
+      if (existingErr) throw new Error(existingErr.message);
+      const hadChampionBefore = Boolean(existingChampion?.team_id);
+
       const { error: delErr } = await supabaseServer
         .from("tournament_results")
         .delete()
@@ -115,6 +210,10 @@ export async function POST(
         ]);
 
       if (insErr) throw new Error(insErr.message);
+
+      if (tournamentMode === "ranked" && !hadChampionBefore) {
+        await applyDeltaToTeams([championId], RANKED_TOURNAMENT_WIN_BONUS);
+      }
     }
 
     if (t.format === "single_elim") {

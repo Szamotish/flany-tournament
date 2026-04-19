@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { trimmedMean } from "@/lib/rating";
+import { PRESTIGE_POINTS_PER_MMR } from "@/lib/ranked";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,8 @@ type PlayerRow = {
   name: string;
   active: boolean;
   avatar_url: string | null;
+  mmr: number | null;
+  prestige_points: number | null;
 };
 
 type CooldownState = "ready" | "cooldown" | "soon";
@@ -62,10 +65,35 @@ function formatAverage(value: number | null): string {
   return value.toFixed(1);
 }
 
+function prestigeTier(pointsValue: number | null): number {
+  const points = Number(pointsValue ?? 0);
+  if (!Number.isFinite(points) || points <= 0) return 0;
+  return Math.floor(points / PRESTIGE_POINTS_PER_MMR);
+}
+
+function rankedFrameClass(tier: number): string {
+  if (tier <= 0) return "border-zinc-800/60";
+  const tones = [
+    "border-emerald-600/90",
+    "border-sky-600/90",
+    "border-violet-600/90",
+    "border-amber-600/90",
+    "border-rose-600/90",
+    "border-lime-600/90",
+  ];
+  return tones[(tier - 1) % tones.length];
+}
+
+function formatMmr(value: number | null): string {
+  const mmr = Number(value ?? 0);
+  if (!Number.isFinite(mmr)) return "0.0";
+  return mmr.toFixed(1);
+}
+
 export default async function PlayersPage() {
   const { data, error } = await supabaseServer
     .from("players")
-    .select("id,name,active,avatar_url")
+    .select("id,name,active,avatar_url,mmr,prestige_points")
     .eq("active", true)
     .order("name", { ascending: true });
 
@@ -144,40 +172,54 @@ export default async function PlayersPage() {
         <p className="mt-3 text-sm opacity-70">Brak zawodnikow.</p>
       ) : (
         <div className="mt-4 grid gap-2 md:grid-cols-2">
-          {players.map((p) => (
-            <Link key={p.id} href={`/players/${p.id}`} className="no-underline">
-              <div className="flex items-center justify-between gap-3 rounded-xl border bg-white/60 px-3 py-2 backdrop-blur-sm transition hover:bg-white/80">
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="inline-grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border bg-white text-sm font-semibold">
-                    {p.avatar_url ? (
-                      <span
-                        className="block h-full w-full bg-cover bg-center"
-                        style={{ backgroundImage: `url('${p.avatar_url}')` }}
-                      />
-                    ) : (
-                      p.name.slice(0, 1).toUpperCase()
-                    )}
-                  </span>
-                  <span className="truncate font-medium">{p.name}</span>
-                </div>
+          {players.map((p) => {
+            const tier = prestigeTier(p.prestige_points);
 
-                <div className="flex items-center gap-2">
-                  <span className="text-xs opacity-70">{p.active ? "aktywny" : "nieaktywny"}</span>
-                  <span
-                    title={cooldownByPlayer.get(p.id)?.hint ?? "Status cooldownu niedostepny."}
-                    className={`inline-flex h-12 min-w-[3.6rem] flex-col items-center justify-center rounded-lg border px-2 ${badgeTone(
-                      cooldownByPlayer.get(p.id)?.state ?? "ready"
-                    )}`}
-                  >
-                    <span className="text-sm font-extrabold leading-none">{formatAverage(averageRatingByPlayer.get(p.id) ?? null)}</span>
-                    <span className="text-[0.58rem] font-semibold uppercase tracking-[0.08em] leading-none mt-1">
-                      {badgeLabel(cooldownByPlayer.get(p.id)?.state ?? "ready")}
+            return (
+              <Link key={p.id} href={`/players/${p.id}`} className="no-underline">
+                <div
+                  className={`flex items-center justify-between gap-3 rounded-xl border-2 bg-white/60 px-3 py-2 backdrop-blur-sm transition hover:bg-white/80 ${rankedFrameClass(tier)}`}
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="inline-grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border bg-white text-sm font-semibold">
+                      {p.avatar_url ? (
+                        <span
+                          className="block h-full w-full bg-cover bg-center"
+                          style={{ backgroundImage: `url('${p.avatar_url}')` }}
+                        />
+                      ) : (
+                        p.name.slice(0, 1).toUpperCase()
+                      )}
                     </span>
-                  </span>
+                    <span className="truncate font-medium">{p.name}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs opacity-70">{p.active ? "aktywny" : "nieaktywny"}</span>
+                    <span className="inline-flex min-w-[4.25rem] flex-col items-center justify-center rounded-lg border border-slate-700/40 bg-slate-50/80 px-2 py-1 text-slate-900">
+                      <span className="text-xs font-extrabold leading-none">MMR {formatMmr(p.mmr)}</span>
+                      <span className="mt-1 text-[0.58rem] font-semibold uppercase tracking-[0.08em] leading-none">
+                        {tier > 0 ? `P+${tier}` : "BASE"}
+                      </span>
+                    </span>
+                    <span
+                      title={cooldownByPlayer.get(p.id)?.hint ?? "Status cooldownu niedostepny."}
+                      className={`inline-flex h-12 min-w-[3.6rem] flex-col items-center justify-center rounded-lg border px-2 ${badgeTone(
+                        cooldownByPlayer.get(p.id)?.state ?? "ready"
+                      )}`}
+                    >
+                      <span className="text-sm font-extrabold leading-none">
+                        {formatAverage(averageRatingByPlayer.get(p.id) ?? null)}
+                      </span>
+                      <span className="text-[0.58rem] font-semibold uppercase tracking-[0.08em] leading-none mt-1">
+                        {badgeLabel(cooldownByPlayer.get(p.id)?.state ?? "ready")}
+                      </span>
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
         </div>
       )}
 

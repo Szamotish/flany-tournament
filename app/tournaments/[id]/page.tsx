@@ -80,8 +80,8 @@ export default async function TournamentPage({
     { data: matchRows, error: matchesErr },
   ] = await Promise.all([
     supabaseServer
-      .from("tournaments_public")
-      .select("id,name,created_at,format,bo_default,bo_finals")
+      .from("tournaments")
+      .select("id,name,created_at,format,mode,bo_default,bo_finals")
       .eq("id", id)
       .maybeSingle(),
     supabaseServer
@@ -243,7 +243,7 @@ export default async function TournamentPage({
                 <section className="tour-detail-main">
                   <h1 className="tour-title">{t.name}</h1>
                   <p className="tour-muted mt-1">
-                    Format: {t.format} - BO{t.bo_default} - final BO{t.bo_finals}
+                    Tryb: {t.mode === "ranked" ? "ranked" : "normal"} - Format: {t.format} - BO{t.bo_default} - final BO{t.bo_finals}
                   </p>
 
                   <div className="tour-actions mt-4">

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { assertMainAdmin } from "@/app/api/admin/_auth";
+import { normalizeMode } from "@/lib/ranked";
 
 export async function POST(req: Request) {
   if (!assertMainAdmin(req)) {
@@ -11,6 +12,7 @@ export async function POST(req: Request) {
 
   const name = String(body?.name ?? "").trim();
   const format = body?.format === "double_elim" ? "double_elim" : "single_elim";
+  const mode = normalizeMode(body?.mode);
   const boDefault = Number(body?.boDefault ?? 1);
   const boFinals = Number(body?.boFinals ?? 3);
   const gfResetEnabled = Boolean(body?.gfResetEnabled ?? false);
@@ -39,6 +41,7 @@ export async function POST(req: Request) {
     .insert({
       name,
       format,
+      mode,
       bo_default: boDefault,
       bo_finals: boFinals,
       gf_reset_enabled: format === "double_elim" ? gfResetEnabled : false,

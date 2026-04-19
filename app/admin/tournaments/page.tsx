@@ -9,6 +9,7 @@ type Tournament = {
   name: string;
   created_at: string;
   format: "single_elim" | "double_elim";
+  mode: "normal" | "ranked";
   bo_default: 1 | 3 | 5;
   bo_finals: 1 | 3 | 5;
 };
@@ -27,6 +28,7 @@ export default function AdminTournamentsPage() {
   const [name, setName] = useState("");
   const [newPlayerName, setNewPlayerName] = useState("");
   const [format, setFormat] = useState<"single_elim" | "double_elim">("double_elim");
+  const [mode, setMode] = useState<"normal" | "ranked">("normal");
   const [boDefault, setBoDefault] = useState<1 | 3 | 5>(1);
   const [boFinals, setBoFinals] = useState<1 | 3 | 5>(3);
   const [gfResetEnabled, setGfResetEnabled] = useState(true);
@@ -101,6 +103,7 @@ export default function AdminTournamentsPage() {
       body: JSON.stringify({
         name,
         format,
+        mode,
         boDefault,
         boFinals,
         gfResetEnabled,
@@ -118,6 +121,7 @@ export default function AdminTournamentsPage() {
 
     setMsg("Turniej zostal utworzony.");
     setName("");
+    setMode("normal");
     setLocalAdminPassword("");
     setSelected({});
     await loadTournaments();
@@ -307,6 +311,23 @@ export default function AdminTournamentsPage() {
                 </div>
 
                 <div>
+                  <label className="tour-admin-label">Tryb</label>
+                  <select
+                    className="tour-admin-input"
+                    value={mode}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === "normal" || value === "ranked") {
+                        setMode(value);
+                      }
+                    }}
+                  >
+                    <option value="normal">Normal</option>
+                    <option value="ranked">Ranked</option>
+                  </select>
+                </div>
+
+                <div>
                   <label className="tour-admin-label">BO domyslne</label>
                   <select
                     className="tour-admin-input"
@@ -477,7 +498,7 @@ export default function AdminTournamentsPage() {
                       <div>
                         <p className="tour-card-title">{t.name}</p>
                         <p className="tour-card-sub">
-                          {t.format} - BO{t.bo_default} - final BO{t.bo_finals}
+                          {t.mode === "ranked" ? "ranked" : "normal"} - {t.format} - BO{t.bo_default} - final BO{t.bo_finals}
                         </p>
                       </div>
                       <div className="tour-admin-actions">

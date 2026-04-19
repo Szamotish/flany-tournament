@@ -5,6 +5,7 @@ import { trimmedMean } from "@/lib/rating";
 import { supabaseServer } from "@/lib/supabaseServer";
 import TrophyIcon from "@/app/components/TrophyIcon";
 import BackNavButton from "@/app/components/BackNavButton";
+import { PRESTIGE_POINTS_PER_MMR } from "@/lib/ranked";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,18 @@ function parsePlayerBrief(value: unknown): PlayerBrief | null {
   return { id: player.id, name: player.name };
 }
 
+function prestigeTier(pointsValue: number | null): number {
+  const points = Number(pointsValue ?? 0);
+  if (!Number.isFinite(points) || points <= 0) return 0;
+  return Math.floor(points / PRESTIGE_POINTS_PER_MMR);
+}
+
+function prestigeColor(tier: number): string {
+  if (tier <= 0) return "rgba(80, 48, 8, 0.24)";
+  const tones = ["#059669", "#0284c7", "#7c3aed", "#d97706", "#e11d48", "#65a30d"];
+  return tones[(tier - 1) % tones.length];
+}
+
 export default async function PlayerPage({
   params,
 }: {
@@ -53,7 +66,7 @@ export default async function PlayerPage({
 
   const { data: player, error: playerErr } = await supabaseServer
     .from("players")
-    .select("id,name,active,avatar_url")
+    .select("id,name,active,avatar_url,mmr,prestige_points")
     .eq("id", playerId)
     .maybeSingle();
 
@@ -191,6 +204,9 @@ export default async function PlayerPage({
   }
 
   const trophies = history.filter((h) => h.placement === 1);
+  const rankedTier = prestigeTier(Number(player.prestige_points ?? 0));
+  const rankedMmr = Number(player.mmr ?? 0);
+  const rankedPrestigePoints = Math.max(0, Number(player.prestige_points ?? 0));
 
   return (
     <main className="player-profile-root">
@@ -224,6 +240,18 @@ export default async function PlayerPage({
               <span className="profile-rating-scale">/10</span>
             </div>
             <p className="profile-muted mt-1">Liczba ocen: {ratingValues.length}</p>
+            <div className="mt-2 flex items-center gap-2">
+              <span className="profile-rating-chip">MMR {Number.isFinite(rankedMmr) ? rankedMmr.toFixed(1) : "0.0"}</span>
+              <span
+                className="profile-rating-chip"
+                style={{
+                  borderColor: prestigeColor(rankedTier),
+                }}
+              >
+                {rankedTier > 0 ? `Prestige +${rankedTier}` : "Prestige 0"}
+              </span>
+            </div>
+            <p className="profile-muted mt-1">Punkty prestige: {Number.isFinite(rankedPrestigePoints) ? rankedPrestigePoints : 0}</p>
             {ratingsErr && <p className="profile-muted mt-1">Blad ocen: {ratingsErr.message}</p>}
             {membershipsErr && <p className="profile-muted mt-1">Blad historii: {membershipsErr.message}</p>}
           </div>
