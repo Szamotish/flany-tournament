@@ -6,6 +6,7 @@ import { supabaseServer } from "@/lib/supabaseServer";
 import TrophyIcon from "@/app/components/TrophyIcon";
 import BackNavButton from "@/app/components/BackNavButton";
 import { PRESTIGE_POINTS_PER_MMR } from "@/lib/ranked";
+import { loadPlayerPerformance } from "@/lib/playerPerformance";
 
 export const dynamic = "force-dynamic";
 
@@ -204,8 +205,11 @@ export default async function PlayerPage({
   }
 
   const trophies = history.filter((h) => h.placement === 1);
+  const perfByPlayer = await loadPlayerPerformance([playerId]);
+  const perf = perfByPlayer.get(playerId);
+
   const rankedTier = prestigeTier(Number(player.prestige_points ?? 0));
-  const rankedMmr = Number(player.mmr ?? 0);
+  const rankedMmr = Number(perf?.effectiveMmr ?? player.mmr ?? 0);
   const rankedPrestigePoints = Math.max(0, Number(player.prestige_points ?? 0));
 
   return (

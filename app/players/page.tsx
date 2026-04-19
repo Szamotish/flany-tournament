@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { trimmedMean } from "@/lib/rating";
 import { PRESTIGE_POINTS_PER_MMR } from "@/lib/ranked";
+import { loadPlayerPerformance } from "@/lib/playerPerformance";
 
 export const dynamic = "force-dynamic";
 
@@ -136,6 +137,21 @@ export default async function PlayersPage() {
     cooldownByPlayer.set(player.id, { state: "ready", hint: "Mozesz teraz wystawic ocene." });
   }
 
+  const effectiveMmrByPlayer = new Map<string, number>();
+  let performanceError: string | null = null;
+  if (playerIds.length > 0) {
+    try {
+      const perfByPlayer = await loadPlayerPerformance(playerIds);
+      for (const playerId of playerIds) {
+        const perf = perfByPlayer.get(playerId);
+        if (!perf) continue;
+        effectiveMmrByPlayer.set(playerId, perf.effectiveMmr);
+      }
+    } catch (e: unknown) {
+      performanceError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
   let cooldownError: string | null = null;
   const deviceId = (await cookies()).get("device_id")?.value ?? null;
 
@@ -197,9 +213,11 @@ export default async function PlayersPage() {
                   <div className="flex items-center gap-2">
                     <span className="text-xs opacity-70">{p.active ? "aktywny" : "nieaktywny"}</span>
                     <span className="inline-flex min-w-[4.25rem] flex-col items-center justify-center rounded-lg border border-slate-700/40 bg-slate-50/80 px-2 py-1 text-slate-900">
-                      <span className="text-xs font-extrabold leading-none">MMR {formatMmr(p.mmr)}</span>
+                      <span className="text-xs font-extrabold leading-none">
+                        MMR {formatMmr(effectiveMmrByPlayer.get(p.id) ?? p.mmr)}
+                      </span>
                       <span className="mt-1 text-[0.58rem] font-semibold uppercase tracking-[0.08em] leading-none">
-                        {tier > 0 ? `P+${tier}` : "BASE"}
+                        {tier > 0 ? `P+${tier}` : "UNRANKED"}
                       </span>
                     </span>
                     <span
@@ -225,6 +243,7 @@ export default async function PlayersPage() {
 
       {ratingsError ? <p className="mt-3 text-xs text-red-600">Blad ocen: {ratingsError}</p> : null}
       {cooldownError ? <p className="mt-1 text-xs text-red-600">Blad cooldownu: {cooldownError}</p> : null}
+      {performanceError ? <p className="mt-1 text-xs text-red-600">Blad MMR: {performanceError}</p> : null}
     </main>
   );
 }

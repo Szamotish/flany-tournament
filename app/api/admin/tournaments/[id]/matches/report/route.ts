@@ -7,11 +7,11 @@ import { nextStepDoubleElim } from "@/lib/matches/nextStepDouble";
 import {
   applyRankedDelta,
   normalizeMode,
-  parseRankedState,
   RANKED_MATCH_LOSS_DELTA,
   RANKED_MATCH_WIN_DELTA,
   RANKED_TOURNAMENT_WIN_BONUS,
 } from "@/lib/ranked";
+import { loadPlayerPerformance } from "@/lib/playerPerformance";
 
 async function mapTeamPlayers(teamIds: string[]): Promise<Map<string, string[]>> {
   const uniqueTeamIds = Array.from(new Set(teamIds.filter(Boolean)));
@@ -38,22 +38,34 @@ async function mapTeamPlayers(teamIds: string[]): Promise<Map<string, string[]>>
   return result;
 }
 
-async function applyDeltaToPlayers(playerIds: string[], delta: number): Promise<void> {
+async function applyDeltaToPlayers(
+  playerIds: string[],
+  delta: number,
+  options?: { excludeMatchId?: string }
+): Promise<void> {
   const uniquePlayerIds = Array.from(new Set(playerIds.filter(Boolean)));
   if (uniquePlayerIds.length === 0) return;
 
-  const { data: players, error: playersErr } = await supabaseServer
-    .from("players")
-    .select("id,mmr,prestige_points")
-    .in("id", uniquePlayerIds);
+  const perfByPlayer = await loadPlayerPerformance(uniquePlayerIds, {
+    excludeMatchId: options?.excludeMatchId,
+  });
 
-  if (playersErr) throw new Error(`ranked_players_load_failed: ${playersErr.message}`);
-
-  const updates = (players ?? []).map((row) => {
-    const state = parseRankedState(row);
+  const updates = uniquePlayerIds.map((playerId) => {
+    const perf = perfByPlayer.get(playerId);
+    if (!perf) {
+      return {
+        id: playerId,
+        mmr: 0,
+        prestige_points: 0,
+      };
+    }
+    const state = {
+      mmr: perf.effectiveMmr,
+      prestigePoints: perf.prestigePoints,
+    };
     const next = applyRankedDelta(state, delta);
     return {
-      id: String(row.id),
+      id: playerId,
       mmr: next.mmr,
       prestige_points: next.prestigePoints,
     };
@@ -68,10 +80,14 @@ async function applyDeltaToPlayers(playerIds: string[], delta: number): Promise<
   if (updateErr) throw new Error(`ranked_players_update_failed: ${updateErr.message}`);
 }
 
-async function applyDeltaToTeams(teamIds: string[], delta: number): Promise<void> {
+async function applyDeltaToTeams(
+  teamIds: string[],
+  delta: number,
+  options?: { excludeMatchId?: string }
+): Promise<void> {
   const teamPlayersMap = await mapTeamPlayers(teamIds);
   const playerIds = Array.from(teamPlayersMap.values()).flat();
-  await applyDeltaToPlayers(playerIds, delta);
+  await applyDeltaToPlayers(playerIds, delta, options);
 }
 
 export async function POST(
@@ -169,9 +185,9 @@ export async function POST(
     ) {
       const winnerTeamId = String(updated.winner_team_id);
       const loserTeamId = winnerTeamId === m.team_a_id ? m.team_b_id : m.team_a_id;
-      await applyDeltaToTeams([winnerTeamId], RANKED_MATCH_WIN_DELTA);
+      await applyDeltaToTeams([winnerTeamId], RANKED_MATCH_WIN_DELTA, { excludeMatchId: matchId });
       if (loserTeamId) {
-        await applyDeltaToTeams([loserTeamId], RANKED_MATCH_LOSS_DELTA);
+        await applyDeltaToTeams([loserTeamId], RANKED_MATCH_LOSS_DELTA, { excludeMatchId: matchId });
       }
     }
 

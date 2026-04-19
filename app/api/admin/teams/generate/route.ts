@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { generateTeams } from "@/lib/teams";
 import { assertMainAdmin } from "@/app/api/admin/_auth";
+import { loadPlayerPerformance } from "@/lib/playerPerformance";
 
 export async function POST(req: Request) {
   if (!assertMainAdmin(req)) {
@@ -39,28 +40,14 @@ export async function POST(req: Request) {
   }
 
   const ids = players.map((p) => p.id);
-
-  const { data: avgRows, error: avgErr } = await supabaseServer
-    .from("ratings")
-    .select("rated_player_id, value")
-    .in("rated_player_id", ids);
-
-  if (avgErr) {
-    return NextResponse.json({ error: avgErr.message }, { status: 500 });
-  }
-
-  const map: Record<string, number[]> = {};
-  for (const r of avgRows ?? []) {
-    const key = r.rated_player_id as string;
-    map[key] = map[key] ?? [];
-    map[key].push(Number(r.value));
-  }
+  const perfByPlayer = await loadPlayerPerformance(ids);
 
   const playersWithStrength = players.map((p) => {
-    const arr = map[p.id] ?? [];
-    const avg =
-      arr.length === 0 ? 5 : arr.reduce((a, b) => a + b, 0) / arr.length;
-    return { id: p.id, name: p.name, strength: avg };
+    const perf = perfByPlayer.get(p.id);
+    const rating = perf?.rating ?? 5;
+    const effectiveMmr = perf?.effectiveMmr ?? rating;
+    const blendedStrength = (rating + effectiveMmr) / 2;
+    return { id: p.id, name: p.name, strength: blendedStrength };
   });
 
   const { teams, score } = generateTeams(

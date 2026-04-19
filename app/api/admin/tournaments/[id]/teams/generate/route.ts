@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { generateTeams } from "@/lib/teams";
 import { assertTournamentAdmin } from "@/app/api/admin/tournaments/_auth";
+import { loadPlayerPerformance } from "@/lib/playerPerformance";
 
 type TournamentPlayer = {
   id: string;
@@ -66,24 +67,14 @@ export async function POST(
 
   const ids = players.map((p) => p.id);
 
-  const { data: ratingRows, error: rErr } = await supabaseServer
-    .from("ratings")
-    .select("rated_player_id, value")
-    .in("rated_player_id", ids);
-
-  if (rErr) return NextResponse.json({ error: rErr.message }, { status: 500 });
-
-  const map: Record<string, number[]> = {};
-  for (const r of ratingRows ?? []) {
-    const key = r.rated_player_id as string;
-    map[key] = map[key] ?? [];
-    map[key].push(Number(r.value));
-  }
+  const perfByPlayer = await loadPlayerPerformance(ids);
 
   const playersWithStrength = players.map((p) => {
-    const arr = map[p.id] ?? [];
-    const avg = arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 5;
-    return { id: p.id, name: p.name, strength: avg };
+    const perf = perfByPlayer.get(p.id);
+    const rating = perf?.rating ?? 5;
+    const effectiveMmr = perf?.effectiveMmr ?? rating;
+    const blendedStrength = (rating + effectiveMmr) / 2;
+    return { id: p.id, name: p.name, strength: blendedStrength };
   });
 
   const { data: activeBatch } = await supabaseServer
