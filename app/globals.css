@@ -130,6 +130,24 @@ body {
   object-position: center center;
 }
 
+@media (max-width: 980px) {
+  .finn-bg-art.is-beer .finn-bg-image {
+    object-position: 82% center;
+  }
+}
+
+@media (max-width: 640px) {
+  .finn-bg-art.is-beer .finn-bg-image {
+    object-position: 84% center;
+  }
+}
+
+@media (max-width: 420px) {
+  .finn-bg-art.is-beer .finn-bg-image {
+    object-position: 86% center;
+  }
+}
+
 .finn-eye {
   position: absolute;
   border-radius: 50%;
