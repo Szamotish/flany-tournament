@@ -215,11 +215,15 @@ export default function NearbyLiquorCompassCard() {
       void requestOrientationPermission();
     };
 
-    window.addEventListener("pointerdown", activateOnFirstGesture, { once: true, passive: true });
-    window.addEventListener("keydown", activateOnFirstGesture, { once: true });
+    window.addEventListener("pointerdown", activateOnFirstGesture, { passive: true });
+    window.addEventListener("touchend", activateOnFirstGesture, { passive: true });
+    window.addEventListener("click", activateOnFirstGesture);
+    window.addEventListener("keydown", activateOnFirstGesture);
 
     return () => {
       window.removeEventListener("pointerdown", activateOnFirstGesture);
+      window.removeEventListener("touchend", activateOnFirstGesture);
+      window.removeEventListener("click", activateOnFirstGesture);
       window.removeEventListener("keydown", activateOnFirstGesture);
     };
   }, [orientationPermission, requestOrientationPermission]);
