@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type StoreInfo = {
   name: string;
@@ -12,9 +12,14 @@ type StoreInfo = {
 };
 
 type CompassState = "idle" | "loading" | "ready" | "error";
+type OrientationPermissionState = "checking" | "prompt" | "granted" | "denied" | "unsupported";
 
 type OrientationEventIOS = DeviceOrientationEvent & {
   webkitCompassHeading?: number;
+};
+
+type DeviceOrientationWithPermission = typeof DeviceOrientationEvent & {
+  requestPermission?: () => Promise<"granted" | "denied">;
 };
 
 function normalizeDeg(value: number): number {
@@ -58,34 +63,120 @@ function kindLabel(kind: StoreInfo["kind"]): string {
   return "Sklep";
 }
 
+function getScreenAngle(): number {
+  if (typeof screen !== "undefined" && typeof screen.orientation?.angle === "number") {
+    return screen.orientation.angle;
+  }
+
+  const legacyOrientation = (window as Window & { orientation?: number }).orientation;
+  if (typeof legacyOrientation === "number") {
+    return legacyOrientation;
+  }
+
+  return 0;
+}
+
+function extractHeading(event: OrientationEventIOS): number | null {
+  if (typeof event.webkitCompassHeading === "number" && Number.isFinite(event.webkitCompassHeading)) {
+    return normalizeDeg(event.webkitCompassHeading);
+  }
+
+  if (typeof event.alpha !== "number" || !Number.isFinite(event.alpha)) {
+    return null;
+  }
+
+  return normalizeDeg(360 - event.alpha + getScreenAngle());
+}
+
 export default function NearbyLiquorCompassCard() {
   const [state, setState] = useState<CompassState>("loading");
   const [error, setError] = useState<string | null>(null);
   const [store, setStore] = useState<StoreInfo | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [heading, setHeading] = useState<number | null>(null);
+  const [orientationPermission, setOrientationPermission] = useState<OrientationPermissionState>(() => {
+    if (typeof window === "undefined" || typeof DeviceOrientationEvent === "undefined") {
+      return "unsupported";
+    }
+
+    const ctor = DeviceOrientationEvent as DeviceOrientationWithPermission;
+    return typeof ctor.requestPermission === "function" ? "prompt" : "granted";
+  });
   const [smoothArrowRotation, setSmoothArrowRotation] = useState(0);
+  const [orientationEnabled, setOrientationEnabled] = useState<boolean>(() => {
+    if (typeof window === "undefined" || typeof DeviceOrientationEvent === "undefined") {
+      return false;
+    }
+
+    const ctor = DeviceOrientationEvent as DeviceOrientationWithPermission;
+    return typeof ctor.requestPermission !== "function";
+  });
   const lastFetchRef = useRef<{ lat: number; lon: number; ts: number } | null>(null);
   const lastGoodStoreRef = useRef<StoreInfo | null>(null);
   const desiredRotationRef = useRef(0);
   const currentRotationRef = useRef(0);
   const rotationVelocityRef = useRef(0);
 
+  const requestOrientationPermission = useCallback(async () => {
+    if (typeof DeviceOrientationEvent === "undefined") {
+      setOrientationPermission("unsupported");
+      return;
+    }
+
+    const ctor = DeviceOrientationEvent as DeviceOrientationWithPermission;
+
+    if (typeof ctor.requestPermission !== "function") {
+      setOrientationPermission("granted");
+      setOrientationEnabled(true);
+      return;
+    }
+
+    try {
+      const result = await ctor.requestPermission();
+      if (result === "granted") {
+        setOrientationPermission("granted");
+        setOrientationEnabled(true);
+      } else {
+        setOrientationPermission("denied");
+      }
+    } catch {
+      setOrientationPermission("denied");
+    }
+  }, []);
+
   useEffect(() => {
+    if (orientationPermission !== "prompt") return;
+
+    const activateOnFirstGesture = () => {
+      void requestOrientationPermission();
+    };
+
+    window.addEventListener("pointerdown", activateOnFirstGesture, { once: true, passive: true });
+    window.addEventListener("keydown", activateOnFirstGesture, { once: true });
+
+    return () => {
+      window.removeEventListener("pointerdown", activateOnFirstGesture);
+      window.removeEventListener("keydown", activateOnFirstGesture);
+    };
+  }, [orientationPermission, requestOrientationPermission]);
+
+  useEffect(() => {
+    if (!orientationEnabled) return;
+
     const onOrientation = (event: Event) => {
-      const e = event as OrientationEventIOS;
-      if (typeof e.webkitCompassHeading === "number" && Number.isFinite(e.webkitCompassHeading)) {
-        setHeading(normalizeDeg(e.webkitCompassHeading));
-        return;
-      }
-      if (typeof e.alpha === "number" && Number.isFinite(e.alpha)) {
-        setHeading(normalizeDeg(360 - e.alpha));
-      }
+      const resolvedHeading = extractHeading(event as OrientationEventIOS);
+      if (resolvedHeading === null) return;
+      setHeading(resolvedHeading);
     };
 
     window.addEventListener("deviceorientation", onOrientation, true);
-    return () => window.removeEventListener("deviceorientation", onOrientation, true);
-  }, []);
+    window.addEventListener("deviceorientationabsolute", onOrientation, true);
+
+    return () => {
+      window.removeEventListener("deviceorientation", onOrientation, true);
+      window.removeEventListener("deviceorientationabsolute", onOrientation, true);
+    };
+  }, [orientationEnabled]);
 
   useEffect(() => {
     if (!("geolocation" in navigator)) {
@@ -272,6 +363,13 @@ export default function NearbyLiquorCompassCard() {
             <p className="weather-sub">
               {kindLabel(store.kind)} - {store.distanceKm.toFixed(2)} km
             </p>
+          ) : null}
+          {orientationPermission === "prompt" ? <p className="weather-sub">Dotknij ekranu, aby aktywowac kompas.</p> : null}
+          {orientationPermission === "denied" ? (
+            <p className="weather-sub">Brak dostepu do czujnika orientacji telefonu.</p>
+          ) : null}
+          {orientationPermission === "granted" && heading === null ? (
+            <p className="weather-sub">Obroc telefonem, aby skalibrowac kompas.</p>
           ) : null}
           {error ? <p className="weather-sub">{error}</p> : null}
           {state === "loading" ? <p className="weather-sub">Ustalanie lokalizacji...</p> : null}

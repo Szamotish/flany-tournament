@@ -761,15 +761,31 @@ body {
   text-align: center;
 }
 
+.compass-permission-btn {
+  justify-self: start;
+  width: fit-content;
+  margin-top: 0.12rem;
+}
+
 .compass-nav-btn[aria-disabled="true"] {
   pointer-events: none;
   opacity: 0.46;
 }
 
-@media (max-width: 460px) {
+@media (max-width: 640px) {
   .compass-wrap {
     grid-template-columns: 1fr;
-    justify-items: start;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .compass-meta {
+    justify-items: center;
+    text-align: center;
+  }
+
+  .compass-permission-btn {
+    justify-self: center;
   }
 }
 

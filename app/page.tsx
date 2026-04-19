@@ -218,6 +218,26 @@ export default async function HomePage() {
             <p className="beer-name">{beer.name}</p>
           </article>
 
+          <article className="glass-card landing-stats">
+            <div className="card-head">
+              <h2>Statystyki ligi</h2>
+            </div>
+            <div className="stats-grid">
+              <div>
+                <p className="metric-value">{tournamentsCount}</p>
+                <p className="metric-label">Rozegrane turnieje</p>
+              </div>
+              <div>
+                <p className="metric-value">{totalBeers}</p>
+                <p className="metric-label">Wypite piwa</p>
+              </div>
+              <div>
+                <p className="metric-value">{playersCount}</p>
+                <p className="metric-label">Aktywni zawodnicy</p>
+              </div>
+            </div>
+          </article>
+
           <NearbyLiquorCompassCard />
 
           <article className="glass-card landing-weather">
@@ -246,26 +266,6 @@ export default async function HomePage() {
             ) : (
               <p className="weather-sub">Brak danych pogodowych.</p>
             )}
-          </article>
-
-          <article className="glass-card landing-stats">
-            <div className="card-head">
-              <h2>Statystyki ligi</h2>
-            </div>
-            <div className="stats-grid">
-              <div>
-                <p className="metric-value">{tournamentsCount}</p>
-                <p className="metric-label">Rozegrane turnieje</p>
-              </div>
-              <div>
-                <p className="metric-value">{totalBeers}</p>
-                <p className="metric-label">Wypite piwa</p>
-              </div>
-              <div>
-                <p className="metric-value">{playersCount}</p>
-                <p className="metric-label">Aktywni zawodnicy</p>
-              </div>
-            </div>
           </article>
         </section>
       </div>
