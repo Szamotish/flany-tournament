@@ -1781,6 +1781,186 @@ body {
   grid-template-columns: 1fr;
 }
 
+.player-rank-card {
+  --rank-border: rgba(86, 67, 39, 0.44);
+  --rank-edge: rgba(138, 122, 103, 0.52);
+  --rank-accent: rgba(142, 132, 120, 0.56);
+  --rank-glow: rgba(80, 65, 47, 0.34);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.72rem;
+  border: 1px solid var(--rank-border);
+  border-radius: 0.95rem;
+  padding: 0.52rem 0.72rem;
+  backdrop-filter: blur(6px);
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.68) 0%, rgba(242, 250, 255, 0.54) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.44),
+    0 10px 22px rgba(26, 14, 4, 0.14),
+    0 0 0 1px color-mix(in oklab, var(--rank-edge), transparent 40%);
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.player-rank-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 46%;
+  pointer-events: none;
+  background: linear-gradient(180deg, var(--rank-accent), rgba(255, 255, 255, 0));
+  opacity: 0.42;
+}
+
+.player-rank-card::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 1px var(--rank-edge),
+    0 0 18px -3px var(--rank-glow);
+  opacity: 0.92;
+}
+
+.player-rank-card:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 14px 28px rgba(26, 14, 4, 0.2),
+    0 0 0 1px color-mix(in oklab, var(--rank-edge), transparent 26%);
+}
+
+.player-rank-main {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.72rem;
+}
+
+.player-rank-right {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.player-rank-state {
+  font-size: 0.74rem;
+  color: rgba(42, 28, 8, 0.62);
+}
+
+.player-rank-pp {
+  position: relative;
+  display: inline-flex;
+  min-width: 3.65rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.62rem;
+  border: 1px solid color-mix(in oklab, var(--rank-edge), rgba(40, 26, 8, 0.4) 44%);
+  background:
+    linear-gradient(168deg, rgba(255, 255, 255, 0.88) 0%, rgba(248, 250, 255, 0.72) 100%);
+  padding: 0.24rem 0.38rem 0.28rem;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 5px 12px color-mix(in oklab, var(--rank-glow), transparent 72%);
+}
+
+.player-rank-pp-label {
+  font-size: 0.56rem;
+  line-height: 1;
+  letter-spacing: 0.09em;
+  font-weight: 780;
+  color: rgba(41, 28, 10, 0.68);
+}
+
+.player-rank-pp-value {
+  margin-top: 0.14rem;
+  font-size: 0.88rem;
+  line-height: 1;
+  font-weight: 800;
+  color: rgba(26, 18, 8, 0.9);
+}
+
+.player-rank-tier-unranked {
+  --rank-border: rgba(92, 98, 108, 0.45);
+  --rank-edge: rgba(127, 136, 148, 0.5);
+  --rank-accent: rgba(152, 160, 174, 0.42);
+  --rank-glow: rgba(74, 84, 96, 0.32);
+}
+
+.player-rank-tier-1 {
+  --rank-border: rgba(131, 85, 45, 0.52);
+  --rank-edge: rgba(176, 123, 72, 0.58);
+  --rank-accent: rgba(212, 161, 112, 0.54);
+  --rank-glow: rgba(166, 112, 54, 0.4);
+}
+
+.player-rank-tier-2 {
+  --rank-border: rgba(99, 122, 142, 0.56);
+  --rank-edge: rgba(136, 168, 194, 0.62);
+  --rank-accent: rgba(189, 216, 238, 0.58);
+  --rank-glow: rgba(116, 147, 173, 0.4);
+}
+
+.player-rank-tier-3 {
+  --rank-border: rgba(161, 120, 34, 0.56);
+  --rank-edge: rgba(205, 166, 73, 0.64);
+  --rank-accent: rgba(243, 219, 138, 0.58);
+  --rank-glow: rgba(196, 155, 61, 0.42);
+}
+
+.player-rank-tier-4 {
+  --rank-border: rgba(34, 132, 115, 0.56);
+  --rank-edge: rgba(64, 188, 168, 0.64);
+  --rank-accent: rgba(121, 236, 210, 0.56);
+  --rank-glow: rgba(36, 176, 151, 0.42);
+}
+
+.player-rank-tier-5 {
+  --rank-border: rgba(37, 86, 177, 0.56);
+  --rank-edge: rgba(76, 140, 232, 0.64);
+  --rank-accent: rgba(128, 182, 255, 0.56);
+  --rank-glow: rgba(46, 111, 214, 0.42);
+}
+
+.player-rank-tier-6 {
+  --rank-border: rgba(133, 39, 137, 0.56);
+  --rank-edge: rgba(184, 74, 190, 0.64);
+  --rank-accent: rgba(222, 132, 232, 0.54);
+  --rank-glow: rgba(157, 62, 176, 0.42);
+}
+
+@media (max-width: 760px) {
+  .player-rank-card {
+    padding: 0.48rem 0.6rem;
+  }
+
+  .player-rank-main {
+    gap: 0.56rem;
+  }
+
+  .player-rank-right {
+    gap: 0.42rem;
+  }
+
+  .player-rank-state {
+    display: none;
+  }
+
+  .player-rank-pp {
+    min-width: 3.25rem;
+  }
+}
+
 .tour-admin-search-row {
   display: grid;
   gap: 0.5rem;

@@ -3,7 +3,6 @@ import { cookies } from "next/headers";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { trimmedMean } from "@/lib/rating";
 import { PRESTIGE_POINTS_PER_MMR } from "@/lib/ranked";
-import { loadPlayerPerformance } from "@/lib/playerPerformance";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +14,6 @@ type PlayerRow = {
   name: string;
   active: boolean;
   avatar_url: string | null;
-  mmr: number | null;
   prestige_points: number | null;
 };
 
@@ -73,28 +71,21 @@ function prestigeTier(pointsValue: number | null): number {
 }
 
 function rankedFrameClass(tier: number): string {
-  if (tier <= 0) return "border-zinc-800/60";
-  const tones = [
-    "border-emerald-600/90",
-    "border-sky-600/90",
-    "border-violet-600/90",
-    "border-amber-600/90",
-    "border-rose-600/90",
-    "border-lime-600/90",
-  ];
-  return tones[(tier - 1) % tones.length];
+  if (tier <= 0) return "player-rank-tier-unranked";
+  const tierClass = ((tier - 1) % 6) + 1;
+  return `player-rank-tier-${tierClass}`;
 }
 
-function formatMmr(value: number | null): string {
-  const mmr = Number(value ?? 0);
-  if (!Number.isFinite(mmr)) return "0.0";
-  return mmr.toFixed(1);
+function formatPrestigePoints(value: number | null): string {
+  const points = Number(value ?? 0);
+  if (!Number.isFinite(points) || points <= 0) return "0";
+  return String(Math.floor(points));
 }
 
 export default async function PlayersPage() {
   const { data, error } = await supabaseServer
     .from("players")
-    .select("id,name,active,avatar_url,mmr,prestige_points")
+    .select("id,name,active,avatar_url,prestige_points")
     .eq("active", true)
     .order("name", { ascending: true });
 
@@ -135,21 +126,6 @@ export default async function PlayersPage() {
   const cooldownByPlayer = new Map<string, { state: CooldownState; hint: string }>();
   for (const player of players) {
     cooldownByPlayer.set(player.id, { state: "ready", hint: "Mozesz teraz wystawic ocene." });
-  }
-
-  const effectiveMmrByPlayer = new Map<string, number>();
-  let performanceError: string | null = null;
-  if (playerIds.length > 0) {
-    try {
-      const perfByPlayer = await loadPlayerPerformance(playerIds);
-      for (const playerId of playerIds) {
-        const perf = perfByPlayer.get(playerId);
-        if (!perf) continue;
-        effectiveMmrByPlayer.set(playerId, perf.effectiveMmr);
-      }
-    } catch (e: unknown) {
-      performanceError = e instanceof Error ? e.message : String(e);
-    }
   }
 
   let cooldownError: string | null = null;
@@ -194,9 +170,9 @@ export default async function PlayersPage() {
             return (
               <Link key={p.id} href={`/players/${p.id}`} className="no-underline">
                 <div
-                  className={`flex items-center justify-between gap-3 rounded-xl border-2 bg-white/60 px-3 py-2 backdrop-blur-sm transition hover:bg-white/80 ${rankedFrameClass(tier)}`}
+                  className={`player-rank-card ${rankedFrameClass(tier)}`}
                 >
-                  <div className="flex min-w-0 items-center gap-3">
+                  <div className="player-rank-main">
                     <span className="inline-grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border bg-white text-sm font-semibold">
                       {p.avatar_url ? (
                         <span
@@ -210,15 +186,14 @@ export default async function PlayersPage() {
                     <span className="truncate font-medium">{p.name}</span>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs opacity-70">{p.active ? "aktywny" : "nieaktywny"}</span>
-                    <span className="inline-flex min-w-[4.25rem] flex-col items-center justify-center rounded-lg border border-slate-700/40 bg-slate-50/80 px-2 py-1 text-slate-900">
-                      <span className="text-xs font-extrabold leading-none">
-                        MMR {formatMmr(effectiveMmrByPlayer.get(p.id) ?? p.mmr)}
-                      </span>
-                      <span className="mt-1 text-[0.58rem] font-semibold uppercase tracking-[0.08em] leading-none">
-                        {tier > 0 ? `P+${tier}` : "UNRANKED"}
-                      </span>
+                  <div className="player-rank-right">
+                    <span className="player-rank-state">{p.active ? "aktywny" : "nieaktywny"}</span>
+                    <span
+                      className="player-rank-pp"
+                      title={tier > 0 ? `Poziom rangi: ${tier}` : "UNRANKED"}
+                    >
+                      <span className="player-rank-pp-label">PP</span>
+                      <span className="player-rank-pp-value">{formatPrestigePoints(p.prestige_points)}</span>
                     </span>
                     <span
                       title={cooldownByPlayer.get(p.id)?.hint ?? "Status cooldownu niedostepny."}
@@ -243,7 +218,6 @@ export default async function PlayersPage() {
 
       {ratingsError ? <p className="mt-3 text-xs text-red-600">Blad ocen: {ratingsError}</p> : null}
       {cooldownError ? <p className="mt-1 text-xs text-red-600">Blad cooldownu: {cooldownError}</p> : null}
-      {performanceError ? <p className="mt-1 text-xs text-red-600">Blad MMR: {performanceError}</p> : null}
     </main>
   );
 }
