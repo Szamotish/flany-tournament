@@ -1849,7 +1849,11 @@ body {
   min-width: 0;
   flex: 1 1 auto;
   align-items: center;
-  gap: 0.72rem;
+  gap: 0.9rem;
+}
+
+.player-rank-name {
+  margin-left: 0.12rem;
 }
 
 .player-rank-avatar-wrap {
@@ -2010,6 +2014,11 @@ body {
   --crest-glow: rgba(122, 154, 184, 0.56);
 }
 
+.player-rank-tier-silver .player-rank-avatar-frame {
+  background-size: 126% 126%;
+  background-position: 50% 50%;
+}
+
 .player-rank-tier-gold {
   --rank-border: rgba(161, 120, 34, 0.56);
   --rank-edge: rgba(205, 166, 73, 0.64);
@@ -2108,7 +2117,7 @@ body {
   }
 
   .player-rank-main {
-    gap: 0.5rem;
+    gap: 0.62rem;
   }
 
   .player-rank-right {
@@ -2148,6 +2157,11 @@ body {
     background-position: 50% 50%;
     background-size: 119% 119%;
     transform: none;
+  }
+
+  .player-rank-tier-silver .player-rank-avatar-frame {
+    background-size: 124% 124%;
+    background-position: 50% 50%;
   }
 
   .player-rank-avatar-wrap.has-frame .player-rank-avatar {

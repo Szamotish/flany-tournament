@@ -240,7 +240,7 @@ export default async function PlayersPage() {
                         />
                       ) : null}
                     </span>
-                    <span className="truncate font-medium">{p.name}</span>
+                    <span className="player-rank-name truncate font-medium">{p.name}</span>
                   </div>
 
                   <div className="player-rank-right">
