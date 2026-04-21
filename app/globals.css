@@ -102,12 +102,13 @@ body {
 }
 
 .finn-bg-art.is-beer {
-  left: 0;
-  top: 0;
-  width: 100vw;
-  height: 100vh;
+  left: 50%;
+  top: 50%;
+  width: 112vw;
+  height: 112vh;
+  height: 112dvh;
   aspect-ratio: auto;
-  transform: none;
+  transform: translate(-50%, -50%);
   opacity: 1;
   -webkit-mask-image: none;
   mask-image: none;
@@ -231,8 +232,10 @@ body {
 
   .finn-bg-art.is-beer {
     width: 100vw;
-    height: 100vh;
+    height: 100dvh;
     transform: none;
+    left: 0;
+    top: 0;
   }
 }
 
@@ -1844,6 +1847,7 @@ body {
   z-index: 1;
   display: flex;
   min-width: 0;
+  flex: 1 1 auto;
   align-items: center;
   gap: 0.72rem;
 }
@@ -1851,8 +1855,8 @@ body {
 .player-rank-avatar-wrap {
   position: relative;
   display: grid;
-  width: 66px;
-  height: 66px;
+  width: 62px;
+  height: 62px;
   flex-shrink: 0;
   place-items: center;
 }
@@ -1876,12 +1880,13 @@ body {
 
 .player-rank-avatar-frame {
   position: absolute;
-  inset: -14px;
+  inset: -10px;
   z-index: 3;
   pointer-events: none;
-  background-position: center;
+  background-position: 50% 46%;
   background-repeat: no-repeat;
-  background-size: contain;
+  background-size: 112% 112%;
+  transform: translateY(-1px);
   filter:
     drop-shadow(0 2px 6px rgba(13, 11, 8, 0.32))
     drop-shadow(0 0 8px color-mix(in oklab, var(--rank-glow), transparent 52%));
@@ -1893,6 +1898,8 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex: 0 0 auto;
+  min-width: 0;
 }
 
 .player-rank-state {
@@ -2093,15 +2100,15 @@ body {
 
 @media (max-width: 760px) {
   .player-rank-card {
-    padding: 0.48rem 0.6rem;
+    padding: 0.48rem 0.55rem;
   }
 
   .player-rank-main {
-    gap: 0.56rem;
+    gap: 0.5rem;
   }
 
   .player-rank-right {
-    gap: 0.42rem;
+    gap: 0.32rem;
   }
 
   .player-rank-state {
@@ -2109,8 +2116,34 @@ body {
   }
 
   .player-rank-pp {
-    min-width: 7.2rem;
-    padding: 0.34rem 0.48rem 0.42rem;
+    min-width: 6.1rem;
+    padding: 0.3rem 0.4rem 0.38rem;
+  }
+
+  .player-rank-pp-label {
+    font-size: 0.53rem;
+  }
+
+  .player-rank-pp-value {
+    margin-top: 0.12rem;
+    font-size: 0.61rem;
+  }
+
+  .player-rank-avatar-wrap {
+    width: 56px;
+    height: 56px;
+  }
+
+  .player-rank-avatar {
+    width: 42px;
+    height: 42px;
+  }
+
+  .player-rank-avatar-frame {
+    inset: -9px;
+    background-position: 50% 45%;
+    background-size: 111% 111%;
+    transform: translateY(-1px);
   }
 }
 

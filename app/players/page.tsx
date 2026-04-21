@@ -193,7 +193,7 @@ export default async function PlayersPage() {
   }
 
   return (
-    <main className="p-6">
+    <main className="p-4 md:p-6 overflow-x-clip">
       <Link className="underline opacity-80" href="/">
         Back
       </Link>
@@ -205,7 +205,7 @@ export default async function PlayersPage() {
       ) : players.length === 0 ? (
         <p className="mt-3 text-sm opacity-70">Brak zawodnikow.</p>
       ) : (
-        <div className="mt-4 grid gap-2 md:grid-cols-2">
+        <div className="mt-4 grid gap-2 md:grid-cols-2 min-w-0">
           {players.map((p) => {
             const mmr = Number(effectiveMmrByPlayer.get(p.id) ?? p.mmr ?? 0);
             const hasFinishedMatch = hasFinishedMatchByPlayer.get(p.id) ?? false;
@@ -218,7 +218,7 @@ export default async function PlayersPage() {
             const frameClass = `player-rank-tier-${rank}`;
 
             return (
-              <Link key={p.id} href={`/players/${p.id}`} className="no-underline">
+              <Link key={p.id} href={`/players/${p.id}`} className="block min-w-0 no-underline">
                 <div className={`player-rank-card ${frameClass}`}>
                   <div className="player-rank-main">
                     <span className="player-rank-avatar-wrap">
@@ -256,7 +256,7 @@ export default async function PlayersPage() {
                     </span>
                     <span
                       title={cooldownByPlayer.get(p.id)?.hint ?? "Status cooldownu niedostepny."}
-                      className={`inline-flex h-12 min-w-[3.6rem] flex-col items-center justify-center rounded-lg border px-2 ${badgeTone(
+                      className={`inline-flex h-12 min-w-[3.2rem] sm:min-w-[3.6rem] flex-col items-center justify-center rounded-lg border px-2 ${badgeTone(
                         cooldownByPlayer.get(p.id)?.state ?? "ready"
                       )}`}
                     >
