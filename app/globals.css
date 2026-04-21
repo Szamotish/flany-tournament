@@ -1885,7 +1885,7 @@ body {
   pointer-events: none;
   background-position: 50% 50%;
   background-repeat: no-repeat;
-  background-size: 116% 116%;
+  background-size: 121% 121%;
   transform: none;
   filter:
     drop-shadow(0 2px 6px rgba(13, 11, 8, 0.32))
@@ -2146,7 +2146,7 @@ body {
   .player-rank-avatar-frame {
     inset: -11px;
     background-position: 50% 50%;
-    background-size: 114% 114%;
+    background-size: 119% 119%;
     transform: none;
   }
 
