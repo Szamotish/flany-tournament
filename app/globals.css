@@ -2015,8 +2015,8 @@ body {
 }
 
 .player-rank-tier-silver .player-rank-avatar-frame {
-  background-size: 133% 133%;
-  background-position: 50% 47%;
+  background-size: 136% 136%;
+  background-position: 50% 45%;
 }
 
 .player-rank-tier-gold {
@@ -2160,8 +2160,8 @@ body {
   }
 
   .player-rank-tier-silver .player-rank-avatar-frame {
-    background-size: 129% 129%;
-    background-position: 50% 47%;
+    background-size: 132% 132%;
+    background-position: 50% 45%;
   }
 
   .player-rank-avatar-wrap.has-frame .player-rank-avatar {
