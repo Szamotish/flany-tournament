@@ -299,14 +299,6 @@ export default async function PlayerPage({
               <aside className="profile-rank-preview" aria-label="Obramowka rangi">
                 {profileRankFrameUrl ? (
                   <span className="profile-rank-preview-wrap">
-                    <span className="profile-rank-preview-avatar">
-                      {player.avatar_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={player.avatar_url} alt="avatar podglad rangi" />
-                      ) : (
-                        <span>{player.name.slice(0, 1).toUpperCase()}</span>
-                      )}
-                    </span>
                     <span
                       className="profile-rank-preview-frame"
                       style={{ backgroundImage: `url('${profileRankFrameUrl}')` }}

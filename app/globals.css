@@ -2015,8 +2015,8 @@ body {
 }
 
 .player-rank-tier-silver .player-rank-avatar-frame {
-  background-size: 136% 136%;
-  background-position: 50% 50%;
+  background-size: 133% 133%;
+  background-position: 50% 47%;
 }
 
 .player-rank-tier-gold {
@@ -2160,8 +2160,8 @@ body {
   }
 
   .player-rank-tier-silver .player-rank-avatar-frame {
-    background-size: 132% 132%;
-    background-position: 50% 50%;
+    background-size: 129% 129%;
+    background-position: 50% 47%;
   }
 
   .player-rank-avatar-wrap.has-frame .player-rank-avatar {
@@ -2505,39 +2505,20 @@ body {
 .profile-rank-preview {
   display: grid;
   place-items: center;
-  min-height: 118px;
+  min-height: 190px;
 }
 
 .profile-rank-preview-wrap {
   position: relative;
   display: grid;
-  width: 124px;
-  height: 124px;
+  width: min(248px, 62vw);
+  height: min(248px, 62vw);
   place-items: center;
-}
-
-.profile-rank-preview-avatar {
-  width: 72px;
-  height: 72px;
-  border-radius: 999px;
-  overflow: hidden;
-  border: 2px solid rgba(255, 255, 255, 0.92);
-  background: rgba(255, 255, 255, 0.88);
-  display: grid;
-  place-items: center;
-  font-weight: 760;
-  color: rgba(22, 18, 10, 0.9);
-}
-
-.profile-rank-preview-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
 
 .profile-rank-preview-frame {
   position: absolute;
-  inset: -10px;
+  inset: -14px;
   pointer-events: none;
   background-repeat: no-repeat;
   background-position: center;
@@ -2744,7 +2725,12 @@ body {
 
 @media (min-width: 900px) {
   .profile-rating-layout {
-    grid-template-columns: minmax(0, 1fr) 150px;
+    grid-template-columns: minmax(0, 1fr) 300px;
+  }
+
+  .profile-rank-preview {
+    justify-self: start;
+    margin-left: -44px;
   }
 }
 
