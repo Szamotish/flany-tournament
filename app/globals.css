@@ -1880,12 +1880,12 @@ body {
 
 .player-rank-avatar-frame {
   position: absolute;
-  inset: -8px;
+  inset: -12px;
   z-index: 3;
   pointer-events: none;
-  background-position: 50% 48%;
+  background-position: 50% 50%;
   background-repeat: no-repeat;
-  background-size: 106% 106%;
+  background-size: 116% 116%;
   transform: none;
   filter:
     drop-shadow(0 2px 6px rgba(13, 11, 8, 0.32))
@@ -1893,8 +1893,6 @@ body {
 }
 
 .player-rank-avatar-wrap.has-frame .player-rank-avatar {
-  width: 48px;
-  height: 48px;
   border: 0;
 }
 
@@ -2146,15 +2144,13 @@ body {
   }
 
   .player-rank-avatar-frame {
-    inset: -8px;
-    background-position: 50% 47%;
-    background-size: 105% 105%;
+    inset: -11px;
+    background-position: 50% 50%;
+    background-size: 114% 114%;
     transform: none;
   }
 
   .player-rank-avatar-wrap.has-frame .player-rank-avatar {
-    width: 44px;
-    height: 44px;
     border: 0;
   }
 }
