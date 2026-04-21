@@ -175,6 +175,30 @@ export default function AdminTournamentsPage() {
     await Promise.all([loadPlayers(q), loadTournaments()]);
   }
 
+  async function renamePlayer(playerId: string, currentName: string) {
+    const nextName = window.prompt("Nowa nazwa zawodnika:", currentName)?.trim() ?? "";
+    if (!nextName || nextName === currentName) return;
+
+    setMsg(null);
+    const res = await fetch(`/api/admin/players/${playerId}`, {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        "x-admin-password": adminPass,
+      },
+      body: JSON.stringify({ name: nextName }),
+    });
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg(`Blad zmiany nazwy: ${json.error ?? res.statusText}`);
+      return;
+    }
+
+    setMsg("Nazwa zawodnika zmieniona.");
+    await Promise.all([loadPlayers(q), loadTournaments()]);
+  }
+
   async function deleteTournament(tournamentId: string, tournamentName: string) {
     if (!window.confirm(`Usunac turniej "${tournamentName}"?`)) return;
 
@@ -445,6 +469,17 @@ export default function AdminTournamentsPage() {
                       </div>
                       <div className="tour-admin-actions">
                         <span className="tour-muted">{p.active ? "aktywny" : "nieaktywny"}</span>
+                        <button
+                          className="tour-action-btn"
+                          type="button"
+                          disabled={!adminPass}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            void renamePlayer(p.id, p.name);
+                          }}
+                        >
+                          Zmien nazwe
+                        </button>
                         <button
                           className="tour-action-btn"
                           type="button"
