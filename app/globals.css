@@ -2167,7 +2167,7 @@ body {
   .player-rank-tier-silver .player-rank-avatar-frame {
     background-size: 132% 132%;
     background-position: 50% 45%;
-    transform: translateY(-3px);
+    transform: translateY(-4px);
   }
 
   .player-rank-tier-gold .player-rank-avatar-frame {
