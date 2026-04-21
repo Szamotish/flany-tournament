@@ -493,7 +493,7 @@ export default function AdminTournamentsPage() {
 
                 <div className="tour-admin-player-list mt-2">
                   {players.map((p) => (
-                    <label key={p.id} className="tour-admin-player-row">
+                    <div key={p.id} className="tour-admin-player-row">
                       <div className="tour-admin-player-main">
                         <input
                           type="checkbox"
@@ -505,49 +505,62 @@ export default function AdminTournamentsPage() {
                             }))
                           }
                         />
-                        <span>{p.name}</span>
+                        <span className="tour-admin-player-name">{p.name}</span>
                       </div>
-                      <div className="tour-admin-actions">
+                      <div className="tour-admin-player-meta">
                         <span className="tour-muted">{p.active ? "aktywny" : "nieaktywny"}</span>
                         <span className="tour-muted">
                           MMR {Number.isFinite(Number(p.mmr ?? 0)) ? Number(p.mmr ?? 0).toFixed(1) : "0.0"}
-                          {p.mmr_manual_override ? " (manual)" : ""}
                         </span>
-                        <button
-                          className="tour-action-btn"
-                          type="button"
-                          disabled={!adminPass}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            void renamePlayer(p.id, p.name);
-                          }}
-                        >
-                          Zmien nazwe
-                        </button>
-                        <button
-                          className="tour-action-btn"
-                          type="button"
-                          disabled={!adminPass}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            void setPlayerMmr(p.id, p.name, p.mmr);
-                          }}
-                        >
-                          Ustaw MMR
-                        </button>
-                        <button
-                          className="tour-action-btn"
-                          type="button"
-                          disabled={!adminPass}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            void deletePlayer(p.id, p.name);
-                          }}
-                        >
-                          Usun
-                        </button>
+                        <details className="tour-player-menu">
+                          <summary
+                            className="tour-player-menu-trigger"
+                            aria-label={`Opcje zawodnika ${p.name}`}
+                            title="Akcje"
+                          >
+                            ...
+                          </summary>
+                          <div className="tour-player-menu-panel">
+                            <button
+                              className="tour-player-menu-item"
+                              type="button"
+                              disabled={!adminPass}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                void renamePlayer(p.id, p.name);
+                                e.currentTarget.closest("details")?.removeAttribute("open");
+                              }}
+                            >
+                              Zmien nazwe
+                            </button>
+                            <button
+                              className="tour-player-menu-item"
+                              type="button"
+                              disabled={!adminPass}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                void setPlayerMmr(p.id, p.name, p.mmr);
+                                e.currentTarget.closest("details")?.removeAttribute("open");
+                              }}
+                            >
+                              Ustaw MMR
+                            </button>
+                            <button
+                              className="tour-player-menu-item tour-player-menu-item-danger"
+                              type="button"
+                              disabled={!adminPass}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                void deletePlayer(p.id, p.name);
+                                e.currentTarget.closest("details")?.removeAttribute("open");
+                              }}
+                            >
+                              Usun
+                            </button>
+                          </div>
+                        </details>
                       </div>
-                    </label>
+                    </div>
                   ))}
                 </div>
               </div>

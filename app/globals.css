@@ -2146,6 +2146,102 @@ body {
   display: flex;
   align-items: center;
   gap: 0.46rem;
+  min-width: 0;
+}
+
+.tour-admin-player-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tour-admin-player-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex: 0 0 auto;
+}
+
+.tour-player-menu {
+  position: relative;
+}
+
+.tour-player-menu-trigger {
+  list-style: none;
+  border: 1px solid rgba(80, 48, 8, 0.34);
+  border-radius: 0.64rem;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.76);
+  font-weight: 780;
+  letter-spacing: 0.08em;
+  color: rgba(45, 30, 8, 0.86);
+  cursor: pointer;
+  user-select: none;
+}
+
+.tour-player-menu-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.tour-player-menu[open] .tour-player-menu-trigger {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(80, 48, 8, 0.5);
+}
+
+.tour-player-menu-panel {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 12;
+  width: max-content;
+  min-width: 140px;
+  display: grid;
+  gap: 0.32rem;
+  padding: 0.38rem;
+  border: 1px solid rgba(80, 48, 8, 0.22);
+  border-radius: 0.72rem;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10px 24px rgba(35, 20, 2, 0.22);
+}
+
+.tour-player-menu-item {
+  border: 1px solid rgba(80, 48, 8, 0.26);
+  border-radius: 0.62rem;
+  padding: 0.36rem 0.62rem;
+  font-size: 0.8rem;
+  font-weight: 680;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.88);
+  color: inherit;
+  cursor: pointer;
+}
+
+.tour-player-menu-item:hover {
+  background: rgba(255, 255, 255, 1);
+}
+
+.tour-player-menu-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tour-player-menu-item-danger {
+  border-color: rgba(150, 62, 31, 0.36);
+  color: #7a3210;
+}
+
+@media (max-width: 760px) {
+  .tour-admin-player-row {
+    align-items: flex-start;
+  }
+
+  .tour-admin-player-meta {
+    gap: 0.42rem;
+  }
 }
 
 .tour-admin-msg {
