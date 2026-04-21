@@ -2031,6 +2031,10 @@ body {
   --crest-glow: rgba(224, 175, 58, 0.6);
 }
 
+.player-rank-tier-gold .player-rank-avatar-frame {
+  transform: translateY(-3px);
+}
+
 .player-rank-tier-platinum {
   --rank-border: rgba(64, 120, 167, 0.56);
   --rank-edge: rgba(109, 166, 214, 0.64);
@@ -2163,6 +2167,10 @@ body {
   .player-rank-tier-silver .player-rank-avatar-frame {
     background-size: 132% 132%;
     background-position: 50% 45%;
+    transform: translateY(-2.5px);
+  }
+
+  .player-rank-tier-gold .player-rank-avatar-frame {
     transform: translateY(-2.5px);
   }
 

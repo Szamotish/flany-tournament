@@ -239,6 +239,29 @@ export default function AdminTournamentsPage() {
     await loadPlayers(q);
   }
 
+  async function resetPlayerMmr(playerId: string, playerName: string) {
+    if (!window.confirm(`Zresetowac MMR i Prestige dla "${playerName}" do stanu poczatkowego?`)) return;
+
+    setMsg(null);
+    const res = await fetch(`/api/admin/players/${playerId}`, {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        "x-admin-password": adminPass,
+      },
+      body: JSON.stringify({ resetMmr: true }),
+    });
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg(`Blad resetu MMR: ${json.error ?? res.statusText}`);
+      return;
+    }
+
+    setMsg("MMR i Prestige zawodnika zresetowane.");
+    await loadPlayers(q);
+  }
+
   async function deleteTournament(tournamentId: string, tournamentName: string) {
     if (!window.confirm(`Usunac turniej "${tournamentName}"?`)) return;
 
@@ -544,6 +567,18 @@ export default function AdminTournamentsPage() {
                               }}
                             >
                               Ustaw MMR
+                            </button>
+                            <button
+                              className="tour-player-menu-item"
+                              type="button"
+                              disabled={!adminPass}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                void resetPlayerMmr(p.id, p.name);
+                                e.currentTarget.closest("details")?.removeAttribute("open");
+                              }}
+                            >
+                              Reset MMR
                             </button>
                             <button
                               className="tour-player-menu-item tour-player-menu-item-danger"

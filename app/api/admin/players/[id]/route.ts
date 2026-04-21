@@ -28,10 +28,11 @@ export async function PATCH(
   const hasName = typeof body?.name === "string";
   const name = hasName ? String(body?.name ?? "").trim() : "";
   const hasMmr = body && Object.prototype.hasOwnProperty.call(body, "mmr");
+  const resetMmr = body?.resetMmr === true;
 
   if (hasName && !name) return NextResponse.json({ error: "missing_name" }, { status: 400 });
   if (hasName && name.length > 40) return NextResponse.json({ error: "name_too_long" }, { status: 400 });
-  if (!hasName && !hasMmr) {
+  if (!hasName && !hasMmr && !resetMmr) {
     return NextResponse.json({ error: "missing_update_fields" }, { status: 400 });
   }
 
@@ -53,9 +54,18 @@ export async function PATCH(
   if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 });
   if (!player) return NextResponse.json({ error: "player_not_found" }, { status: 404 });
 
-  const updatePayload: { name?: string; mmr?: number; mmr_manual_override?: boolean } = {};
+  const updatePayload: {
+    name?: string;
+    mmr?: number;
+    prestige_points?: number;
+    mmr_manual_override?: boolean;
+  } = {};
   if (hasName) updatePayload.name = name;
-  if (hasMmr && normalizedMmr !== null) {
+  if (resetMmr) {
+    updatePayload.mmr = 0;
+    updatePayload.prestige_points = 0;
+    updatePayload.mmr_manual_override = false;
+  } else if (hasMmr && normalizedMmr !== null) {
     updatePayload.mmr = normalizedMmr;
     updatePayload.mmr_manual_override = true;
   }
@@ -72,9 +82,12 @@ export async function PATCH(
     (primaryUpdate.error.message.includes("mmr_manual_override") ||
       primaryUpdate.error.message.includes("rank_frame_enabled"))
   ) {
+    const fallbackUpdatePayload = { ...updatePayload };
+    delete fallbackUpdatePayload.mmr_manual_override;
+
     const retry = await supabaseServer
       .from("players")
-      .update(updatePayload)
+      .update(fallbackUpdatePayload)
       .eq("id", playerId)
       .select("id,name,active,mmr")
       .single();
