@@ -221,7 +221,7 @@ export default async function PlayersPage() {
               <Link key={p.id} href={`/players/${p.id}`} className="block min-w-0 no-underline">
                 <div className={`player-rank-card ${frameClass}`}>
                   <div className="player-rank-main">
-                    <span className="player-rank-avatar-wrap">
+                    <span className={`player-rank-avatar-wrap${frameUrl ? " has-frame" : ""}`}>
                       <span className="player-rank-avatar">
                         {p.avatar_url ? (
                           <span

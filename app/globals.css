@@ -1880,16 +1880,22 @@ body {
 
 .player-rank-avatar-frame {
   position: absolute;
-  inset: -10px;
+  inset: -8px;
   z-index: 3;
   pointer-events: none;
-  background-position: 50% 46%;
+  background-position: 50% 48%;
   background-repeat: no-repeat;
-  background-size: 112% 112%;
-  transform: translateY(-1px);
+  background-size: 106% 106%;
+  transform: none;
   filter:
     drop-shadow(0 2px 6px rgba(13, 11, 8, 0.32))
     drop-shadow(0 0 8px color-mix(in oklab, var(--rank-glow), transparent 52%));
+}
+
+.player-rank-avatar-wrap.has-frame .player-rank-avatar {
+  width: 48px;
+  height: 48px;
+  border: 0;
 }
 
 .player-rank-right {
@@ -2140,10 +2146,16 @@ body {
   }
 
   .player-rank-avatar-frame {
-    inset: -9px;
-    background-position: 50% 45%;
-    background-size: 111% 111%;
-    transform: translateY(-1px);
+    inset: -8px;
+    background-position: 50% 47%;
+    background-size: 105% 105%;
+    transform: none;
+  }
+
+  .player-rank-avatar-wrap.has-frame .player-rank-avatar {
+    width: 44px;
+    height: 44px;
+    border: 0;
   }
 }
 
