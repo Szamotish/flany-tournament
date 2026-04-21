@@ -2017,6 +2017,7 @@ body {
 .player-rank-tier-silver .player-rank-avatar-frame {
   background-size: 136% 136%;
   background-position: 50% 45%;
+  transform: translateY(-3px);
 }
 
 .player-rank-tier-gold {
@@ -2162,6 +2163,7 @@ body {
   .player-rank-tier-silver .player-rank-avatar-frame {
     background-size: 132% 132%;
     background-position: 50% 45%;
+    transform: translateY(-2.5px);
   }
 
   .player-rank-avatar-wrap.has-frame .player-rank-avatar {
