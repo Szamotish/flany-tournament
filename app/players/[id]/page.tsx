@@ -8,7 +8,12 @@ import TrophyIcon from "@/app/components/TrophyIcon";
 import BackNavButton from "@/app/components/BackNavButton";
 import { PRESTIGE_POINTS_PER_MMR } from "@/lib/ranked";
 import { loadPlayerPerformance } from "@/lib/playerPerformance";
-import { canShowRankFromMmr, displayRankFromProgress, rankLabel } from "@/lib/playerRank";
+import {
+  FRAME_BY_RANK,
+  canShowRankFromMmr,
+  displayRankFromProgress,
+  rankLabel,
+} from "@/lib/playerRank";
 
 export const dynamic = "force-dynamic";
 
@@ -237,6 +242,7 @@ export default async function PlayerPage({
   const currentRank = displayRankFromProgress(canShowRank, rankedMmr, rankedPrestigePoints);
   const currentRankLabel = rankLabel(currentRank);
   const rankFrameEnabled = player.rank_frame_enabled !== false;
+  const profileRankFrameUrl = FRAME_BY_RANK[currentRank] ?? null;
 
   return (
     <main className="player-profile-root">
@@ -264,28 +270,54 @@ export default async function PlayerPage({
           <UploadAvatar playerId={playerId} className="mt-4" />
 
           <div className="profile-rating-box mt-5">
-            <p className="profile-section-title">Rating</p>
-            <div className="profile-rating-row">
-              <span className="profile-rating-value">{rating !== null ? rating.toFixed(1) : "--"}</span>
-              <span className="profile-rating-scale">/10</span>
+            <div className="profile-rating-layout">
+              <div className="profile-rating-copy">
+                <p className="profile-section-title">Rating</p>
+                <div className="profile-rating-row">
+                  <span className="profile-rating-value">{rating !== null ? rating.toFixed(1) : "--"}</span>
+                  <span className="profile-rating-scale">/10</span>
+                </div>
+                <p className="profile-muted mt-1">Liczba ocen: {ratingValues.length}</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="profile-rating-chip">MMR {Number.isFinite(rankedMmr) ? rankedMmr.toFixed(1) : "0.0"}</span>
+                  <span
+                    className="profile-rating-chip"
+                    style={{
+                      borderColor: prestigeColor(rankedTier),
+                    }}
+                  >
+                    {rankedTier > 0 ? `Prestige +${rankedTier}` : "Prestige 0"}
+                  </span>
+                  <span className="profile-rating-chip">Ranga: {currentRankLabel}</span>
+                </div>
+                <p className="profile-muted mt-1">Punkty prestige: {Number.isFinite(rankedPrestigePoints) ? rankedPrestigePoints : 0}</p>
+                <RankFrameToggle playerId={playerId} initialEnabled={rankFrameEnabled} />
+                {ratingsErr && <p className="profile-muted mt-1">Blad ocen: {ratingsErr.message}</p>}
+                {membershipsErr && <p className="profile-muted mt-1">Blad historii: {membershipsErr.message}</p>}
+              </div>
+
+              <aside className="profile-rank-preview" aria-label="Obramowka rangi">
+                {profileRankFrameUrl ? (
+                  <span className="profile-rank-preview-wrap">
+                    <span className="profile-rank-preview-avatar">
+                      {player.avatar_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={player.avatar_url} alt="avatar podglad rangi" />
+                      ) : (
+                        <span>{player.name.slice(0, 1).toUpperCase()}</span>
+                      )}
+                    </span>
+                    <span
+                      className="profile-rank-preview-frame"
+                      style={{ backgroundImage: `url('${profileRankFrameUrl}')` }}
+                      aria-hidden
+                    />
+                  </span>
+                ) : (
+                  <span className="profile-muted">Brak ramki (Unranked)</span>
+                )}
+              </aside>
             </div>
-            <p className="profile-muted mt-1">Liczba ocen: {ratingValues.length}</p>
-            <div className="mt-2 flex items-center gap-2">
-              <span className="profile-rating-chip">MMR {Number.isFinite(rankedMmr) ? rankedMmr.toFixed(1) : "0.0"}</span>
-              <span
-                className="profile-rating-chip"
-                style={{
-                  borderColor: prestigeColor(rankedTier),
-                }}
-              >
-                {rankedTier > 0 ? `Prestige +${rankedTier}` : "Prestige 0"}
-              </span>
-              <span className="profile-rating-chip">Ranga: {currentRankLabel}</span>
-            </div>
-            <p className="profile-muted mt-1">Punkty prestige: {Number.isFinite(rankedPrestigePoints) ? rankedPrestigePoints : 0}</p>
-            <RankFrameToggle playerId={playerId} initialEnabled={rankFrameEnabled} />
-            {ratingsErr && <p className="profile-muted mt-1">Blad ocen: {ratingsErr.message}</p>}
-            {membershipsErr && <p className="profile-muted mt-1">Blad historii: {membershipsErr.message}</p>}
           </div>
         </article>
 
