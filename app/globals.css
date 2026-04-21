@@ -2161,17 +2161,17 @@ body {
     inset: -11px;
     background-position: 50% 50%;
     background-size: 119% 119%;
-    transform: none;
+    transform: translateY(-3px);
   }
 
   .player-rank-tier-silver .player-rank-avatar-frame {
     background-size: 132% 132%;
     background-position: 50% 45%;
-    transform: translateY(-2.5px);
+    transform: translateY(-3px);
   }
 
   .player-rank-tier-gold .player-rank-avatar-frame {
-    transform: translateY(-2.5px);
+    transform: translateY(-3px);
   }
 
   .player-rank-avatar-wrap.has-frame .player-rank-avatar {
