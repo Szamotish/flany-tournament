@@ -1,6 +1,18 @@
 import { NextResponse } from "next/server";
 import { assertMainAdmin } from "@/app/api/admin/_auth";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { BASE_MMR_CAP } from "@/lib/ranked";
+
+function roundToOne(value: number): number {
+  return Math.round((value + Number.EPSILON) * 10) / 10;
+}
+
+function clampMmr(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  if (value < 0) return 0;
+  if (value > BASE_MMR_CAP) return BASE_MMR_CAP;
+  return roundToOne(value);
+}
 
 export async function PATCH(
   req: Request,
@@ -13,10 +25,24 @@ export async function PATCH(
   const { id: playerId } = await params;
 
   const body = await req.json().catch(() => null);
-  const name = String(body?.name ?? "").trim();
+  const hasName = typeof body?.name === "string";
+  const name = hasName ? String(body?.name ?? "").trim() : "";
+  const hasMmr = body && Object.prototype.hasOwnProperty.call(body, "mmr");
 
-  if (!name) return NextResponse.json({ error: "missing_name" }, { status: 400 });
-  if (name.length > 40) return NextResponse.json({ error: "name_too_long" }, { status: 400 });
+  if (hasName && !name) return NextResponse.json({ error: "missing_name" }, { status: 400 });
+  if (hasName && name.length > 40) return NextResponse.json({ error: "name_too_long" }, { status: 400 });
+  if (!hasName && !hasMmr) {
+    return NextResponse.json({ error: "missing_update_fields" }, { status: 400 });
+  }
+
+  let normalizedMmr: number | null = null;
+  if (hasMmr) {
+    const numericMmr = Number(body?.mmr);
+    if (!Number.isFinite(numericMmr)) {
+      return NextResponse.json({ error: "invalid_mmr" }, { status: 400 });
+    }
+    normalizedMmr = clampMmr(numericMmr);
+  }
 
   const { data: player, error: pErr } = await supabaseServer
     .from("players")
@@ -27,16 +53,39 @@ export async function PATCH(
   if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 });
   if (!player) return NextResponse.json({ error: "player_not_found" }, { status: 404 });
 
-  const { data: updated, error: uErr } = await supabaseServer
+  const updatePayload: { name?: string; mmr?: number; mmr_manual_override?: boolean } = {};
+  if (hasName) updatePayload.name = name;
+  if (hasMmr && normalizedMmr !== null) {
+    updatePayload.mmr = normalizedMmr;
+    updatePayload.mmr_manual_override = true;
+  }
+
+  const primaryUpdate = await supabaseServer
     .from("players")
-    .update({ name })
+    .update(updatePayload)
     .eq("id", playerId)
-    .select("id,name,active")
+    .select("id,name,active,mmr,mmr_manual_override,rank_frame_enabled")
     .single();
 
-  if (uErr) return NextResponse.json({ error: uErr.message }, { status: 500 });
+  if (
+    primaryUpdate.error &&
+    (primaryUpdate.error.message.includes("mmr_manual_override") ||
+      primaryUpdate.error.message.includes("rank_frame_enabled"))
+  ) {
+    const retry = await supabaseServer
+      .from("players")
+      .update(updatePayload)
+      .eq("id", playerId)
+      .select("id,name,active,mmr")
+      .single();
 
-  return NextResponse.json({ player: updated });
+    if (retry.error) return NextResponse.json({ error: retry.error.message }, { status: 500 });
+    return NextResponse.json({ player: retry.data });
+  }
+
+  if (primaryUpdate.error) return NextResponse.json({ error: primaryUpdate.error.message }, { status: 500 });
+
+  return NextResponse.json({ player: primaryUpdate.data });
 }
 
 export async function DELETE(

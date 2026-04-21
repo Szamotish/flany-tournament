@@ -9,7 +9,7 @@ export async function GET(req: Request) {
 
   let query = supabasePublic
     .from("players")
-    .select("id,name,active,created_at")
+    .select("id,name,active,created_at,mmr,mmr_manual_override")
     .eq("active", true)
     .order("created_at", { ascending: true })
     .limit(50);
@@ -18,9 +18,32 @@ export async function GET(req: Request) {
     query = query.ilike("name", `%${q}%`);
   }
 
-  const { data, error } = await query;
+  const primary = await query;
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (primary.error && primary.error.message.includes("mmr_manual_override")) {
+    let fallbackQuery = supabasePublic
+      .from("players")
+      .select("id,name,active,created_at,mmr")
+      .eq("active", true)
+      .order("created_at", { ascending: true })
+      .limit(50);
 
-  return NextResponse.json({ players: data ?? [] });
+    if (q) {
+      fallbackQuery = fallbackQuery.ilike("name", `%${q}%`);
+    }
+
+    const fallback = await fallbackQuery;
+    if (fallback.error) return NextResponse.json({ error: fallback.error.message }, { status: 500 });
+
+    const fallbackRows = (fallback.data ?? []).map((row) => ({
+      ...row,
+      mmr_manual_override: false,
+    }));
+
+    return NextResponse.json({ players: fallbackRows });
+  }
+
+  if (primary.error) return NextResponse.json({ error: primary.error.message }, { status: 500 });
+
+  return NextResponse.json({ players: primary.data ?? [] });
 }

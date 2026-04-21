@@ -5,11 +5,25 @@ import { trimmedMean } from "@/lib/rating";
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: playerId } = await params;
 
-  const { data: player, error: pErr } = await supabaseServer
+  const primaryPlayer = await supabaseServer
     .from("players")
-    .select("id,name,active,avatar_url")
+    .select("id,name,active,avatar_url,mmr,prestige_points,rank_frame_enabled")
     .eq("id", playerId)
     .maybeSingle();
+
+  let player = primaryPlayer.data;
+  let pErr = primaryPlayer.error;
+
+  if (primaryPlayer.error && primaryPlayer.error.message.includes("rank_frame_enabled")) {
+    const fallback = await supabaseServer
+      .from("players")
+      .select("id,name,active,avatar_url,mmr,prestige_points")
+      .eq("id", playerId)
+      .maybeSingle();
+
+    player = fallback.data ? { ...fallback.data, rank_frame_enabled: true } : null;
+    pErr = fallback.error;
+  }
 
   if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 });
   if (!player) return NextResponse.json({ error: "player_not_found" }, { status: 404 });
@@ -107,5 +121,44 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     beers,
     trophies,
     tournaments,
+  });
+}
+
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id: playerId } = await params;
+
+  const body = await req.json().catch(() => null);
+  if (typeof body?.rankFrameEnabled !== "boolean") {
+    return NextResponse.json({ error: "invalid_rankFrameEnabled" }, { status: 400 });
+  }
+
+  const { data: player, error: pErr } = await supabaseServer
+    .from("players")
+    .select("id")
+    .eq("id", playerId)
+    .maybeSingle();
+
+  if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 });
+  if (!player) return NextResponse.json({ error: "player_not_found" }, { status: 404 });
+
+  const { data: updated, error: uErr } = await supabaseServer
+    .from("players")
+    .update({ rank_frame_enabled: body.rankFrameEnabled })
+    .eq("id", playerId)
+    .select("id,rank_frame_enabled")
+    .single();
+
+  if (uErr) {
+    if (uErr.message.includes("rank_frame_enabled")) {
+      return NextResponse.json({ error: "missing_rank_frame_enabled_column" }, { status: 500 });
+    }
+    return NextResponse.json({ error: uErr.message }, { status: 500 });
+  }
+
+  return NextResponse.json({
+    player: {
+      id: updated.id,
+      rankFrameEnabled: updated.rank_frame_enabled === true,
+    },
   });
 }

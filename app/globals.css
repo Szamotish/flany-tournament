@@ -2516,6 +2516,25 @@ body {
   font-weight: 740;
 }
 
+.profile-frame-toggle {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.profile-frame-toggle-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.86rem;
+  font-weight: 620;
+}
+
+.profile-frame-toggle-row input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #2f8d6a;
+}
+
 @media (min-width: 980px) {
   .player-profile-root {
     padding: 1.25rem;

@@ -8,6 +8,7 @@ export type PlayerPerformance = {
   storedMmr: number;
   prestigePoints: number;
   hasFinishedMatch: boolean;
+  mmrManualOverride: boolean;
   effectiveMmr: number;
 };
 
@@ -39,11 +40,36 @@ export async function loadPlayerPerformance(
   const result = new Map<string, PlayerPerformance>();
   if (ids.length === 0) return result;
 
-  const [{ data: playerRows, error: playerErr }, { data: ratingsRows, error: ratingsErr }] =
-    await Promise.all([
-      supabaseServer.from("players").select("id,mmr,prestige_points").in("id", ids),
-      supabaseServer.from("ratings").select("rated_player_id,value").in("rated_player_id", ids),
-    ]);
+  const [playersPrimary, ratingsResult] = await Promise.all([
+    supabaseServer
+      .from("players")
+      .select("id,mmr,prestige_points,mmr_manual_override")
+      .in("id", ids),
+    supabaseServer.from("ratings").select("rated_player_id,value").in("rated_player_id", ids),
+  ]);
+
+  let playerRows = playersPrimary.data as
+    | Array<{ id: string; mmr: number | null; prestige_points: number | null; mmr_manual_override?: boolean | null }>
+    | null;
+  let playerErr = playersPrimary.error;
+
+  const ratingsRows = ratingsResult.data;
+  const ratingsErr = ratingsResult.error;
+
+  if (playerErr && playerErr.message.includes("mmr_manual_override")) {
+    const playersRetry = await supabaseServer
+      .from("players")
+      .select("id,mmr,prestige_points")
+      .in("id", ids);
+
+    playerRows = (playersRetry.data ?? []).map((row) => ({
+      id: String(row.id),
+      mmr: Number(row.mmr ?? 0),
+      prestige_points: Number(row.prestige_points ?? 0),
+      mmr_manual_override: false,
+    }));
+    playerErr = playersRetry.error;
+  }
 
   if (playerErr) throw new Error(`player_performance_players_failed: ${playerErr.message}`);
   if (ratingsErr) throw new Error(`player_performance_ratings_failed: ${ratingsErr.message}`);
@@ -107,13 +133,17 @@ export async function loadPlayerPerformance(
     }
   }
 
-  const playersMap = new Map<string, { mmr: number; prestigePoints: number }>();
+  const playersMap = new Map<
+    string,
+    { mmr: number; prestigePoints: number; mmrManualOverride: boolean }
+  >();
   for (const row of playerRows ?? []) {
     const playerId = typeof row.id === "string" ? row.id : "";
     if (!playerId) continue;
     playersMap.set(playerId, {
       mmr: clampToMmrRange(Number(row.mmr ?? 0)),
       prestigePoints: Math.max(0, Math.floor(Number(row.prestige_points ?? 0))),
+      mmrManualOverride: row.mmr_manual_override === true,
     });
   }
 
@@ -121,7 +151,12 @@ export async function loadPlayerPerformance(
     const teams = teamsByPlayer.get(playerId) ?? [];
     const hasFinishedMatch = teams.some((teamId) => playedTeamIds.has(teamId));
     const rating = ratingByPlayer.get(playerId) ?? 5;
-    const row = playersMap.get(playerId) ?? { mmr: 0, prestigePoints: 0 };
+    const row = playersMap.get(playerId) ?? {
+      mmr: 0,
+      prestigePoints: 0,
+      mmrManualOverride: false,
+    };
+    const rankAllowed = hasFinishedMatch || row.mmrManualOverride;
 
     result.set(playerId, {
       playerId,
@@ -129,7 +164,8 @@ export async function loadPlayerPerformance(
       storedMmr: row.mmr,
       prestigePoints: row.prestigePoints,
       hasFinishedMatch,
-      effectiveMmr: hasFinishedMatch ? row.mmr : rating,
+      mmrManualOverride: row.mmrManualOverride,
+      effectiveMmr: rankAllowed ? row.mmr : rating,
     });
   }
 

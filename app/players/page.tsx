@@ -3,6 +3,12 @@ import { cookies } from "next/headers";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { trimmedMean } from "@/lib/rating";
 import { loadPlayerPerformance } from "@/lib/playerPerformance";
+import {
+  FRAME_BY_RANK,
+  canShowRankFromMmr,
+  displayRankFromProgress,
+  rankLabel,
+} from "@/lib/playerRank";
 
 export const dynamic = "force-dynamic";
 
@@ -16,32 +22,11 @@ type PlayerRow = {
   avatar_url: string | null;
   mmr: number | null;
   prestige_points: number | null;
+  mmr_manual_override?: boolean | null;
+  rank_frame_enabled?: boolean | null;
 };
 
 type CooldownState = "ready" | "cooldown" | "soon";
-type DisplayRank =
-  | "unranked"
-  | "bronze"
-  | "silver"
-  | "gold"
-  | "platinum"
-  | "emerald"
-  | "diamond"
-  | "master"
-  | "grandmaster"
-  | "challenger";
-
-const FRAME_BY_RANK: Partial<Record<DisplayRank, string>> = {
-  bronze: "/ramki/bronze.png",
-  silver: "/ramki/silver.png",
-  gold: "/ramki/gold.png",
-  platinum: "/ramki/platyna.png",
-  emerald: "/ramki/emerald.png",
-  diamond: "/ramki/diament.png",
-  master: "/ramki/master.png",
-  grandmaster: "/ramki/grandmaster.png",
-  challenger: "/ramki/challanger.png",
-};
 
 function cooldownStatus(updatedAtIso: string | null): { state: CooldownState; hint: string } {
   if (!updatedAtIso) {
@@ -88,33 +73,6 @@ function formatAverage(value: number | null): string {
   return value.toFixed(1);
 }
 
-function displayRank(hasFinishedMatch: boolean, mmrValue: number, prestigePoints: number): DisplayRank {
-  if (!hasFinishedMatch) return "unranked";
-  if (prestigePoints >= 301) return "challenger";
-  if (prestigePoints >= 101) return "grandmaster";
-  if (prestigePoints >= 1) return "master";
-  if (mmrValue >= 10) return "master";
-  if (mmrValue >= 9) return "diamond";
-  if (mmrValue >= 7) return "emerald";
-  if (mmrValue >= 5) return "platinum";
-  if (mmrValue >= 4) return "gold";
-  if (mmrValue >= 2) return "silver";
-  return "bronze";
-}
-
-function rankLabel(rank: DisplayRank): string {
-  if (rank === "unranked") return "Unranked";
-  if (rank === "bronze") return "Bronze";
-  if (rank === "silver") return "Silver";
-  if (rank === "gold") return "Gold";
-  if (rank === "platinum") return "Platyna";
-  if (rank === "emerald") return "Emerald";
-  if (rank === "diamond") return "Diament";
-  if (rank === "master") return "Master";
-  if (rank === "grandmaster") return "Grandmaster";
-  return "Challenger";
-}
-
 function formatMmr(value: number | null): string {
   const mmr = Number(value ?? 0);
   if (!Number.isFinite(mmr)) return "0.0";
@@ -122,13 +80,37 @@ function formatMmr(value: number | null): string {
 }
 
 export default async function PlayersPage() {
-  const { data, error } = await supabaseServer
+  const selectWithSettings =
+    "id,name,active,avatar_url,mmr,prestige_points,mmr_manual_override,rank_frame_enabled";
+  const selectLegacy = "id,name,active,avatar_url,mmr,prestige_points";
+
+  const primaryPlayers = await supabaseServer
     .from("players")
-    .select("id,name,active,avatar_url,mmr,prestige_points")
+    .select(selectWithSettings)
     .eq("active", true)
     .order("name", { ascending: true });
 
-  const players = (data ?? []) as PlayerRow[];
+  let players: PlayerRow[] = (primaryPlayers.data ?? []) as PlayerRow[];
+  let error = primaryPlayers.error;
+
+  if (
+    primaryPlayers.error &&
+    (primaryPlayers.error.message.includes("mmr_manual_override") ||
+      primaryPlayers.error.message.includes("rank_frame_enabled"))
+  ) {
+    const fallback = await supabaseServer
+      .from("players")
+      .select(selectLegacy)
+      .eq("active", true)
+      .order("name", { ascending: true });
+
+    players = ((fallback.data ?? []) as PlayerRow[]).map((row) => ({
+      ...row,
+      mmr_manual_override: false,
+      rank_frame_enabled: true,
+    }));
+    error = fallback.error;
+  }
   const playerIds = players.map((player) => player.id);
 
   const averageRatingByPlayer = new Map<string, number | null>();
@@ -169,6 +151,10 @@ export default async function PlayersPage() {
 
   const effectiveMmrByPlayer = new Map<string, number>();
   const hasFinishedMatchByPlayer = new Map<string, boolean>();
+  const mmrManualOverrideByPlayer = new Map<string, boolean>();
+  for (const player of players) {
+    mmrManualOverrideByPlayer.set(player.id, player.mmr_manual_override === true);
+  }
   if (playerIds.length > 0) {
     try {
       const perfByPlayer = await loadPlayerPerformance(playerIds);
@@ -177,6 +163,7 @@ export default async function PlayersPage() {
         if (!perf) continue;
         effectiveMmrByPlayer.set(playerId, perf.effectiveMmr);
         hasFinishedMatchByPlayer.set(playerId, perf.hasFinishedMatch);
+        mmrManualOverrideByPlayer.set(playerId, perf.mmrManualOverride);
       }
     } catch {
       // Keep fallback to stored MMR when performance helper fails.
@@ -221,11 +208,13 @@ export default async function PlayersPage() {
         <div className="mt-4 grid gap-2 md:grid-cols-2">
           {players.map((p) => {
             const mmr = Number(effectiveMmrByPlayer.get(p.id) ?? p.mmr ?? 0);
-            const hasFinishedMatch = hasFinishedMatchByPlayer.get(p.id) ?? mmr > 0;
+            const hasFinishedMatch = hasFinishedMatchByPlayer.get(p.id) ?? false;
+            const mmrManualOverride = mmrManualOverrideByPlayer.get(p.id) ?? false;
             const prestigePoints = Math.max(0, Math.floor(Number(p.prestige_points ?? 0)));
-            const rank = displayRank(hasFinishedMatch, mmr, prestigePoints);
+            const canShowRank = canShowRankFromMmr(hasFinishedMatch, mmrManualOverride);
+            const rank = displayRankFromProgress(canShowRank, mmr, prestigePoints);
             const shownRankLabel = rankLabel(rank);
-            const frameUrl = FRAME_BY_RANK[rank];
+            const frameUrl = p.rank_frame_enabled === false ? null : FRAME_BY_RANK[rank];
             const frameClass = `player-rank-tier-${rank}`;
 
             return (

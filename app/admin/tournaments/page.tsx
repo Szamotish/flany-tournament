@@ -3,7 +3,13 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-type Player = { id: string; name: string; active: boolean };
+type Player = {
+  id: string;
+  name: string;
+  active: boolean;
+  mmr?: number | null;
+  mmr_manual_override?: boolean | null;
+};
 type Tournament = {
   id: string;
   name: string;
@@ -197,6 +203,40 @@ export default function AdminTournamentsPage() {
 
     setMsg("Nazwa zawodnika zmieniona.");
     await Promise.all([loadPlayers(q), loadTournaments()]);
+  }
+
+  async function setPlayerMmr(playerId: string, playerName: string, currentMmr: number | null | undefined) {
+    const raw = window.prompt(
+      `Nowy MMR dla "${playerName}" (zakres 0-10, np. 7.3):`,
+      Number.isFinite(Number(currentMmr)) ? Number(currentMmr).toFixed(1) : "0.0"
+    );
+
+    if (raw === null) return;
+
+    const value = Number(raw.replace(",", "."));
+    if (!Number.isFinite(value)) {
+      setMsg("Blad MMR: podaj liczbe, np. 6.5");
+      return;
+    }
+
+    setMsg(null);
+    const res = await fetch(`/api/admin/players/${playerId}`, {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        "x-admin-password": adminPass,
+      },
+      body: JSON.stringify({ mmr: value }),
+    });
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg(`Blad ustawiania MMR: ${json.error ?? res.statusText}`);
+      return;
+    }
+
+    setMsg("MMR zawodnika zaktualizowany (manual override aktywny).");
+    await loadPlayers(q);
   }
 
   async function deleteTournament(tournamentId: string, tournamentName: string) {
@@ -469,6 +509,10 @@ export default function AdminTournamentsPage() {
                       </div>
                       <div className="tour-admin-actions">
                         <span className="tour-muted">{p.active ? "aktywny" : "nieaktywny"}</span>
+                        <span className="tour-muted">
+                          MMR {Number.isFinite(Number(p.mmr ?? 0)) ? Number(p.mmr ?? 0).toFixed(1) : "0.0"}
+                          {p.mmr_manual_override ? " (manual)" : ""}
+                        </span>
                         <button
                           className="tour-action-btn"
                           type="button"
@@ -479,6 +523,17 @@ export default function AdminTournamentsPage() {
                           }}
                         >
                           Zmien nazwe
+                        </button>
+                        <button
+                          className="tour-action-btn"
+                          type="button"
+                          disabled={!adminPass}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            void setPlayerMmr(p.id, p.name, p.mmr);
+                          }}
+                        >
+                          Ustaw MMR
                         </button>
                         <button
                           className="tour-action-btn"

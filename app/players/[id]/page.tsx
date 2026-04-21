@@ -1,12 +1,14 @@
 import Link from "next/link";
 import RatePlayer from "./RatePlayer";
 import UploadAvatar from "./UploadAvatar";
+import RankFrameToggle from "./RankFrameToggle";
 import { trimmedMean } from "@/lib/rating";
 import { supabaseServer } from "@/lib/supabaseServer";
 import TrophyIcon from "@/app/components/TrophyIcon";
 import BackNavButton from "@/app/components/BackNavButton";
 import { PRESTIGE_POINTS_PER_MMR } from "@/lib/ranked";
 import { loadPlayerPerformance } from "@/lib/playerPerformance";
+import { canShowRankFromMmr, displayRankFromProgress, rankLabel } from "@/lib/playerRank";
 
 export const dynamic = "force-dynamic";
 
@@ -65,11 +67,29 @@ export default async function PlayerPage({
 }) {
   const { id: playerId } = await params;
 
-  const { data: player, error: playerErr } = await supabaseServer
+  const primaryPlayer = await supabaseServer
     .from("players")
-    .select("id,name,active,avatar_url,mmr,prestige_points")
+    .select("id,name,active,avatar_url,mmr,prestige_points,mmr_manual_override,rank_frame_enabled")
     .eq("id", playerId)
     .maybeSingle();
+
+  let player = primaryPlayer.data;
+  let playerErr = primaryPlayer.error;
+
+  if (
+    primaryPlayer.error &&
+    (primaryPlayer.error.message.includes("mmr_manual_override") ||
+      primaryPlayer.error.message.includes("rank_frame_enabled"))
+  ) {
+    const fallback = await supabaseServer
+      .from("players")
+      .select("id,name,active,avatar_url,mmr,prestige_points")
+      .eq("id", playerId)
+      .maybeSingle();
+
+    player = fallback.data ? { ...fallback.data, mmr_manual_override: false, rank_frame_enabled: true } : null;
+    playerErr = fallback.error;
+  }
 
   if (playerErr) {
     return (
@@ -211,6 +231,12 @@ export default async function PlayerPage({
   const rankedTier = prestigeTier(Number(player.prestige_points ?? 0));
   const rankedMmr = Number(perf?.effectiveMmr ?? player.mmr ?? 0);
   const rankedPrestigePoints = Math.max(0, Number(player.prestige_points ?? 0));
+  const hasFinishedMatch = perf?.hasFinishedMatch ?? false;
+  const mmrManualOverride = perf?.mmrManualOverride ?? (player.mmr_manual_override === true);
+  const canShowRank = canShowRankFromMmr(hasFinishedMatch, mmrManualOverride);
+  const currentRank = displayRankFromProgress(canShowRank, rankedMmr, rankedPrestigePoints);
+  const currentRankLabel = rankLabel(currentRank);
+  const rankFrameEnabled = player.rank_frame_enabled !== false;
 
   return (
     <main className="player-profile-root">
@@ -254,8 +280,10 @@ export default async function PlayerPage({
               >
                 {rankedTier > 0 ? `Prestige +${rankedTier}` : "Prestige 0"}
               </span>
+              <span className="profile-rating-chip">Ranga: {currentRankLabel}</span>
             </div>
             <p className="profile-muted mt-1">Punkty prestige: {Number.isFinite(rankedPrestigePoints) ? rankedPrestigePoints : 0}</p>
+            <RankFrameToggle playerId={playerId} initialEnabled={rankFrameEnabled} />
             {ratingsErr && <p className="profile-muted mt-1">Blad ocen: {ratingsErr.message}</p>}
             {membershipsErr && <p className="profile-muted mt-1">Blad historii: {membershipsErr.message}</p>}
           </div>
