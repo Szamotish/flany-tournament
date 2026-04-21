@@ -1850,45 +1850,20 @@ body {
 
 .player-rank-avatar-wrap {
   position: relative;
-  display: inline-grid;
-  width: 58px;
-  height: 58px;
+  display: grid;
+  width: 66px;
+  height: 66px;
   flex-shrink: 0;
   place-items: center;
-}
-
-.player-rank-avatar-wrap::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 14px;
-  clip-path: polygon(18% 0, 82% 0, 100% 18%, 100% 82%, 82% 100%, 18% 100%, 0 82%, 0 18%);
-  background: linear-gradient(150deg, var(--crest-light) 0%, var(--crest-main) 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.62),
-    0 0 0 2px color-mix(in oklab, var(--crest-edge), transparent 4%),
-    0 8px 16px color-mix(in oklab, var(--crest-glow), transparent 36%);
-  z-index: 0;
-}
-
-.player-rank-avatar-wrap::after {
-  content: "";
-  position: absolute;
-  inset: 6px;
-  border-radius: 10px;
-  clip-path: polygon(16% 0, 84% 0, 100% 16%, 100% 84%, 84% 100%, 16% 100%, 0 84%, 0 16%);
-  border: 2px solid color-mix(in oklab, var(--crest-edge), rgba(255, 255, 255, 0.26) 40%);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0));
-  z-index: 1;
 }
 
 .player-rank-avatar {
   position: relative;
   z-index: 2;
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   border-radius: 999px;
-  border: 2px solid rgba(255, 255, 255, 0.86);
+  border: 2px solid rgba(255, 255, 255, 0.92);
   overflow: hidden;
   display: grid;
   place-items: center;
@@ -1899,60 +1874,17 @@ body {
   box-shadow: 0 4px 10px rgba(18, 14, 8, 0.28);
 }
 
-.player-rank-avatar-wrap-challenger .player-rank-avatar {
-  border-color: rgba(255, 247, 217, 0.95);
-  box-shadow:
-    0 0 0 2px rgba(246, 201, 111, 0.62),
-    0 8px 14px rgba(20, 44, 77, 0.42);
-}
-
-.player-rank-challenger-wings {
+.player-rank-avatar-frame {
   position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-}
-
-.player-rank-challenger-wings::before,
-.player-rank-challenger-wings::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  width: 34px;
-  height: 24px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #dff8ff 0%, #62ccff 46%, #1f7fd0 100%);
-  filter:
-    drop-shadow(0 0 7px rgba(98, 197, 255, 0.86))
-    drop-shadow(0 0 2px rgba(205, 239, 255, 0.76));
-  clip-path: polygon(100% 50%, 40% 8%, 0 0, 28% 50%, 0 100%, 40% 92%);
-}
-
-.player-rank-challenger-wings::before {
-  left: -25px;
-  transform: translateY(-50%) rotate(-12deg);
-}
-
-.player-rank-challenger-wings::after {
-  right: -25px;
-  transform: translateY(-50%) scaleX(-1) rotate(-12deg);
-}
-
-.player-rank-challenger-gem {
-  position: absolute;
-  left: 50%;
-  bottom: -10px;
-  width: 14px;
-  height: 14px;
-  transform: translateX(-50%) rotate(45deg);
-  border-radius: 2px;
+  inset: -14px;
   z-index: 3;
-  background:
-    linear-gradient(145deg, rgba(225, 245, 255, 0.96) 0%, rgba(86, 176, 243, 0.96) 52%, rgba(35, 108, 183, 0.98) 100%);
-  border: 1px solid rgba(198, 236, 255, 0.94);
-  box-shadow:
-    0 0 0 1px rgba(52, 127, 197, 0.62),
-    0 0 10px rgba(103, 194, 255, 0.8);
+  pointer-events: none;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  filter:
+    drop-shadow(0 2px 6px rgba(13, 11, 8, 0.32))
+    drop-shadow(0 0 8px color-mix(in oklab, var(--rank-glow), transparent 52%));
 }
 
 .player-rank-right {
@@ -2120,6 +2052,17 @@ body {
   --crest-light: #e8b8f2;
   --crest-edge: rgba(245, 206, 255, 0.92);
   --crest-glow: rgba(184, 77, 208, 0.68);
+}
+
+.player-rank-tier-grandmaster {
+  --rank-border: rgba(149, 44, 70, 0.62);
+  --rank-edge: rgba(221, 105, 140, 0.72);
+  --rank-accent: rgba(248, 173, 198, 0.56);
+  --rank-glow: rgba(209, 69, 117, 0.58);
+  --crest-main: #a02e53;
+  --crest-light: #f1b3cb;
+  --crest-edge: rgba(255, 211, 228, 0.94);
+  --crest-glow: rgba(228, 84, 136, 0.74);
 }
 
 .player-rank-tier-challenger {

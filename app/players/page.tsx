@@ -19,7 +19,29 @@ type PlayerRow = {
 };
 
 type CooldownState = "ready" | "cooldown" | "soon";
-type MmrRank = "unranked" | "bronze" | "silver" | "gold" | "platinum" | "emerald" | "diamond" | "master";
+type DisplayRank =
+  | "unranked"
+  | "bronze"
+  | "silver"
+  | "gold"
+  | "platinum"
+  | "emerald"
+  | "diamond"
+  | "master"
+  | "grandmaster"
+  | "challenger";
+
+const FRAME_BY_RANK: Partial<Record<DisplayRank, string>> = {
+  bronze: "/ramki/bronze.png",
+  silver: "/ramki/silver.png",
+  gold: "/ramki/gold.png",
+  platinum: "/ramki/platyna.png",
+  emerald: "/ramki/emerald.png",
+  diamond: "/ramki/diament.png",
+  master: "/ramki/master.png",
+  grandmaster: "/ramki/grandmaster.png",
+  challenger: "/ramki/challanger.png",
+};
 
 function cooldownStatus(updatedAtIso: string | null): { state: CooldownState; hint: string } {
   if (!updatedAtIso) {
@@ -66,8 +88,11 @@ function formatAverage(value: number | null): string {
   return value.toFixed(1);
 }
 
-function mmrRank(hasFinishedMatch: boolean, mmrValue: number): MmrRank {
+function displayRank(hasFinishedMatch: boolean, mmrValue: number, prestigePoints: number): DisplayRank {
   if (!hasFinishedMatch) return "unranked";
+  if (prestigePoints >= 301) return "challenger";
+  if (prestigePoints >= 101) return "grandmaster";
+  if (prestigePoints >= 1) return "master";
   if (mmrValue >= 10) return "master";
   if (mmrValue >= 9) return "diamond";
   if (mmrValue >= 7) return "emerald";
@@ -77,7 +102,7 @@ function mmrRank(hasFinishedMatch: boolean, mmrValue: number): MmrRank {
   return "bronze";
 }
 
-function rankLabel(rank: MmrRank): string {
+function rankLabel(rank: DisplayRank): string {
   if (rank === "unranked") return "Unranked";
   if (rank === "bronze") return "Bronze";
   if (rank === "silver") return "Silver";
@@ -85,7 +110,9 @@ function rankLabel(rank: MmrRank): string {
   if (rank === "platinum") return "Platyna";
   if (rank === "emerald") return "Emerald";
   if (rank === "diamond") return "Diament";
-  return "Master";
+  if (rank === "master") return "Master";
+  if (rank === "grandmaster") return "Grandmaster";
+  return "Challenger";
 }
 
 function formatMmr(value: number | null): string {
@@ -195,24 +222,34 @@ export default async function PlayersPage() {
           {players.map((p) => {
             const mmr = Number(effectiveMmrByPlayer.get(p.id) ?? p.mmr ?? 0);
             const hasFinishedMatch = hasFinishedMatchByPlayer.get(p.id) ?? mmr > 0;
-            const rank = mmrRank(hasFinishedMatch, mmr);
             const prestigePoints = Math.max(0, Math.floor(Number(p.prestige_points ?? 0)));
-            const isChallenger = prestigePoints > 0;
-            const shownRankLabel = isChallenger ? "Challenger" : rankLabel(rank);
+            const rank = displayRank(hasFinishedMatch, mmr, prestigePoints);
+            const shownRankLabel = rankLabel(rank);
+            const frameUrl = FRAME_BY_RANK[rank];
+            const frameClass = `player-rank-tier-${rank}`;
 
             return (
               <Link key={p.id} href={`/players/${p.id}`} className="no-underline">
-                <div className="player-rank-card">
+                <div className={`player-rank-card ${frameClass}`}>
                   <div className="player-rank-main">
-                    <span className="inline-grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border bg-white text-sm font-semibold">
-                      {p.avatar_url ? (
+                    <span className="player-rank-avatar-wrap">
+                      <span className="player-rank-avatar">
+                        {p.avatar_url ? (
+                          <span
+                            className="block h-full w-full bg-cover bg-center"
+                            style={{ backgroundImage: `url('${p.avatar_url}')` }}
+                          />
+                        ) : (
+                          p.name.slice(0, 1).toUpperCase()
+                        )}
+                      </span>
+                      {frameUrl ? (
                         <span
-                          className="block h-full w-full bg-cover bg-center"
-                          style={{ backgroundImage: `url('${p.avatar_url}')` }}
+                          className="player-rank-avatar-frame"
+                          style={{ backgroundImage: `url('${frameUrl}')` }}
+                          aria-hidden
                         />
-                      ) : (
-                        p.name.slice(0, 1).toUpperCase()
-                      )}
+                      ) : null}
                     </span>
                     <span className="truncate font-medium">{p.name}</span>
                   </div>
