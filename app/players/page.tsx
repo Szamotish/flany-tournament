@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { cookies } from "next/headers";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { trimmedMean } from "@/lib/rating";
 import { loadPlayerPerformance } from "@/lib/playerPerformance";
@@ -11,9 +10,6 @@ import {
 } from "@/lib/playerRank";
 
 export const dynamic = "force-dynamic";
-
-const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
-const COOLDOWN_SOON_MS = 24 * 60 * 60 * 1000;
 
 type PlayerRow = {
   id: string;
@@ -27,30 +23,6 @@ type PlayerRow = {
 };
 
 type CooldownState = "ready" | "cooldown" | "soon";
-
-function cooldownStatus(updatedAtIso: string | null): { state: CooldownState; hint: string } {
-  if (!updatedAtIso) {
-    return { state: "ready", hint: "Mozesz teraz wystawic ocene." };
-  }
-
-  const updatedAtMs = new Date(updatedAtIso).getTime();
-  if (!Number.isFinite(updatedAtMs)) {
-    return { state: "ready", hint: "Mozesz teraz wystawic ocene." };
-  }
-
-  const msLeft = COOLDOWN_MS - (Date.now() - updatedAtMs);
-  if (msLeft <= 0) {
-    return { state: "ready", hint: "Mozesz teraz wystawic ocene." };
-  }
-
-  if (msLeft <= COOLDOWN_SOON_MS) {
-    const hoursLeft = Math.max(1, Math.ceil(msLeft / (1000 * 60 * 60)));
-    return { state: "soon", hint: `Cooldown konczy sie za ok. ${hoursLeft}h.` };
-  }
-
-  const daysLeft = Math.max(1, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
-  return { state: "cooldown", hint: `Cooldown aktywny, pozostalo ok. ${daysLeft} dni.` };
-}
 
 function badgeTone(state: CooldownState): string {
   if (state === "ready") {
@@ -170,28 +142,6 @@ export default async function PlayersPage() {
     }
   }
 
-  let cooldownError: string | null = null;
-  const deviceId = (await cookies()).get("device_id")?.value ?? null;
-
-  if (deviceId && playerIds.length > 0) {
-    const { data: myRatings, error: myRatingsError } = await supabaseServer
-      .from("ratings")
-      .select("rated_player_id,updated_at")
-      .eq("rater_device_id", deviceId)
-      .in("rated_player_id", playerIds);
-
-    if (myRatingsError) {
-      cooldownError = myRatingsError.message;
-    } else {
-      for (const row of myRatings ?? []) {
-        const playerId = typeof row.rated_player_id === "string" ? row.rated_player_id : "";
-        if (!playerId) continue;
-        const updatedAt = typeof row.updated_at === "string" ? row.updated_at : null;
-        cooldownByPlayer.set(playerId, cooldownStatus(updatedAt));
-      }
-    }
-  }
-
   return (
     <main className="p-4 md:p-6 overflow-x-clip">
       <Link className="underline opacity-80" href="/">
@@ -276,7 +226,6 @@ export default async function PlayersPage() {
       )}
 
       {ratingsError ? <p className="mt-3 text-xs text-red-600">Blad ocen: {ratingsError}</p> : null}
-      {cooldownError ? <p className="mt-1 text-xs text-red-600">Blad cooldownu: {cooldownError}</p> : null}
     </main>
   );
 }

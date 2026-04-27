@@ -1,7 +1,8 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { authedFetch } from "@/lib/authClient";
 
 type Player = {
   id: string;
@@ -9,7 +10,9 @@ type Player = {
   active: boolean;
   mmr?: number | null;
   mmr_manual_override?: boolean | null;
+  has_account?: boolean;
 };
+
 type Tournament = {
   id: string;
   name: string;
@@ -29,20 +32,29 @@ function parseBo(value: string): 1 | 3 | 5 | null {
   return null;
 }
 
+function mapApiError(error: unknown): string {
+  const text = String(error ?? "");
+  if (text.includes("forbidden_main_admin_only")) return "Ta akcja wymaga roli Main Admin.";
+  if (text.includes("invalid_or_expired_token")) return "Sesja wygasla. Zaloguj sie ponownie.";
+  if (text.includes("missing_bearer_token")) return "Brak sesji. Zaloguj sie.";
+  if (text.includes("missing_auth_schema")) return "Brak migracji auth w bazie (auth_user_id / is_main_admin).";
+  if (text.includes("missing_tournament_admins_schema")) return "Brak tabeli tournament_admins.";
+  return text || "Nieznany blad";
+}
+
 export default function AdminTournamentsPage() {
-  const [adminPass, setAdminPass] = useState("");
+  const [isMainAdmin, setIsMainAdmin] = useState<boolean | null>(null);
   const [name, setName] = useState("");
-  const [newPlayerName, setNewPlayerName] = useState("");
   const [format, setFormat] = useState<"single_elim" | "double_elim">("double_elim");
   const [mode, setMode] = useState<"normal" | "ranked">("normal");
   const [boDefault, setBoDefault] = useState<1 | 3 | 5>(1);
   const [boFinals, setBoFinals] = useState<1 | 3 | 5>(3);
   const [gfResetEnabled, setGfResetEnabled] = useState(true);
-  const [localAdminPassword, setLocalAdminPassword] = useState("");
 
   const [q, setQ] = useState("");
   const [players, setPlayers] = useState<Player[]>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [localAdmins, setLocalAdmins] = useState<Record<string, boolean>>({});
 
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
@@ -53,15 +65,26 @@ export default function AdminTournamentsPage() {
     () => Object.entries(selected).filter(([, v]) => v).map(([id]) => id),
     [selected]
   );
+  const localAdminIds = useMemo(
+    () =>
+      selectedIds
+        .filter((id) => localAdmins[id] === true)
+        .filter((id) => players.some((player) => player.id === id && player.has_account === true)),
+    [selectedIds, localAdmins, players]
+  );
 
   async function loadPlayers(query: string) {
-    const res = await fetch(`/api/public/players/search?q=${encodeURIComponent(query)}`);
+    const res = await fetch(`/api/public/players/search?q=${encodeURIComponent(query)}`, {
+      cache: "no-store",
+    });
     const json = await res.json().catch(() => ({}));
-    if (res.ok) setPlayers(json.players ?? []);
+    if (res.ok) {
+      setPlayers(json.players ?? []);
+    }
   }
 
   async function loadTournaments() {
-    const res = await fetch(`/api/public/tournaments`);
+    const res = await fetch("/api/public/tournaments", { cache: "no-store" });
     const json = await res.json().catch(() => ({}));
     if (res.ok) setTournaments(json.tournaments ?? []);
   }
@@ -70,16 +93,21 @@ export default function AdminTournamentsPage() {
     let cancelled = false;
 
     async function bootstrap() {
-      const [playersRes, tournamentsRes, backgroundRes] = await Promise.all([
-        fetch("/api/public/players/search?q="),
-        fetch("/api/public/tournaments"),
+      const [authRes, playersRes, tournamentsRes, backgroundRes] = await Promise.all([
+        authedFetch("/api/auth/me", { cache: "no-store" }),
+        fetch("/api/public/players/search?q=", { cache: "no-store" }),
+        fetch("/api/public/tournaments", { cache: "no-store" }),
         fetch("/api/public/background", { cache: "no-store" }),
       ]);
+
+      const authJson = await authRes.json().catch(() => ({}));
       const playersJson = await playersRes.json().catch(() => ({}));
       const tournamentsJson = await tournamentsRes.json().catch(() => ({}));
       const backgroundJson = await backgroundRes.json().catch(() => ({}));
 
       if (cancelled) return;
+      setIsMainAdmin(authJson.authenticated === true && authJson.isMainAdmin === true);
+
       if (playersRes.ok) setPlayers(playersJson.players ?? []);
       if (tournamentsRes.ok) setTournaments(tournamentsJson.tournaments ?? []);
       if (
@@ -100,12 +128,9 @@ export default function AdminTournamentsPage() {
   async function createTournament() {
     setMsg(null);
 
-    const res = await fetch("/api/admin/tournaments/create", {
+    const res = await authedFetch("/api/admin/tournaments/create", {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-admin-password": adminPass,
-      },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({
         name,
         format,
@@ -113,65 +138,45 @@ export default function AdminTournamentsPage() {
         boDefault,
         boFinals,
         gfResetEnabled,
-        localAdminPassword,
         playerIds: selectedIds,
+        localAdminPlayerIds: localAdminIds,
       }),
     });
 
     const json = await res.json().catch(() => ({}));
-
     if (!res.ok) {
-      setMsg(`Blad: ${json.error ?? res.statusText}`);
+      setMsg(`Blad: ${mapApiError(json.error ?? res.statusText)}`);
       return;
     }
 
     setMsg("Turniej zostal utworzony.");
     setName("");
     setMode("normal");
-    setLocalAdminPassword("");
     setSelected({});
+    setLocalAdmins({});
     await loadTournaments();
-  }
-
-  async function addPlayer() {
-    setMsg(null);
-
-    const res = await fetch("/api/admin/players", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-admin-password": adminPass,
-      },
-      body: JSON.stringify({ name: newPlayerName }),
-    });
-
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setMsg(`Blad dodawania zawodnika: ${json.error ?? res.statusText}`);
-      return;
-    }
-
-    setNewPlayerName("");
-    setMsg("Dodano zawodnika.");
-    await loadPlayers(q);
   }
 
   async function deletePlayer(playerId: string, playerName: string) {
     if (!window.confirm(`Usunac zawodnika "${playerName}"?`)) return;
 
     setMsg(null);
-    const res = await fetch(`/api/admin/players/${playerId}`, {
+    const res = await authedFetch(`/api/admin/players/${playerId}`, {
       method: "DELETE",
-      headers: { "x-admin-password": adminPass },
     });
 
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setMsg(`Blad usuwania zawodnika: ${json.error ?? res.statusText}`);
+      setMsg(`Blad usuwania zawodnika: ${mapApiError(json.error ?? res.statusText)}`);
       return;
     }
 
     setSelected((prev) => {
+      const next = { ...prev };
+      delete next[playerId];
+      return next;
+    });
+    setLocalAdmins((prev) => {
       const next = { ...prev };
       delete next[playerId];
       return next;
@@ -186,18 +191,15 @@ export default function AdminTournamentsPage() {
     if (!nextName || nextName === currentName) return;
 
     setMsg(null);
-    const res = await fetch(`/api/admin/players/${playerId}`, {
+    const res = await authedFetch(`/api/admin/players/${playerId}`, {
       method: "PATCH",
-      headers: {
-        "content-type": "application/json",
-        "x-admin-password": adminPass,
-      },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({ name: nextName }),
     });
 
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setMsg(`Blad zmiany nazwy: ${json.error ?? res.statusText}`);
+      setMsg(`Blad zmiany nazwy: ${mapApiError(json.error ?? res.statusText)}`);
       return;
     }
 
@@ -210,7 +212,6 @@ export default function AdminTournamentsPage() {
       `Nowy MMR dla "${playerName}" (zakres 0-10, np. 7.3):`,
       Number.isFinite(Number(currentMmr)) ? Number(currentMmr).toFixed(1) : "0.0"
     );
-
     if (raw === null) return;
 
     const value = Number(raw.replace(",", "."));
@@ -220,18 +221,15 @@ export default function AdminTournamentsPage() {
     }
 
     setMsg(null);
-    const res = await fetch(`/api/admin/players/${playerId}`, {
+    const res = await authedFetch(`/api/admin/players/${playerId}`, {
       method: "PATCH",
-      headers: {
-        "content-type": "application/json",
-        "x-admin-password": adminPass,
-      },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({ mmr: value }),
     });
 
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setMsg(`Blad ustawiania MMR: ${json.error ?? res.statusText}`);
+      setMsg(`Blad ustawiania MMR: ${mapApiError(json.error ?? res.statusText)}`);
       return;
     }
 
@@ -243,18 +241,15 @@ export default function AdminTournamentsPage() {
     if (!window.confirm(`Zresetowac MMR i Prestige dla "${playerName}" do stanu poczatkowego?`)) return;
 
     setMsg(null);
-    const res = await fetch(`/api/admin/players/${playerId}`, {
+    const res = await authedFetch(`/api/admin/players/${playerId}`, {
       method: "PATCH",
-      headers: {
-        "content-type": "application/json",
-        "x-admin-password": adminPass,
-      },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({ resetMmr: true }),
     });
 
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setMsg(`Blad resetu MMR: ${json.error ?? res.statusText}`);
+      setMsg(`Blad resetu MMR: ${mapApiError(json.error ?? res.statusText)}`);
       return;
     }
 
@@ -266,14 +261,13 @@ export default function AdminTournamentsPage() {
     if (!window.confirm(`Usunac turniej "${tournamentName}"?`)) return;
 
     setMsg(null);
-    const res = await fetch(`/api/admin/tournaments/${tournamentId}`, {
+    const res = await authedFetch(`/api/admin/tournaments/${tournamentId}`, {
       method: "DELETE",
-      headers: { "x-admin-password": adminPass },
     });
 
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setMsg(`Blad usuwania turnieju: ${json.error ?? res.statusText}`);
+      setMsg(`Blad usuwania turnieju: ${mapApiError(json.error ?? res.statusText)}`);
       return;
     }
 
@@ -285,18 +279,15 @@ export default function AdminTournamentsPage() {
     setMsg(null);
     setSavingBackground(true);
     try {
-      const res = await fetch("/api/admin/background", {
+      const res = await authedFetch("/api/admin/background", {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-admin-password": adminPass,
-        },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({ background: backgroundChoice }),
       });
 
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setMsg(`Blad tla: ${json.error ?? res.statusText}`);
+        setMsg(`Blad tla: ${mapApiError(json.error ?? res.statusText)}`);
         return;
       }
 
@@ -304,6 +295,39 @@ export default function AdminTournamentsPage() {
     } finally {
       setSavingBackground(false);
     }
+  }
+
+  if (isMainAdmin === null) {
+    return (
+      <main className="tour-root">
+        <div className="tour-shell">
+          <p className="tour-muted mt-6">Ladowanie panelu admina...</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!isMainAdmin) {
+    return (
+      <main className="tour-root">
+        <div className="tour-shell">
+          <div className="tour-topbar">
+            <Link className="underline opacity-80" href="/">
+              Back
+            </Link>
+          </div>
+          <section className="tour-admin-panel mt-4">
+            <p className="tour-card-title">Brak dostepu</p>
+            <p className="tour-muted mt-2">
+              Zaloguj sie na koncie z rola Main Admin.
+            </p>
+            <Link href="/auth?next=/admin/tournaments" className="tour-action-btn mt-3 inline-flex">
+              Przejdz do logowania
+            </Link>
+          </section>
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -340,12 +364,7 @@ export default function AdminTournamentsPage() {
               </select>
             </div>
             <div className="tour-admin-actions">
-              <button
-                className="tour-action-btn"
-                type="button"
-                disabled={!adminPass || savingBackground}
-                onClick={saveBackgroundChoice}
-              >
+              <button className="tour-action-btn" type="button" disabled={savingBackground} onClick={saveBackgroundChoice}>
                 {savingBackground ? "Zapisywanie..." : "Zapisz tlo"}
               </button>
             </div>
@@ -359,16 +378,6 @@ export default function AdminTournamentsPage() {
             </div>
 
             <div className="tour-admin-grid mt-3">
-              <div>
-                <label className="tour-admin-label">Haslo main admina</label>
-                <input
-                  className="tour-admin-input"
-                  type="password"
-                  value={adminPass}
-                  onChange={(e) => setAdminPass(e.target.value)}
-                />
-              </div>
-
               <div>
                 <label className="tour-admin-label">Nazwa turnieju</label>
                 <input
@@ -446,17 +455,7 @@ export default function AdminTournamentsPage() {
                   </select>
                 </div>
 
-                <div>
-                  <label className="tour-admin-label">Haslo lokalnego admina</label>
-                  <input
-                    className="tour-admin-input"
-                    value={localAdminPassword}
-                    onChange={(e) => setLocalAdminPassword(e.target.value)}
-                    placeholder="np. admin-kuba"
-                  />
-                </div>
-
-                {format === "double_elim" && (
+                {format === "double_elim" ? (
                   <div>
                     <label className="tour-admin-label">Grand final reset</label>
                     <select
@@ -468,7 +467,7 @@ export default function AdminTournamentsPage() {
                       <option value="no_reset">Bez resetu (jeden final)</option>
                     </select>
                   </div>
-                )}
+                ) : null}
               </div>
 
               <div className="tour-card" style={{ padding: "0.75rem" }}>
@@ -500,121 +499,127 @@ export default function AdminTournamentsPage() {
                   </button>
                 </div>
 
-                <div className="tour-rename-row mt-2">
-                  <input
-                    className="tour-admin-input"
-                    value={newPlayerName}
-                    onChange={(e) => setNewPlayerName(e.target.value)}
-                    placeholder="Nowy zawodnik"
-                  />
-                  <button className="tour-action-btn" disabled={!adminPass || !newPlayerName.trim()} onClick={addPlayer}>
-                    Dodaj zawodnika
-                  </button>
-                </div>
-
                 <p className="tour-muted mt-2">Wybrani: {selectedIds.length}</p>
+                <p className="tour-muted">Lokalni admini: {localAdminIds.length}</p>
 
                 <div className="tour-admin-player-list mt-2">
-                  {players.map((p) => (
-                    <div key={p.id} className="tour-admin-player-row">
-                      <div className="tour-admin-player-main">
-                        <input
-                          type="checkbox"
-                          checked={!!selected[p.id]}
-                          onChange={(e) =>
-                            setSelected((s) => ({
-                              ...s,
-                              [p.id]: e.target.checked,
-                            }))
-                          }
-                        />
-                        <span className="tour-admin-player-name">{p.name}</span>
-                      </div>
-                      <div className="tour-admin-player-meta">
-                        <span className="tour-muted">{p.active ? "aktywny" : "nieaktywny"}</span>
-                        <span className="tour-muted">
-                          MMR {Number.isFinite(Number(p.mmr ?? 0)) ? Number(p.mmr ?? 0).toFixed(1) : "0.0"}
-                        </span>
-                        <details className="tour-player-menu">
-                          <summary
-                            className="tour-player-menu-trigger"
-                            aria-label={`Opcje zawodnika ${p.name}`}
-                            title="Akcje"
+                  {players.map((p) => {
+                    const selectedNow = selected[p.id] === true;
+                    const canBeLocalAdmin = p.has_account === true;
+                    return (
+                      <div key={p.id} className="tour-admin-player-row">
+                        <div className="tour-admin-player-main">
+                          <input
+                            type="checkbox"
+                            checked={selectedNow}
+                            onChange={(e) =>
+                              setSelected((s) => {
+                                const next = { ...s, [p.id]: e.target.checked };
+                                if (!e.target.checked) {
+                                  setLocalAdmins((prev) => {
+                                    const copy = { ...prev };
+                                    delete copy[p.id];
+                                    return copy;
+                                  });
+                                }
+                                return next;
+                              })
+                            }
+                          />
+                          <span className="tour-admin-player-name">{p.name}</span>
+                        </div>
+                        <div className="tour-admin-player-meta">
+                          <span className="tour-muted">{p.active ? "aktywny" : "nieaktywny"}</span>
+                          <span className="tour-muted">
+                            MMR {Number.isFinite(Number(p.mmr ?? 0)) ? Number(p.mmr ?? 0).toFixed(1) : "0.0"}
+                          </span>
+                          <button
+                            className="tour-action-btn"
+                            type="button"
+                            disabled={!selectedNow || !canBeLocalAdmin}
+                            title={!canBeLocalAdmin ? "Gracz nie ma konta (auth)." : "Przelacz lokalnego admina"}
+                            onClick={() =>
+                              setLocalAdmins((prev) => ({
+                                ...prev,
+                                [p.id]: !prev[p.id],
+                              }))
+                            }
                           >
-                            ...
-                          </summary>
-                          <div className="tour-player-menu-panel">
-                            <button
-                              className="tour-player-menu-item"
-                              type="button"
-                              disabled={!adminPass}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                void renamePlayer(p.id, p.name);
-                                e.currentTarget.closest("details")?.removeAttribute("open");
-                              }}
-                            >
-                              Zmien nazwe
-                            </button>
-                            <button
-                              className="tour-player-menu-item"
-                              type="button"
-                              disabled={!adminPass}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                void setPlayerMmr(p.id, p.name, p.mmr);
-                                e.currentTarget.closest("details")?.removeAttribute("open");
-                              }}
-                            >
-                              Ustaw MMR
-                            </button>
-                            <button
-                              className="tour-player-menu-item"
-                              type="button"
-                              disabled={!adminPass}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                void resetPlayerMmr(p.id, p.name);
-                                e.currentTarget.closest("details")?.removeAttribute("open");
-                              }}
-                            >
-                              Reset MMR
-                            </button>
-                            <button
-                              className="tour-player-menu-item tour-player-menu-item-danger"
-                              type="button"
-                              disabled={!adminPass}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                void deletePlayer(p.id, p.name);
-                                e.currentTarget.closest("details")?.removeAttribute("open");
-                              }}
-                            >
-                              Usun
-                            </button>
-                          </div>
-                        </details>
+                            {localAdmins[p.id] ? "Lokalny admin: TAK" : "Lokalny admin: NIE"}
+                          </button>
+                          <details className="tour-player-menu">
+                            <summary className="tour-player-menu-trigger" aria-label={`Opcje zawodnika ${p.name}`} title="Akcje">
+                              ...
+                            </summary>
+                            <div className="tour-player-menu-panel">
+                              <button
+                                className="tour-player-menu-item"
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  void renamePlayer(p.id, p.name);
+                                  e.currentTarget.closest("details")?.removeAttribute("open");
+                                }}
+                              >
+                                Zmien nazwe
+                              </button>
+                              <button
+                                className="tour-player-menu-item"
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  void setPlayerMmr(p.id, p.name, p.mmr);
+                                  e.currentTarget.closest("details")?.removeAttribute("open");
+                                }}
+                              >
+                                Ustaw MMR
+                              </button>
+                              <button
+                                className="tour-player-menu-item"
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  void resetPlayerMmr(p.id, p.name);
+                                  e.currentTarget.closest("details")?.removeAttribute("open");
+                                }}
+                              >
+                                Reset MMR
+                              </button>
+                              <button
+                                className="tour-player-menu-item tour-player-menu-item-danger"
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  void deletePlayer(p.id, p.name);
+                                  e.currentTarget.closest("details")?.removeAttribute("open");
+                                }}
+                              >
+                                Usun
+                              </button>
+                            </div>
+                          </details>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
               <div className="tour-admin-actions">
                 <button
                   className="tour-action-btn"
-                  disabled={!adminPass || !name || !localAdminPassword || selectedIds.length < 2}
+                  disabled={!name || selectedIds.length < 2 || localAdminIds.length < 1}
                   onClick={createTournament}
                 >
                   Utworz turniej
                 </button>
               </div>
 
-              {msg && (
+              {msg ? (
                 <p className={`tour-admin-msg ${msg.toLowerCase().includes("blad") ? "tour-admin-msg-error" : ""}`}>
                   {msg}
                 </p>
-              )}
+              ) : null}
             </div>
           </section>
 
@@ -643,12 +648,7 @@ export default function AdminTournamentsPage() {
                         <Link className="tour-action-btn" href={`/tournaments/${t.id}`}>
                           Podglad
                         </Link>
-                        <button
-                          className="tour-action-btn"
-                          type="button"
-                          disabled={!adminPass}
-                          onClick={() => void deleteTournament(t.id, t.name)}
-                        >
+                        <button className="tour-action-btn" type="button" onClick={() => void deleteTournament(t.id, t.name)}>
                           Usun
                         </button>
                       </div>

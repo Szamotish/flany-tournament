@@ -1,5 +1,31 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Auth + Role Setup (Supabase)
+
+1. Run SQL migration:
+
+`supabase/migrations/20260427_account_auth_and_roles.sql`
+
+2. (Optional fresh start) run:
+
+`supabase/migrations/20260427_reset_app_data.sql`
+
+3. Create your account in `/auth` and then mark it as main admin in Supabase SQL:
+
+```sql
+update public.players
+set is_main_admin = true
+where name = 'TWOJ_PSEUDONIM';
+```
+
+4. Required env vars in Vercel / `.env.local`:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+`ADMIN_PASSWORD` is no longer used.
+
 ## Getting Started
 
 First, run the development server:

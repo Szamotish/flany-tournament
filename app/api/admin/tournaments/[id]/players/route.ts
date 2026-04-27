@@ -45,7 +45,7 @@ export async function GET(
   const { id: tournamentId } = await params;
 
   const auth = await assertTournamentAdmin(req, tournamentId);
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 });
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 });
 
   const { data, error } = await supabaseServer
     .from("tournament_players")
@@ -69,7 +69,7 @@ export async function POST(
   const { id: tournamentId } = await params;
 
   const auth = await assertTournamentAdmin(req, tournamentId);
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 });
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 });
 
   const started = await ensureNotStarted(tournamentId);
   if (!started.ok) return NextResponse.json({ error: started.error }, { status: started.status });
@@ -107,7 +107,7 @@ export async function DELETE(
   const { id: tournamentId } = await params;
 
   const auth = await assertTournamentAdmin(req, tournamentId);
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 });
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 });
 
   const started = await ensureNotStarted(tournamentId);
   if (!started.ok) return NextResponse.json({ error: started.error }, { status: started.status });
@@ -122,6 +122,15 @@ export async function DELETE(
     .eq("tournament_id", tournamentId)
     .eq("player_id", playerId);
   if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 });
+
+  const { error: delAdminErr } = await supabaseServer
+    .from("tournament_admins")
+    .delete()
+    .eq("tournament_id", tournamentId)
+    .eq("player_id", playerId);
+  if (delAdminErr && !delAdminErr.message.includes("tournament_admins")) {
+    return NextResponse.json({ error: delAdminErr.message }, { status: 500 });
+  }
 
   const batchErr = await deactivateActiveBatch(tournamentId);
   if (batchErr) return NextResponse.json({ error: batchErr.message }, { status: 500 });

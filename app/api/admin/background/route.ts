@@ -8,8 +8,9 @@ import {
 } from "@/lib/appBackground";
 
 export async function GET(req: Request) {
-  if (!assertMainAdmin(req)) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const admin = await assertMainAdmin(req);
+  if (!admin.ok) {
+    return NextResponse.json({ error: admin.error }, { status: admin.status });
   }
 
   const background = await readAppBackground();
@@ -17,8 +18,9 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  if (!assertMainAdmin(req)) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const admin = await assertMainAdmin(req);
+  if (!admin.ok) {
+    return NextResponse.json({ error: admin.error }, { status: admin.status });
   }
 
   let body: { background?: unknown } = {};

@@ -5,8 +5,9 @@ import { assertMainAdmin } from "@/app/api/admin/_auth";
 import { loadPlayerPerformance } from "@/lib/playerPerformance";
 
 export async function POST(req: Request) {
-  if (!assertMainAdmin(req)) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const admin = await assertMainAdmin(req);
+  if (!admin.ok) {
+    return NextResponse.json({ error: admin.error }, { status: admin.status });
   }
 
   const body = await req.json().catch(() => null);

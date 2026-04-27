@@ -10,7 +10,7 @@ export async function PATCH(
 
   const auth = await assertTournamentAdmin(req, tournamentId);
   if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: 401 });
+    return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 });
   }
 
   const body = await req.json().catch(() => null);

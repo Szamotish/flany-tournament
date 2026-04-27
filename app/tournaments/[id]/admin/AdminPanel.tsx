@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { teamToneVars } from "@/lib/ui/teamTone";
+import { authedFetch } from "@/lib/authClient";
 
 type TeamEntry = {
   id: string;
@@ -17,7 +18,6 @@ type PlayerOption = {
 };
 
 export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
-  const [localPass, setLocalPass] = useState("");
   const [teamSize, setTeamSize] = useState(5);
   const [allowUneven, setAllowUneven] = useState(true);
   const [iterations, setIterations] = useState(500);
@@ -33,11 +33,10 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
   async function generate() {
     setMsg(null);
 
-    const res = await fetch(`/api/admin/tournaments/${tournamentId}/teams/generate`, {
+    const res = await authedFetch(`/api/admin/tournaments/${tournamentId}/teams/generate`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-tournament-admin-password": localPass,
       },
       body: JSON.stringify({ teamSize, allowUneven, iterations, mode }),
     });
@@ -71,11 +70,10 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
   async function renameTeam(teamId: string, name: string) {
     setMsg(null);
 
-    const res = await fetch(`/api/admin/tournaments/${tournamentId}/teams/rename`, {
+    const res = await authedFetch(`/api/admin/tournaments/${tournamentId}/teams/rename`, {
       method: "PATCH",
       headers: {
         "content-type": "application/json",
-        "x-tournament-admin-password": localPass,
       },
       body: JSON.stringify({ teamId, name }),
     });
@@ -93,16 +91,10 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
   }
 
   async function loadTournamentPlayers() {
-    if (!localPass) {
-      setMsg("Podaj haslo lokalnego admina.");
-      return;
-    }
-
     setLoadingPlayers(true);
     setMsg(null);
     try {
-      const res = await fetch(`/api/admin/tournaments/${tournamentId}/players`, {
-        headers: { "x-tournament-admin-password": localPass },
+      const res = await authedFetch(`/api/admin/tournaments/${tournamentId}/players`, {
         cache: "no-store",
       });
       const json = await res.json().catch(() => ({}));
@@ -133,11 +125,10 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
 
   async function addPlayer(playerId: string) {
     setMsg(null);
-    const res = await fetch(`/api/admin/tournaments/${tournamentId}/players`, {
+    const res = await authedFetch(`/api/admin/tournaments/${tournamentId}/players`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-tournament-admin-password": localPass,
       },
       body: JSON.stringify({ playerId }),
     });
@@ -157,11 +148,10 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
     if (!window.confirm(`Usunac ${playerName} z tego turnieju?`)) return;
 
     setMsg(null);
-    const res = await fetch(`/api/admin/tournaments/${tournamentId}/players`, {
+    const res = await authedFetch(`/api/admin/tournaments/${tournamentId}/players`, {
       method: "DELETE",
       headers: {
         "content-type": "application/json",
-        "x-tournament-admin-password": localPass,
       },
       body: JSON.stringify({ playerId }),
     });
@@ -193,16 +183,6 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
 
         <section className="tour-admin-panel mt-4">
           <div className="tour-admin-grid">
-            <div>
-              <label className="tour-admin-label">Haslo lokalnego admina</label>
-              <input
-                className="tour-admin-input"
-                type="password"
-                value={localPass}
-                onChange={(e) => setLocalPass(e.target.value)}
-              />
-            </div>
-
             <div className="tour-admin-grid-2">
               <div>
                 <label className="tour-admin-label">Rozmiar druzyny</label>
@@ -254,13 +234,13 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
             </div>
 
             <div className="tour-admin-actions">
-              <button className="tour-action-btn" onClick={generate} disabled={!localPass}>
+              <button className="tour-action-btn" onClick={generate}>
                 Generuj druzyny
               </button>
               <button className="tour-action-btn" onClick={loadTeams}>
                 {loadingTeams ? "Ladowanie..." : "Pokaz druzyny"}
               </button>
-              <button className="tour-action-btn" onClick={loadTournamentPlayers} disabled={!localPass}>
+              <button className="tour-action-btn" onClick={loadTournamentPlayers}>
                 {loadingPlayers ? "Ladowanie..." : "Zawodnicy turnieju"}
               </button>
               <Link className="tour-action-btn" href={`/tournaments/${tournamentId}/admin-matches`}>
@@ -295,7 +275,6 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
                       <button
                         className="tour-action-btn"
                         type="button"
-                        disabled={!localPass}
                         onClick={() => void removePlayer(p.id, p.name)}
                       >
                         Usun
@@ -321,7 +300,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
                 <button className="tour-action-btn" onClick={() => void searchPlayers(playerSearch)}>
                   Szukaj
                 </button>
-                <button className="tour-action-btn" onClick={loadTournamentPlayers} disabled={!localPass}>
+                <button className="tour-action-btn" onClick={loadTournamentPlayers}>
                   Odswiez
                 </button>
               </div>
@@ -338,7 +317,6 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
                       <button
                         className="tour-action-btn"
                         type="button"
-                        disabled={!localPass}
                         onClick={() => void addPlayer(p.id)}
                       >
                         Dodaj

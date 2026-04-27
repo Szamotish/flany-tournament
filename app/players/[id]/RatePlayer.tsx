@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { authedFetch } from "@/lib/authClient";
 
 type RatePlayerProps = {
   playerId: string;
@@ -12,14 +13,31 @@ export default function RatePlayer({ playerId, className }: RatePlayerProps) {
   const [value, setValue] = useState(7);
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [isOwnProfile, setIsOwnProfile] = useState(false);
 
   const router = useRouter();
 
   useEffect(() => {
     async function init() {
-      await fetch("/api/public/device").catch(() => {});
+      const meRes = await authedFetch("/api/auth/me", { cache: "no-store" });
+      const meJson = await meRes.json().catch(() => ({}));
 
-      const res = await fetch(`/api/public/my-rating?ratedId=${playerId}`);
+      if (!meJson.authenticated) {
+        setAuthenticated(false);
+        setLoading(false);
+        return;
+      }
+
+      setAuthenticated(true);
+
+      if (typeof meJson.player?.id === "string" && meJson.player.id === playerId) {
+        setIsOwnProfile(true);
+        setLoading(false);
+        return;
+      }
+
+      const res = await authedFetch(`/api/public/my-rating?ratedId=${playerId}`, { cache: "no-store" });
       const json = await res.json().catch(() => ({}));
 
       if (res.ok && typeof json.value === "number") {
@@ -33,9 +51,11 @@ export default function RatePlayer({ playerId, className }: RatePlayerProps) {
   }, [playerId]);
 
   async function save() {
+    if (!authenticated || isOwnProfile) return;
+
     setMsg(null);
 
-    const res = await fetch("/api/public/ratings", {
+    const res = await authedFetch("/api/public/ratings", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ ratedId: playerId, value }),
@@ -47,7 +67,17 @@ export default function RatePlayer({ playerId, className }: RatePlayerProps) {
       if (res.status === 429) {
         setMsg(json.message ?? "Cooldown aktywny");
       } else {
-        setMsg(`Blad: ${json.error ?? res.statusText}`);
+        if (json.error === "missing_player_profile") {
+          setMsg("Twoje konto nie jest jeszcze podlaczone do zawodnika.");
+        } else if (json.error === "cannot_rate_self") {
+          setMsg("Nie mozesz ocenic samego siebie.");
+        } else if (json.error === "missing_ratings_player_schema") {
+          setMsg("Brakuje migracji rankingu w bazie (rater_player_id).");
+        } else if (json.error === "invalid_or_expired_token") {
+          setMsg("Sesja wygasla. Zaloguj sie ponownie.");
+        } else {
+          setMsg(`Blad: ${json.error ?? res.statusText}`);
+        }
       }
       return;
     }
@@ -62,6 +92,10 @@ export default function RatePlayer({ playerId, className }: RatePlayerProps) {
 
       {loading ? (
         <p className="profile-muted mt-2">Ladowanie Twojej oceny...</p>
+      ) : !authenticated ? (
+        <p className="profile-muted mt-2">Zaloguj sie, aby oceniac zawodnikow.</p>
+      ) : isOwnProfile ? (
+        <p className="profile-muted mt-2">Nie mozesz wystawic oceny sobie.</p>
       ) : (
         <>
           <p className="profile-muted mt-2">Twoja ocena: {value}/10</p>

@@ -269,10 +269,6 @@ export default async function HomePage() {
           </article>
         </section>
       </div>
-
-      <Link href="/admin/tournaments" className="admin-fab" aria-label="Panel main admin">
-        Admin
-      </Link>
     </main>
   );
 }

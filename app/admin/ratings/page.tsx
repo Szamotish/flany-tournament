@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { authedFetch } from "@/lib/authClient";
 
 type Player = { id: string; name: string };
 
 export default function AdminRatingsPage() {
-  const [adminPass, setAdminPass] = useState("");
   const [players, setPlayers] = useState<Player[]>([]);
   const [raterId, setRaterId] = useState("");
   const [ratedId, setRatedId] = useState("");
@@ -14,56 +14,39 @@ export default function AdminRatingsPage() {
 
   useEffect(() => {
     (async () => {
-      const res = await fetch("/api/public/players");
-      const json = await res.json();
-      setPlayers(json.players ?? []);
+      const res = await fetch("/api/public/players/search?q=", { cache: "no-store" });
+      const json = await res.json().catch(() => ({}));
+      setPlayers((json.players ?? []).map((p: { id: string; name: string }) => ({ id: p.id, name: p.name })));
     })();
   }, []);
 
-  const ratedOptions = useMemo(
-    () => players.filter((p) => p.id !== raterId),
-    [players, raterId]
-  );
+  const ratedOptions = useMemo(() => players.filter((p) => p.id !== raterId), [players, raterId]);
 
   async function submit() {
     setMsg(null);
-    const res = await fetch("/api/admin/ratings", {
+    const res = await authedFetch("/api/admin/ratings", {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-admin-password": adminPass,
-      },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({ raterId, ratedId, value }),
     });
 
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setMsg(`Błąd: ${json.error ?? res.statusText}`);
+      setMsg(`Blad: ${json.error ?? res.statusText}`);
       return;
     }
 
-    setMsg("Zapisano ocenę ✅");
+    setMsg("Zapisano ocene.");
   }
 
   return (
     <main className="p-6">
-      <h1 className="text-2xl font-semibold">Admin • Oceny</h1>
+      <h1 className="text-2xl font-semibold">Admin - Oceny</h1>
 
       <div className="mt-4 max-w-xl rounded-xl border p-4 space-y-4">
-        <div className="space-y-1">
-          <label className="text-sm font-medium">Hasło admina</label>
-          <input
-            className="w-full rounded-lg border px-3 py-2"
-            type="password"
-            value={adminPass}
-            onChange={(e) => setAdminPass(e.target.value)}
-            placeholder="ADMIN_PASSWORD"
-          />
-        </div>
-
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-1">
-            <label className="text-sm font-medium">Oceniający</label>
+            <label className="text-sm font-medium">Oceniajacy</label>
             <select
               className="w-full rounded-lg border px-3 py-2"
               value={raterId}
@@ -72,7 +55,7 @@ export default function AdminRatingsPage() {
                 if (e.target.value === ratedId) setRatedId("");
               }}
             >
-              <option value="">— wybierz —</option>
+              <option value="">- wybierz -</option>
               {players.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -89,7 +72,7 @@ export default function AdminRatingsPage() {
               onChange={(e) => setRatedId(e.target.value)}
               disabled={!raterId}
             >
-              <option value="">— wybierz —</option>
+              <option value="">- wybierz -</option>
               {ratedOptions.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -115,12 +98,12 @@ export default function AdminRatingsPage() {
         <button
           className="rounded-lg border px-3 py-2 disabled:opacity-50"
           onClick={submit}
-          disabled={!adminPass || !raterId || !ratedId}
+          disabled={!raterId || !ratedId}
         >
           Zapisz (upsert)
         </button>
 
-        {msg && <p className="text-sm opacity-80">{msg}</p>}
+        {msg ? <p className="text-sm opacity-80">{msg}</p> : null}
       </div>
     </main>
   );

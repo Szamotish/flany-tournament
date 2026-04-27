@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { trimmedMean } from "@/lib/rating";
+import { readAuthContext } from "@/app/api/admin/_auth";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: playerId } = await params;
@@ -125,7 +126,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await readAuthContext(req);
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   const { id: playerId } = await params;
+  const canEdit = auth.ctx.isMainAdmin || auth.ctx.playerId === playerId;
+  if (!canEdit) {
+    return NextResponse.json({ error: "forbidden_player_owner_only" }, { status: 403 });
+  }
 
   const body = await req.json().catch(() => null);
   if (typeof body?.rankFrameEnabled !== "boolean") {

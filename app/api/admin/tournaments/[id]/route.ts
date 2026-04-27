@@ -6,8 +6,9 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!assertMainAdmin(req)) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const admin = await assertMainAdmin(req);
+  if (!admin.ok) {
+    return NextResponse.json({ error: admin.error }, { status: admin.status });
   }
 
   const { id: tournamentId } = await params;
@@ -56,6 +57,14 @@ export async function DELETE(
     .delete()
     .eq("tournament_id", tournamentId);
   if (tpErr) return NextResponse.json({ error: tpErr.message }, { status: 500 });
+
+  const { error: adminLinksErr } = await supabaseServer
+    .from("tournament_admins")
+    .delete()
+    .eq("tournament_id", tournamentId);
+  if (adminLinksErr && !adminLinksErr.message.includes("tournament_admins")) {
+    return NextResponse.json({ error: adminLinksErr.message }, { status: 500 });
+  }
 
   if (teamIds.length > 0) {
     const { error: membersErr } = await supabaseServer

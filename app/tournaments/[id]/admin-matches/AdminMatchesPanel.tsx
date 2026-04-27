@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { authedFetch } from "@/lib/authClient";
 
 type Bracket = "single" | "winners" | "losers" | "grand_final";
 
@@ -38,7 +39,6 @@ function statusTone(status: string): string {
 }
 
 export default function AdminMatchesPanel({ tournamentId }: { tournamentId: string }) {
-  const [localPass, setLocalPass] = useState("");
   const [matches, setMatches] = useState<Match[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -70,9 +70,8 @@ export default function AdminMatchesPanel({ tournamentId }: { tournamentId: stri
 
   async function start() {
     setMsg(null);
-    const res = await fetch(`/api/admin/tournaments/${tournamentId}/matches/start`, {
+    const res = await authedFetch(`/api/admin/tournaments/${tournamentId}/matches/start`, {
       method: "POST",
-      headers: { "x-tournament-admin-password": localPass },
     });
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -86,11 +85,10 @@ export default function AdminMatchesPanel({ tournamentId }: { tournamentId: stri
   async function report(matchId: string, scoreA: number, scoreB: number) {
     setMsg(null);
 
-    const res = await fetch(`/api/admin/tournaments/${tournamentId}/matches/report`, {
+    const res = await authedFetch(`/api/admin/tournaments/${tournamentId}/matches/report`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-tournament-admin-password": localPass,
       },
       body: JSON.stringify({ matchId, scoreA, scoreB }),
     });
@@ -140,18 +138,8 @@ export default function AdminMatchesPanel({ tournamentId }: { tournamentId: stri
 
         <section className="tour-admin-panel mt-4">
           <div className="tour-admin-grid">
-            <div>
-              <label className="tour-admin-label">Haslo lokalnego admina</label>
-              <input
-                className="tour-admin-input"
-                type="password"
-                value={localPass}
-                onChange={(e) => setLocalPass(e.target.value)}
-              />
-            </div>
-
             <div className="tour-admin-actions">
-              <button className="tour-action-btn" disabled={!localPass} onClick={start}>
+              <button className="tour-action-btn" onClick={start}>
                 Start turnieju
               </button>
             </div>
@@ -186,7 +174,7 @@ export default function AdminMatchesPanel({ tournamentId }: { tournamentId: stri
 
                     <div className="tour-match-list mt-3">
                       {(rounds[String(roundNo)] ?? []).map((m) => (
-                        <AdminMatchRow key={m.id} m={m} disabled={!localPass} onReport={report} />
+                        <AdminMatchRow key={m.id} m={m} disabled={false} onReport={report} />
                       ))}
                     </div>
                   </article>

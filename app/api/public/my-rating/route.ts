@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { supabasePublic } from "@/lib/supabasePublic";
+import { supabaseServer } from "@/lib/supabaseServer";
+import { readAuthContext } from "@/app/api/admin/_auth";
 
 export async function GET(req: Request) {
-  const jar = await cookies();
-  const deviceId = jar.get("device_id")?.value;
-
-  if (!deviceId) {
-    return NextResponse.json({ error: "no_device_id" }, { status: 400 });
+  const auth = await readAuthContext(req);
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  if (!auth.ctx.playerId) {
+    return NextResponse.json({ error: "missing_player_profile" }, { status: 403 });
   }
 
   const url = new URL(req.url);
@@ -17,14 +16,17 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "missing_ratedId" }, { status: 400 });
   }
 
-  const { data, error } = await supabasePublic
+  const { data, error } = await supabaseServer
     .from("ratings")
     .select("value, updated_at")
-    .eq("rater_device_id", deviceId)
+    .eq("rater_player_id", auth.ctx.playerId)
     .eq("rated_player_id", ratedId)
     .maybeSingle();
 
   if (error) {
+    if (error.message.includes("rater_player_id")) {
+      return NextResponse.json({ error: "missing_ratings_player_schema" }, { status: 500 });
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

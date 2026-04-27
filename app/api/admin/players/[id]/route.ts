@@ -18,8 +18,9 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!assertMainAdmin(req)) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const admin = await assertMainAdmin(req);
+  if (!admin.ok) {
+    return NextResponse.json({ error: admin.error }, { status: admin.status });
   }
 
   const { id: playerId } = await params;
@@ -105,8 +106,9 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!assertMainAdmin(req)) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const admin = await assertMainAdmin(req);
+  if (!admin.ok) {
+    return NextResponse.json({ error: admin.error }, { status: admin.status });
   }
 
   const { id: playerId } = await params;
@@ -120,17 +122,36 @@ export async function DELETE(
   if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 });
   if (!player) return NextResponse.json({ error: "player_not_found" }, { status: 404 });
 
-  const { error: ratingsErr } = await supabaseServer
+  const ratingsDelete = await supabaseServer
     .from("ratings")
     .delete()
-    .eq("rated_player_id", playerId);
-  if (ratingsErr) return NextResponse.json({ error: ratingsErr.message }, { status: 500 });
+    .or(`rated_player_id.eq.${playerId},rater_player_id.eq.${playerId}`);
+
+  if (ratingsDelete.error && ratingsDelete.error.message.includes("rater_player_id")) {
+    const legacyRatingsDelete = await supabaseServer
+      .from("ratings")
+      .delete()
+      .eq("rated_player_id", playerId);
+    if (legacyRatingsDelete.error) {
+      return NextResponse.json({ error: legacyRatingsDelete.error.message }, { status: 500 });
+    }
+  } else if (ratingsDelete.error) {
+    return NextResponse.json({ error: ratingsDelete.error.message }, { status: 500 });
+  }
 
   const { error: tpErr } = await supabaseServer
     .from("tournament_players")
     .delete()
     .eq("player_id", playerId);
   if (tpErr) return NextResponse.json({ error: tpErr.message }, { status: 500 });
+
+  const { error: taErr } = await supabaseServer
+    .from("tournament_admins")
+    .delete()
+    .eq("player_id", playerId);
+  if (taErr && !taErr.message.includes("tournament_admins")) {
+    return NextResponse.json({ error: taErr.message }, { status: 500 });
+  }
 
   const { error: tmErr } = await supabaseServer
     .from("team_members")

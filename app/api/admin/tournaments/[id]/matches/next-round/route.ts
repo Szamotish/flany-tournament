@@ -23,7 +23,7 @@ export async function POST(
   const { id: tournamentId } = await params;
 
   const auth = await assertTournamentAdmin(req, tournamentId);
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 });
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 });
 
     const { data: tmeta, error: tmetaErr } = await supabaseServer
     .from("tournaments")

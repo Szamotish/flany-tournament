@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { readAuthContext } from "@/app/api/admin/_auth";
 
 const MAX_BYTES = 3 * 1024 * 1024; 
 const ALLOWED = new Set(["image/png", "image/jpeg", "image/webp"]);
@@ -12,7 +13,14 @@ function extFromMime(mime: string) {
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await readAuthContext(req);
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   const { id: playerId } = await params;
+  const canEdit = auth.ctx.isMainAdmin || auth.ctx.playerId === playerId;
+  if (!canEdit) {
+    return NextResponse.json({ error: "forbidden_player_owner_only" }, { status: 403 });
+  }
 
   const form = await req.formData().catch(() => null);
   if (!form) return NextResponse.json({ error: "invalid_formdata" }, { status: 400 });
