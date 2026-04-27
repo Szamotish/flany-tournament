@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 
@@ -15,7 +15,7 @@ function mapAuthError(error: string): string {
   return error;
 }
 
-export default function AuthPage() {
+function AuthPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = useMemo(() => searchParams.get("next") || "/", [searchParams]);
@@ -184,5 +184,26 @@ export default function AuthPage() {
         {msg ? <p className="mt-3 text-sm text-amber-900">{msg}</p> : null}
       </section>
     </main>
+  );
+}
+
+function AuthPageFallback() {
+  return (
+    <main className="mx-auto max-w-md p-4 md:p-6">
+      <Link className="underline opacity-80" href="/">
+        Back
+      </Link>
+      <section className="mt-4 rounded-2xl border border-black/15 bg-white/70 p-4 shadow-[0_12px_28px_rgba(0,0,0,0.12)] backdrop-blur">
+        <p className="text-sm opacity-80">Ladowanie formularza logowania...</p>
+      </section>
+    </main>
+  );
+}
+
+export default function AuthPage() {
+  return (
+    <Suspense fallback={<AuthPageFallback />}>
+      <AuthPageInner />
+    </Suspense>
   );
 }
