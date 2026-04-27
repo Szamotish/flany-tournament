@@ -14,6 +14,25 @@ function clampMmr(value: number): number {
   return roundToOne(value);
 }
 
+async function writeMmrHistoryEntry(
+  playerId: string,
+  mmr: number | null | undefined,
+  prestigePoints: number | null | undefined,
+  reason: "admin_set_mmr" | "admin_reset_mmr"
+) {
+  if (!Number.isFinite(Number(mmr))) return;
+  const insert = await supabaseServer.from("player_mmr_history").insert({
+    player_id: playerId,
+    reason,
+    delta: null,
+    mmr: roundToOne(Number(mmr)),
+    prestige_points: Number.isFinite(Number(prestigePoints)) ? Number(prestigePoints) : 0,
+  });
+  if (insert.error && !insert.error.message.includes("player_mmr_history")) {
+    throw new Error(insert.error.message);
+  }
+}
+
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -94,10 +113,42 @@ export async function PATCH(
       .single();
 
     if (retry.error) return NextResponse.json({ error: retry.error.message }, { status: 500 });
+    if (hasMmr || resetMmr) {
+      try {
+        await writeMmrHistoryEntry(
+          playerId,
+          (retry.data as { mmr?: number | null }).mmr ?? null,
+          resetMmr ? 0 : null,
+          resetMmr ? "admin_reset_mmr" : "admin_set_mmr"
+        );
+      } catch (err) {
+        return NextResponse.json(
+          { error: err instanceof Error ? err.message : "mmr_history_write_failed" },
+          { status: 500 }
+        );
+      }
+    }
     return NextResponse.json({ player: retry.data });
   }
 
   if (primaryUpdate.error) return NextResponse.json({ error: primaryUpdate.error.message }, { status: 500 });
+
+  if (hasMmr || resetMmr) {
+    const row = primaryUpdate.data as { mmr?: number | null; prestige_points?: number | null };
+    try {
+      await writeMmrHistoryEntry(
+        playerId,
+        row.mmr ?? null,
+        row.prestige_points ?? null,
+        resetMmr ? "admin_reset_mmr" : "admin_set_mmr"
+      );
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : "mmr_history_write_failed" },
+        { status: 500 }
+      );
+    }
+  }
 
   return NextResponse.json({ player: primaryUpdate.data });
 }

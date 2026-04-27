@@ -50,11 +50,14 @@ export default function AdminTournamentsPage() {
   const [boDefault, setBoDefault] = useState<1 | 3 | 5>(1);
   const [boFinals, setBoFinals] = useState<1 | 3 | 5>(3);
   const [gfResetEnabled, setGfResetEnabled] = useState(true);
+  const [eventAt, setEventAt] = useState("");
+  const [eventLocation, setEventLocation] = useState("");
+  const [joinDeadlineAt, setJoinDeadlineAt] = useState("");
 
   const [q, setQ] = useState("");
   const [players, setPlayers] = useState<Player[]>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
-  const [localAdmins, setLocalAdmins] = useState<Record<string, boolean>>({});
+  const [localAdminId, setLocalAdminId] = useState("");
 
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
@@ -65,12 +68,20 @@ export default function AdminTournamentsPage() {
     () => Object.entries(selected).filter(([, v]) => v).map(([id]) => id),
     [selected]
   );
-  const localAdminIds = useMemo(
+  const localAdminOptions = useMemo(
     () =>
       selectedIds
-        .filter((id) => localAdmins[id] === true)
-        .filter((id) => players.some((player) => player.id === id && player.has_account === true)),
-    [selectedIds, localAdmins, players]
+        .map((id) => players.find((player) => player.id === id))
+        .filter((player): player is Player => Boolean(player && player.has_account === true))
+        .sort((a, b) => a.name.localeCompare(b.name, "pl")),
+    [selectedIds, players]
+  );
+  const localAdminIds = useMemo(
+    () =>
+      localAdminId && localAdminOptions.some((player) => player.id === localAdminId)
+        ? [localAdminId]
+        : [],
+    [localAdminId, localAdminOptions]
   );
 
   async function loadPlayers(query: string) {
@@ -125,6 +136,12 @@ export default function AdminTournamentsPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (localAdminId && !localAdminOptions.some((player) => player.id === localAdminId)) {
+      setLocalAdminId("");
+    }
+  }, [localAdminId, localAdminOptions]);
+
   async function createTournament() {
     setMsg(null);
 
@@ -138,6 +155,9 @@ export default function AdminTournamentsPage() {
         boDefault,
         boFinals,
         gfResetEnabled,
+        eventAt,
+        eventLocation,
+        joinDeadlineAt,
         playerIds: selectedIds,
         localAdminPlayerIds: localAdminIds,
       }),
@@ -152,8 +172,11 @@ export default function AdminTournamentsPage() {
     setMsg("Turniej zostal utworzony.");
     setName("");
     setMode("normal");
+    setEventAt("");
+    setEventLocation("");
+    setJoinDeadlineAt("");
     setSelected({});
-    setLocalAdmins({});
+    setLocalAdminId("");
     await loadTournaments();
   }
 
@@ -176,11 +199,9 @@ export default function AdminTournamentsPage() {
       delete next[playerId];
       return next;
     });
-    setLocalAdmins((prev) => {
-      const next = { ...prev };
-      delete next[playerId];
-      return next;
-    });
+    if (localAdminId === playerId) {
+      setLocalAdminId("");
+    }
 
     setMsg(json.softDeleted ? "Zawodnik zdezaktywowany." : "Zawodnik usuniety.");
     await Promise.all([loadPlayers(q), loadTournaments()]);
@@ -468,6 +489,60 @@ export default function AdminTournamentsPage() {
                     </select>
                   </div>
                 ) : null}
+
+                <div>
+                  <label className="tour-admin-label">Data i godzina turnieju</label>
+                  <input
+                    className="tour-admin-input"
+                    type="datetime-local"
+                    value={eventAt}
+                    onChange={(e) => setEventAt(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="tour-admin-label">Miejsce</label>
+                  <input
+                    className="tour-admin-input"
+                    value={eventLocation}
+                    onChange={(e) => setEventLocation(e.target.value)}
+                    placeholder="np. Sarbsk, domek nr 12"
+                    maxLength={140}
+                  />
+                </div>
+
+                <div>
+                  <label className="tour-admin-label">Deadline prosb o dolaczenie</label>
+                  <input
+                    className="tour-admin-input"
+                    type="datetime-local"
+                    value={joinDeadlineAt}
+                    onChange={(e) => setJoinDeadlineAt(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="tour-admin-label">Admin lokalny</label>
+                  <select
+                    className="tour-admin-input"
+                    value={localAdminId}
+                    onChange={(e) => setLocalAdminId(e.target.value)}
+                  >
+                    <option value="">Wybierz zawodnika</option>
+                    {localAdminOptions.map((player) => (
+                      <option key={player.id} value={player.id}>
+                        {player.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="tour-muted mt-1">
+                    {localAdminOptions.length === 0
+                      ? "Najpierw zaznacz zawodnikow z kontem."
+                      : localAdminId
+                        ? `Wybrany: ${localAdminOptions.find((player) => player.id === localAdminId)?.name ?? "brak"}`
+                        : "Wybierz lokalnego admina z listy."}
+                  </p>
+                </div>
               </div>
 
               <div className="tour-card" style={{ padding: "0.75rem" }}>
@@ -505,26 +580,13 @@ export default function AdminTournamentsPage() {
                 <div className="tour-admin-player-list mt-2">
                   {players.map((p) => {
                     const selectedNow = selected[p.id] === true;
-                    const canBeLocalAdmin = p.has_account === true;
                     return (
                       <div key={p.id} className="tour-admin-player-row">
                         <div className="tour-admin-player-main">
                           <input
                             type="checkbox"
                             checked={selectedNow}
-                            onChange={(e) =>
-                              setSelected((s) => {
-                                const next = { ...s, [p.id]: e.target.checked };
-                                if (!e.target.checked) {
-                                  setLocalAdmins((prev) => {
-                                    const copy = { ...prev };
-                                    delete copy[p.id];
-                                    return copy;
-                                  });
-                                }
-                                return next;
-                              })
-                            }
+                            onChange={(e) => setSelected((s) => ({ ...s, [p.id]: e.target.checked }))}
                           />
                           <span className="tour-admin-player-name">{p.name}</span>
                         </div>
@@ -533,20 +595,6 @@ export default function AdminTournamentsPage() {
                           <span className="tour-muted">
                             MMR {Number.isFinite(Number(p.mmr ?? 0)) ? Number(p.mmr ?? 0).toFixed(1) : "0.0"}
                           </span>
-                          <button
-                            className="tour-action-btn"
-                            type="button"
-                            disabled={!selectedNow || !canBeLocalAdmin}
-                            title={!canBeLocalAdmin ? "Gracz nie ma konta (auth)." : "Przelacz lokalnego admina"}
-                            onClick={() =>
-                              setLocalAdmins((prev) => ({
-                                ...prev,
-                                [p.id]: !prev[p.id],
-                              }))
-                            }
-                          >
-                            {localAdmins[p.id] ? "Lokalny admin: TAK" : "Lokalny admin: NIE"}
-                          </button>
                           <details className="tour-player-menu">
                             <summary className="tour-player-menu-trigger" aria-label={`Opcje zawodnika ${p.name}`} title="Akcje">
                               ...

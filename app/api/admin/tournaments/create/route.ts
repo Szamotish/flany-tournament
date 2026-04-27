@@ -17,6 +17,10 @@ export async function POST(req: Request) {
   const boDefault = Number(body?.boDefault ?? 1);
   const boFinals = Number(body?.boFinals ?? 3);
   const gfResetEnabled = Boolean(body?.gfResetEnabled ?? false);
+  const eventAtRaw = typeof body?.eventAt === "string" ? body.eventAt.trim() : "";
+  const joinDeadlineAtRaw =
+    typeof body?.joinDeadlineAt === "string" ? body.joinDeadlineAt.trim() : "";
+  const eventLocation = typeof body?.eventLocation === "string" ? body.eventLocation.trim().slice(0, 140) : "";
 
   const playerIds: string[] = Array.isArray(body?.playerIds)
     ? Array.from(new Set(body.playerIds.map((value: unknown) => String(value)).filter(Boolean)))
@@ -43,6 +47,16 @@ export async function POST(req: Request) {
   }
   if (localAdminPlayerIds.length === 0) {
     return NextResponse.json({ error: "missing_localAdminPlayerIds" }, { status: 400 });
+  }
+
+  const eventAt = eventAtRaw ? new Date(eventAtRaw) : null;
+  if (eventAtRaw && Number.isNaN(eventAt?.getTime())) {
+    return NextResponse.json({ error: "invalid_eventAt" }, { status: 400 });
+  }
+
+  const joinDeadlineAt = joinDeadlineAtRaw ? new Date(joinDeadlineAtRaw) : null;
+  if (joinDeadlineAtRaw && Number.isNaN(joinDeadlineAt?.getTime())) {
+    return NextResponse.json({ error: "invalid_joinDeadlineAt" }, { status: 400 });
   }
 
   const { data: selectedPlayers, error: selectedPlayersErr } = await supabaseServer
@@ -101,6 +115,17 @@ export async function POST(req: Request) {
     bo_default: boDefault,
     bo_finals: boFinals,
     gf_reset_enabled: format === "double_elim" ? gfResetEnabled : false,
+    event_at: eventAt ? eventAt.toISOString() : null,
+    event_location: eventLocation || null,
+    join_deadline_at: joinDeadlineAt ? joinDeadlineAt.toISOString() : null,
+  };
+  const legacyTournamentInsert = {
+    name,
+    format,
+    mode,
+    bo_default: boDefault,
+    bo_finals: boFinals,
+    gf_reset_enabled: format === "double_elim" ? gfResetEnabled : false,
   };
 
   let t = null as { id: string } | null;
@@ -115,10 +140,25 @@ export async function POST(req: Request) {
   t = insertPrimary.data;
   tErr = insertPrimary.error;
 
-  if (insertPrimary.error && insertPrimary.error.message.includes("local_admin_password")) {
+  if (
+    insertPrimary.error &&
+    (insertPrimary.error.message.includes("event_at") ||
+      insertPrimary.error.message.includes("event_location") ||
+      insertPrimary.error.message.includes("join_deadline_at"))
+  ) {
+    const retryLegacy = await supabaseServer
+      .from("tournaments")
+      .insert(legacyTournamentInsert)
+      .select("id")
+      .single();
+    t = retryLegacy.data;
+    tErr = retryLegacy.error;
+  }
+
+  if (tErr && tErr.message.includes("local_admin_password")) {
     const insertLegacy = await supabaseServer
       .from("tournaments")
-      .insert({ ...tournamentInsert, local_admin_password: crypto.randomUUID() })
+      .insert({ ...legacyTournamentInsert, local_admin_password: crypto.randomUUID() })
       .select("id")
       .single();
 

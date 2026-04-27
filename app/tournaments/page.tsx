@@ -12,6 +12,9 @@ type TournamentRow = {
   mode: "normal" | "ranked" | null;
   bo_default: number | null;
   bo_finals: number | null;
+  event_at: string | null;
+  event_location: string | null;
+  join_deadline_at: string | null;
 };
 
 type PlayerBrief = { id: string; name: string };
@@ -30,6 +33,19 @@ function formatDateShort(iso: string): string {
   });
 }
 
+function formatDateTime(iso: string | null): string {
+  if (!iso) return "brak terminu";
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return "brak terminu";
+  return parsed.toLocaleString("pl-PL", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function parsePlayerBrief(value: unknown): PlayerBrief | null {
   const source = Array.isArray(value) ? value[0] : value;
   if (!source || typeof source !== "object") return null;
@@ -39,10 +55,32 @@ function parsePlayerBrief(value: unknown): PlayerBrief | null {
 }
 
 export default async function TournamentsPage() {
-  const { data, error } = await supabaseServer
+  const primary = await supabaseServer
     .from("tournaments")
-    .select("id,name,created_at,format,mode,bo_default,bo_finals")
+    .select("id,name,created_at,format,mode,bo_default,bo_finals,event_at,event_location,join_deadline_at")
     .order("created_at", { ascending: false });
+
+  let data = primary.data;
+  let error = primary.error;
+
+  if (
+    primary.error &&
+    (primary.error.message.includes("event_at") ||
+      primary.error.message.includes("event_location") ||
+      primary.error.message.includes("join_deadline_at"))
+  ) {
+    const fallback = await supabaseServer
+      .from("tournaments")
+      .select("id,name,created_at,format,mode,bo_default,bo_finals")
+      .order("created_at", { ascending: false });
+    data = (fallback.data ?? []).map((row) => ({
+      ...row,
+      event_at: null,
+      event_location: null,
+      join_deadline_at: null,
+    }));
+    error = fallback.error;
+  }
 
   const tournaments = (data ?? []) as TournamentRow[];
   const tournamentIds = tournaments.map((t) => t.id);
@@ -144,6 +182,13 @@ export default async function TournamentsPage() {
                         {t.format === "double_elim" ? "Double elimination" : "Single elimination"} - BO
                         {t.bo_default} / final BO{t.bo_finals}
                       </p>
+                      <p className="tour-card-sub">
+                        {formatDateTime(t.event_at)}
+                        {t.event_location ? ` - ${t.event_location}` : ""}
+                      </p>
+                      {t.join_deadline_at ? (
+                        <p className="tour-card-sub">Proby do: {formatDateTime(t.join_deadline_at)}</p>
+                      ) : null}
                       <p className="tour-card-sub">{formatDateShort(t.created_at)}</p>
                     </div>
                     <span className={isFinished ? "tour-status tour-status-finished" : "tour-status"}>

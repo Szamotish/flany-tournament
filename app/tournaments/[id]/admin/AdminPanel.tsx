@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { teamToneVars } from "@/lib/ui/teamTone";
 import { authedFetch } from "@/lib/authClient";
 
@@ -15,6 +15,23 @@ type PlayerOption = {
   id: string;
   name: string;
   active: boolean;
+  has_account?: boolean;
+};
+
+type JoinRequestRow = {
+  id: string;
+  status: string;
+  created_at: string;
+  player_id: string;
+  players?: { id: string; name: string; avatar_url?: string | null } | null;
+};
+
+type InviteRow = {
+  id: string;
+  status: string;
+  created_at: string;
+  player_id: string;
+  players?: { id: string; name: string; avatar_url?: string | null } | null;
 };
 
 export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
@@ -22,6 +39,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
   const [allowUneven, setAllowUneven] = useState(true);
   const [iterations, setIterations] = useState(500);
   const [mode, setMode] = useState<"reset" | "overwrite">("reset");
+  const [generationMode, setGenerationMode] = useState<"balanced" | "full_random">("balanced");
   const [msg, setMsg] = useState<string | null>(null);
   const [teams, setTeams] = useState<TeamEntry[]>([]);
   const [loadingTeams, setLoadingTeams] = useState(false);
@@ -29,6 +47,54 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
   const [availablePlayers, setAvailablePlayers] = useState<PlayerOption[]>([]);
   const [playerSearch, setPlayerSearch] = useState("");
   const [loadingPlayers, setLoadingPlayers] = useState(false);
+  const [requests, setRequests] = useState<JoinRequestRow[]>([]);
+  const [invites, setInvites] = useState<InviteRow[]>([]);
+  const [eventAt, setEventAt] = useState("");
+  const [eventLocation, setEventLocation] = useState("");
+  const [joinDeadlineAt, setJoinDeadlineAt] = useState("");
+  const [metaBusy, setMetaBusy] = useState(false);
+  const [swapPlayerAId, setSwapPlayerAId] = useState("");
+  const [swapPlayerBId, setSwapPlayerBId] = useState("");
+
+  const loadMeta = useCallback(async () => {
+    const res = await fetch(`/api/public/tournaments/${tournamentId}`, { cache: "no-store" });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) return;
+
+    const eventAtIso = typeof json.tournament?.event_at === "string" ? json.tournament.event_at : "";
+    const joinDeadlineIso =
+      typeof json.tournament?.join_deadline_at === "string" ? json.tournament.join_deadline_at : "";
+
+    setEventAt(eventAtIso ? eventAtIso.slice(0, 16) : "");
+    setJoinDeadlineAt(joinDeadlineIso ? joinDeadlineIso.slice(0, 16) : "");
+    setEventLocation(typeof json.tournament?.event_location === "string" ? json.tournament.event_location : "");
+  }, [tournamentId]);
+
+  const loadJoinRequests = useCallback(async () => {
+    const res = await authedFetch(`/api/admin/tournaments/${tournamentId}/requests`, { cache: "no-store" });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg(`Blad pobierania prosb: ${json.error ?? res.statusText}`);
+      return;
+    }
+    setRequests((json.requests ?? []) as JoinRequestRow[]);
+  }, [tournamentId]);
+
+  const loadInvites = useCallback(async () => {
+    const res = await authedFetch(`/api/admin/tournaments/${tournamentId}/invites`, { cache: "no-store" });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg(`Blad pobierania zaproszen: ${json.error ?? res.statusText}`);
+      return;
+    }
+    setInvites((json.invites ?? []) as InviteRow[]);
+  }, [tournamentId]);
+
+  useEffect(() => {
+    void loadMeta();
+    void loadJoinRequests();
+    void loadInvites();
+  }, [loadInvites, loadJoinRequests, loadMeta]);
 
   async function generate() {
     setMsg(null);
@@ -38,7 +104,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
       headers: {
         "content-type": "application/json",
       },
-      body: JSON.stringify({ teamSize, allowUneven, iterations, mode }),
+      body: JSON.stringify({ teamSize, allowUneven, iterations, mode, generationMode }),
     });
 
     const json = await res.json().catch(() => ({}));
@@ -48,7 +114,11 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
       return;
     }
 
-    setMsg("Druzyny zostaly wygenerowane.");
+    setMsg(
+      generationMode === "full_random"
+        ? "Druzyny zostaly wygenerowane losowo."
+        : "Druzyny zostaly wygenerowane (balans)."
+    );
   }
 
   async function loadTeams() {
@@ -167,6 +237,94 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
     setTeams([]);
   }
 
+  async function saveMeta() {
+    setMetaBusy(true);
+    setMsg(null);
+    const res = await authedFetch(`/api/admin/tournaments/${tournamentId}/meta`, {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        eventAt,
+        eventLocation,
+        joinDeadlineAt,
+      }),
+    });
+    const json = await res.json().catch(() => ({}));
+    setMetaBusy(false);
+    if (!res.ok) {
+      setMsg(`Blad zapisu metadanych: ${json.error ?? res.statusText}`);
+      return;
+    }
+    setMsg("Zapisano termin/miejsce/deadline turnieju.");
+    await loadMeta();
+  }
+
+  async function resolveRequest(requestId: string, action: "accept" | "reject") {
+    setMsg(null);
+    const res = await authedFetch(`/api/admin/tournaments/${tournamentId}/requests`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ requestId, action }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg(`Blad obslugi prosby: ${json.error ?? res.statusText}`);
+      return;
+    }
+    setMsg(action === "accept" ? "Prosba zaakceptowana." : "Prosba odrzucona.");
+    await Promise.all([loadJoinRequests(), loadTournamentPlayers(), searchPlayers(playerSearch)]);
+  }
+
+  async function invitePlayer(playerId: string) {
+    setMsg(null);
+    const res = await authedFetch(`/api/admin/tournaments/${tournamentId}/invites`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ playerId }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg(`Blad wysylania zaproszenia: ${json.error ?? res.statusText}`);
+      return;
+    }
+    setMsg("Wyslano zaproszenie.");
+    await loadInvites();
+  }
+
+  async function swapPlayers() {
+    if (!swapPlayerAId || !swapPlayerBId || swapPlayerAId === swapPlayerBId) {
+      setMsg("Wybierz dwoch roznych zawodnikow do zamiany.");
+      return;
+    }
+
+    setMsg(null);
+    const res = await authedFetch(`/api/admin/tournaments/${tournamentId}/teams/swap`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ playerAId: swapPlayerAId, playerBId: swapPlayerBId }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg(`Blad swapu: ${json.error ?? res.statusText}`);
+      return;
+    }
+
+    setMsg("Zamiana zawodnikow wykonana.");
+    await loadTeams();
+    setSwapPlayerAId("");
+    setSwapPlayerBId("");
+  }
+
+  const activeTeamPlayers = teams.flatMap((team) =>
+    team.players.map((player) => ({
+      id: player.id,
+      name: player.name,
+      teamName: team.name,
+    }))
+  );
+
   return (
     <main className="tour-root">
       <div className="tour-shell">
@@ -204,6 +362,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
                   min={1}
                   max={5000}
                   value={iterations}
+                  disabled={generationMode === "full_random"}
                   onChange={(e) => setIterations(Number(e.target.value))}
                 />
               </div>
@@ -233,6 +392,65 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
               </div>
             </div>
 
+            <div>
+              <p className="tour-admin-label">Podzial druzyn</p>
+              <div className="tour-admin-radio-wrap">
+                <label className="tour-admin-radio">
+                  <input
+                    type="radio"
+                    name="generationMode"
+                    checked={generationMode === "balanced"}
+                    onChange={() => setGenerationMode("balanced")}
+                  />
+                  <span>Balans (rating + mmr)</span>
+                </label>
+                <label className="tour-admin-radio">
+                  <input
+                    type="radio"
+                    name="generationMode"
+                    checked={generationMode === "full_random"}
+                    onChange={() => setGenerationMode("full_random")}
+                  />
+                  <span>Full random</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="tour-admin-grid-2">
+              <div>
+                <label className="tour-admin-label">Data i godzina turnieju</label>
+                <input
+                  className="tour-admin-input"
+                  type="datetime-local"
+                  value={eventAt}
+                  onChange={(e) => setEventAt(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="tour-admin-label">Miejsce</label>
+                <input
+                  className="tour-admin-input"
+                  value={eventLocation}
+                  onChange={(e) => setEventLocation(e.target.value)}
+                  placeholder="np. Sarbsk"
+                />
+              </div>
+              <div>
+                <label className="tour-admin-label">Deadline prosb o dolaczenie</label>
+                <input
+                  className="tour-admin-input"
+                  type="datetime-local"
+                  value={joinDeadlineAt}
+                  onChange={(e) => setJoinDeadlineAt(e.target.value)}
+                />
+              </div>
+              <div className="tour-admin-actions">
+                <button className="tour-action-btn" onClick={saveMeta} disabled={metaBusy}>
+                  {metaBusy ? "Zapisywanie..." : "Zapisz meta turnieju"}
+                </button>
+              </div>
+            </div>
+
             <div className="tour-admin-actions">
               <button className="tour-action-btn" onClick={generate}>
                 Generuj druzyny
@@ -242,6 +460,12 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
               </button>
               <button className="tour-action-btn" onClick={loadTournamentPlayers}>
                 {loadingPlayers ? "Ladowanie..." : "Zawodnicy turnieju"}
+              </button>
+              <button className="tour-action-btn" onClick={loadJoinRequests}>
+                Prosby ({requests.filter((r) => r.status === "pending").length})
+              </button>
+              <button className="tour-action-btn" onClick={loadInvites}>
+                Zaproszenia ({invites.filter((r) => r.status === "pending").length})
               </button>
               <Link className="tour-action-btn" href={`/tournaments/${tournamentId}/admin-matches`}>
                 Admin mecze
@@ -314,18 +538,134 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
                       <div className="tour-admin-player-main">
                         <span>{p.name}</span>
                       </div>
-                      <button
-                        className="tour-action-btn"
-                        type="button"
-                        onClick={() => void addPlayer(p.id)}
-                      >
-                        Dodaj
-                      </button>
+                      <div className="tour-admin-actions">
+                        <button
+                          className="tour-action-btn"
+                          type="button"
+                          onClick={() => void addPlayer(p.id)}
+                        >
+                          Dodaj
+                        </button>
+                        <button
+                          className="tour-action-btn"
+                          type="button"
+                          disabled={!p.has_account}
+                          onClick={() => void invitePlayer(p.id)}
+                          title={!p.has_account ? "Gracz nie ma jeszcze konta" : "Wyslij zaproszenie"}
+                        >
+                          Zapros
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
               )}
             </article>
+          </div>
+        </section>
+
+        <section className="tour-admin-panel mt-4">
+          <div className="tour-admin-grid-2">
+            <article className="tour-card" style={{ padding: "0.75rem" }}>
+              <div className="tour-card-head">
+                <p className="tour-card-title">Prosby o dolaczenie</p>
+              </div>
+              {requests.length === 0 ? (
+                <p className="tour-muted mt-2">Brak prosb.</p>
+              ) : (
+                <div className="tour-admin-player-list mt-2">
+                  {requests.map((r) => (
+                    <div key={r.id} className="tour-admin-player-row">
+                      <div className="tour-admin-player-main">
+                        <span>{r.players?.name ?? r.player_id}</span>
+                        <span className="tour-muted">{r.status}</span>
+                      </div>
+                      {r.status === "pending" ? (
+                        <div className="tour-admin-actions">
+                          <button className="tour-action-btn" type="button" onClick={() => void resolveRequest(r.id, "accept")}>
+                            Akceptuj
+                          </button>
+                          <button className="tour-action-btn" type="button" onClick={() => void resolveRequest(r.id, "reject")}>
+                            Odrzuc
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </article>
+
+            <article className="tour-card" style={{ padding: "0.75rem" }}>
+              <div className="tour-card-head">
+                <p className="tour-card-title">Wyslane zaproszenia</p>
+              </div>
+              {invites.length === 0 ? (
+                <p className="tour-muted mt-2">Brak zaproszen.</p>
+              ) : (
+                <div className="tour-admin-player-list mt-2">
+                  {invites.map((invite) => (
+                    <div key={invite.id} className="tour-admin-player-row">
+                      <div className="tour-admin-player-main">
+                        <span>{invite.players?.name ?? invite.player_id}</span>
+                        <span className="tour-muted">{invite.status}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </article>
+          </div>
+        </section>
+
+        <section className="tour-admin-panel mt-4">
+          <div className="tour-admin-grid">
+            <div className="tour-card" style={{ padding: "0.75rem" }}>
+              <div className="tour-card-head">
+                <p className="tour-card-title">Swap zawodnikow miedzy druzynami</p>
+              </div>
+              <p className="tour-muted mt-1">Dziala tylko przed startem turnieju.</p>
+              <div className="tour-admin-grid-2 mt-2">
+                <div>
+                  <label className="tour-admin-label">Zawodnik A</label>
+                  <select
+                    className="tour-admin-input"
+                    value={swapPlayerAId}
+                    onChange={(e) => setSwapPlayerAId(e.target.value)}
+                  >
+                    <option value="">Wybierz</option>
+                    {activeTeamPlayers.map((row) => (
+                      <option key={`a-${row.id}`} value={row.id}>
+                        {row.name} ({row.teamName})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="tour-admin-label">Zawodnik B</label>
+                  <select
+                    className="tour-admin-input"
+                    value={swapPlayerBId}
+                    onChange={(e) => setSwapPlayerBId(e.target.value)}
+                  >
+                    <option value="">Wybierz</option>
+                    {activeTeamPlayers.map((row) => (
+                      <option key={`b-${row.id}`} value={row.id}>
+                        {row.name} ({row.teamName})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="tour-admin-actions mt-2">
+                <button className="tour-action-btn" type="button" onClick={() => void swapPlayers()}>
+                  Zrob swap
+                </button>
+                <button className="tour-action-btn" type="button" onClick={loadTeams}>
+                  Odswiez druzyny
+                </button>
+              </div>
+            </div>
           </div>
         </section>
 

@@ -4,6 +4,7 @@ import BracketTree, { type BracketTreeRound } from "@/app/components/BracketTree
 import { supabaseServer } from "@/lib/supabaseServer";
 import { teamToneVars } from "@/lib/ui/teamTone";
 import { computeBeersFromFinishedMatches } from "@/lib/beers";
+import TournamentJoinActions from "./TournamentJoinActions";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,19 @@ function teamState(match: MatchView, teamId: string | null): "empty" | "pending"
   return match.winnerTeamId === teamId ? "winner" : "loser";
 }
 
+function formatDateTime(iso: string | null): string {
+  if (!iso) return "brak terminu";
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return "brak terminu";
+  return parsed.toLocaleString("pl-PL", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default async function TournamentPage({
   params,
 }: {
@@ -73,7 +87,7 @@ export default async function TournamentPage({
   const { id } = await params;
 
   const [
-    { data: t, error: tErr },
+    tournamentPrimary,
     { data: tp, error: tpErr },
     { data: finishedMatches },
     { data: winnerRow },
@@ -81,7 +95,7 @@ export default async function TournamentPage({
   ] = await Promise.all([
     supabaseServer
       .from("tournaments")
-      .select("id,name,created_at,format,mode,bo_default,bo_finals")
+      .select("id,name,created_at,format,mode,bo_default,bo_finals,event_at,event_location,join_deadline_at")
       .eq("id", id)
       .maybeSingle(),
     supabaseServer
@@ -107,6 +121,27 @@ export default async function TournamentPage({
       .order("round_no", { ascending: true })
       .order("match_no", { ascending: true }),
   ]);
+
+  let t = tournamentPrimary.data;
+  let tErr = tournamentPrimary.error;
+
+  if (
+    tournamentPrimary.error &&
+    (tournamentPrimary.error.message.includes("event_at") ||
+      tournamentPrimary.error.message.includes("event_location") ||
+      tournamentPrimary.error.message.includes("join_deadline_at"))
+  ) {
+    const fallbackTournament = await supabaseServer
+      .from("tournaments")
+      .select("id,name,created_at,format,mode,bo_default,bo_finals")
+      .eq("id", id)
+      .maybeSingle();
+
+    t = fallbackTournament.data
+      ? { ...fallbackTournament.data, event_at: null, event_location: null, join_deadline_at: null }
+      : null;
+    tErr = fallbackTournament.error;
+  }
 
   const finishedTeamMatches = (finishedMatches ?? []).map((m) => ({
     team_a_id: typeof m.team_a_id === "string" ? m.team_a_id : null,
@@ -245,6 +280,12 @@ export default async function TournamentPage({
                   <p className="tour-muted mt-1">
                     Tryb: {t.mode === "ranked" ? "ranked" : "normal"} - Format: {t.format} - BO{t.bo_default} - final BO{t.bo_finals}
                   </p>
+                  <p className="tour-muted mt-1">
+                    Termin: {formatDateTime(t.event_at)}{t.event_location ? ` - ${t.event_location}` : ""}
+                  </p>
+                  <p className="tour-muted mt-1">
+                    Prosby o dolaczenie do: {formatDateTime(t.join_deadline_at)}
+                  </p>
 
                   <div className="tour-actions mt-4">
                     <Link className="tour-action-btn" href={`/tournaments/${id}/teams`}>
@@ -254,6 +295,8 @@ export default async function TournamentPage({
                       Mecze
                     </Link>
                   </div>
+
+                  <TournamentJoinActions tournamentId={id} />
                 </section>
 
                 <section className="tour-players mt-4">

@@ -29,6 +29,11 @@ type HistoryEntry = {
   teamRoster: PlayerBrief[];
 };
 
+type MmrPoint = {
+  mmr: number;
+  createdAt: string | null;
+};
+
 function formatShortDate(iso: string | null): string {
   if (!iso) return "--.--";
   return new Date(iso).toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit" });
@@ -63,6 +68,23 @@ function prestigeColor(tier: number): string {
   if (tier <= 0) return "rgba(80, 48, 8, 0.24)";
   const tones = ["#059669", "#0284c7", "#7c3aed", "#d97706", "#e11d48", "#65a30d"];
   return tones[(tier - 1) % tones.length];
+}
+
+function buildSparkline(points: MmrPoint[]): string {
+  if (points.length === 0) return "";
+  const width = 220;
+  const height = 88;
+  const minY = 0;
+  const maxY = 10;
+  const step = points.length > 1 ? width / (points.length - 1) : 0;
+  return points
+    .map((point, index) => {
+      const x = step * index;
+      const clamped = Math.max(minY, Math.min(maxY, Number(point.mmr ?? 0)));
+      const y = height - (clamped / (maxY - minY)) * height;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
 }
 
 export default async function PlayerPage({
@@ -243,6 +265,21 @@ export default async function PlayerPage({
   const currentRankLabel = rankLabel(currentRank);
   const rankFrameEnabled = player.rank_frame_enabled !== false;
   const profileRankFrameUrl = FRAME_BY_RANK[currentRank] ?? null;
+  const historyRes = await supabaseServer
+    .from("player_mmr_history")
+    .select("mmr,created_at")
+    .eq("player_id", playerId)
+    .order("created_at", { ascending: true })
+    .limit(80);
+
+  let mmrHistoryPoints: MmrPoint[] = [];
+  if (!historyRes.error) {
+    mmrHistoryPoints = (historyRes.data ?? []).map((row) => ({
+      mmr: Number(row.mmr ?? 0),
+      createdAt: typeof row.created_at === "string" ? row.created_at : null,
+    }));
+  }
+  const sparkline = buildSparkline(mmrHistoryPoints);
 
   return (
     <main className="player-profile-root">
@@ -297,6 +334,16 @@ export default async function PlayerPage({
               </div>
 
               <aside className="profile-rank-preview" aria-label="Obramowka rangi">
+                <div className="profile-mmr-chart">
+                  <p className="profile-muted">Historia MMR</p>
+                  {sparkline ? (
+                    <svg viewBox="0 0 220 88" preserveAspectRatio="none" className="profile-mmr-chart-svg" aria-hidden>
+                      <polyline points={sparkline} className="profile-mmr-chart-line" />
+                    </svg>
+                  ) : (
+                    <p className="profile-muted">Brak historii ranked.</p>
+                  )}
+                </div>
                 {profileRankFrameUrl ? (
                   <span className="profile-rank-preview-wrap">
                     <span

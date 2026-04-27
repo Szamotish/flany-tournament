@@ -10,6 +10,12 @@ type TournamentPlayer = {
   active: boolean;
 };
 
+type StrengthPlayer = {
+  id: string;
+  name: string;
+  strength: number;
+};
+
 function parseTournamentPlayer(value: unknown): TournamentPlayer | null {
   const source = Array.isArray(value) ? value[0] : value;
   if (!source || typeof source !== "object") return null;
@@ -22,6 +28,48 @@ function parseTournamentPlayer(value: unknown): TournamentPlayer | null {
     return null;
   }
   return { id: player.id, name: player.name, active: player.active };
+}
+
+function shufflePlayers<T>(items: T[]): T[] {
+  const arr = [...items];
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = tmp;
+  }
+  return arr;
+}
+
+function buildRandomTeams(
+  players: StrengthPlayer[],
+  teamSize: number,
+  allowUneven: boolean
+): StrengthPlayer[][] {
+  const shuffled = shufflePlayers(players);
+
+  if (!allowUneven && shuffled.length % teamSize !== 0) {
+    throw new Error("cannot_split_evenly");
+  }
+
+  const teams: StrengthPlayer[][] = [];
+  for (let i = 0; i < shuffled.length; i += teamSize) {
+    teams.push(shuffled.slice(i, i + teamSize));
+  }
+
+  if (allowUneven && teams.length > 1) {
+    const last = teams[teams.length - 1];
+    if (last.length > 0 && last.length < teamSize - 1) {
+      const prev = teams[teams.length - 2];
+      while (last.length < teamSize - 1 && prev.length > 0) {
+        const moved = prev.pop();
+        if (moved) last.unshift(moved);
+      }
+      if (prev.length === 0) teams.splice(teams.length - 2, 1);
+    }
+  }
+
+  return teams.filter((team) => team.length > 0);
 }
 
 export async function POST(
@@ -42,6 +90,7 @@ export async function POST(
   const mode = (body?.mode === "overwrite" ? "overwrite" : "reset") as
     | "reset"
     | "overwrite";
+  const generationMode = body?.generationMode === "full_random" ? "full_random" : "balanced";
 
   if (!Number.isInteger(teamSize) || teamSize < 2 || teamSize > 20) {
     return NextResponse.json({ error: "invalid_teamSize" }, { status: 400 });
@@ -66,10 +115,9 @@ export async function POST(
   }
 
   const ids = players.map((p) => p.id);
-
   const perfByPlayer = await loadPlayerPerformance(ids);
 
-  const playersWithStrength = players.map((p) => {
+  const playersWithStrength: StrengthPlayer[] = players.map((p) => {
     const perf = perfByPlayer.get(p.id);
     const rating = perf?.rating ?? 5;
     const effectiveMmr = perf?.effectiveMmr ?? rating;
@@ -102,12 +150,23 @@ export async function POST(
     }
   }
 
-  const { teams, score } = generateTeams(
-    playersWithStrength,
-    teamSize,
-    allowUneven,
-    iterations
-  );
+  let teams: StrengthPlayer[][] = [];
+  let score = 0;
+
+  if (generationMode === "full_random") {
+    try {
+      teams = buildRandomTeams(playersWithStrength, teamSize, allowUneven);
+    } catch (err) {
+      if (err instanceof Error && err.message === "cannot_split_evenly") {
+        return NextResponse.json({ error: "cannot_split_evenly" }, { status: 400 });
+      }
+      return NextResponse.json({ error: "failed_to_generate_random" }, { status: 500 });
+    }
+  } else {
+    const generated = generateTeams(playersWithStrength, teamSize, allowUneven, iterations);
+    teams = generated.teams;
+    score = generated.score;
+  }
 
   if (!teams || teams.length === 0) {
     return NextResponse.json({ error: "failed_to_generate" }, { status: 500 });
@@ -127,11 +186,10 @@ export async function POST(
 
   if (bErr) return NextResponse.json({ error: bErr.message }, { status: 500 });
 
-  const batchId = batch.id as string;
-
+  const batchId = String(batch.id);
   const teamInserts = teams.map((_, i) => ({
     batch_id: batchId,
-    name: `Drużyna ${i + 1}`,
+    name: `Druzyna ${i + 1}`,
   }));
 
   const { data: teamRows, error: tErr } = await supabaseServer
@@ -150,5 +208,5 @@ export async function POST(
   const { error: mErr } = await supabaseServer.from("team_members").insert(members);
   if (mErr) return NextResponse.json({ error: mErr.message }, { status: 500 });
 
-  return NextResponse.json({ batchId, score });
+  return NextResponse.json({ batchId, score, generationMode });
 }

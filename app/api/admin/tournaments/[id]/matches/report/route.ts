@@ -41,7 +41,12 @@ async function mapTeamPlayers(teamIds: string[]): Promise<Map<string, string[]>>
 async function applyDeltaToPlayers(
   playerIds: string[],
   delta: number,
-  options?: { excludeMatchId?: string }
+  options?: {
+    excludeMatchId?: string;
+    reason?: "match_win" | "match_loss" | "tournament_win";
+    tournamentId?: string;
+    matchId?: string;
+  }
 ): Promise<void> {
   const uniquePlayerIds = Array.from(new Set(playerIds.filter(Boolean)));
   if (uniquePlayerIds.length === 0) return;
@@ -78,12 +83,32 @@ async function applyDeltaToPlayers(
   });
 
   if (updateErr) throw new Error(`ranked_players_update_failed: ${updateErr.message}`);
+
+  const historyRows = updates.map((row) => ({
+    player_id: row.id,
+    tournament_id: options?.tournamentId ?? null,
+    match_id: options?.matchId ?? null,
+    reason: options?.reason ?? "manual",
+    delta,
+    mmr: row.mmr,
+    prestige_points: row.prestige_points,
+  }));
+
+  const historyInsert = await supabaseServer.from("player_mmr_history").insert(historyRows);
+  if (historyInsert.error && !historyInsert.error.message.includes("player_mmr_history")) {
+    throw new Error(`ranked_history_insert_failed: ${historyInsert.error.message}`);
+  }
 }
 
 async function applyDeltaToTeams(
   teamIds: string[],
   delta: number,
-  options?: { excludeMatchId?: string }
+  options?: {
+    excludeMatchId?: string;
+    reason?: "match_win" | "match_loss" | "tournament_win";
+    tournamentId?: string;
+    matchId?: string;
+  }
 ): Promise<void> {
   const teamPlayersMap = await mapTeamPlayers(teamIds);
   const playerIds = Array.from(teamPlayersMap.values()).flat();
@@ -185,9 +210,19 @@ export async function POST(
     ) {
       const winnerTeamId = String(updated.winner_team_id);
       const loserTeamId = winnerTeamId === m.team_a_id ? m.team_b_id : m.team_a_id;
-      await applyDeltaToTeams([winnerTeamId], RANKED_MATCH_WIN_DELTA, { excludeMatchId: matchId });
+      await applyDeltaToTeams([winnerTeamId], RANKED_MATCH_WIN_DELTA, {
+        excludeMatchId: matchId,
+        reason: "match_win",
+        tournamentId,
+        matchId,
+      });
       if (loserTeamId) {
-        await applyDeltaToTeams([loserTeamId], RANKED_MATCH_LOSS_DELTA, { excludeMatchId: matchId });
+        await applyDeltaToTeams([loserTeamId], RANKED_MATCH_LOSS_DELTA, {
+          excludeMatchId: matchId,
+          reason: "match_loss",
+          tournamentId,
+          matchId,
+        });
       }
     }
 
@@ -228,7 +263,10 @@ export async function POST(
       if (insErr) throw new Error(insErr.message);
 
       if (tournamentMode === "ranked" && !hadChampionBefore) {
-        await applyDeltaToTeams([championId], RANKED_TOURNAMENT_WIN_BONUS);
+        await applyDeltaToTeams([championId], RANKED_TOURNAMENT_WIN_BONUS, {
+          reason: "tournament_win",
+          tournamentId,
+        });
       }
     }
 

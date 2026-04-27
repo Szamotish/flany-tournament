@@ -94,6 +94,34 @@ export async function POST(
   );
   if (upsertErr) return NextResponse.json({ error: upsertErr.message }, { status: 500 });
 
+  const nowIso = new Date().toISOString();
+  const acceptRequest = await supabaseServer
+    .from("tournament_join_requests")
+    .update({
+      status: "accepted",
+      resolved_at: nowIso,
+      resolved_by_player_id: auth.ctx.playerId ?? null,
+    })
+    .eq("tournament_id", tournamentId)
+    .eq("player_id", playerId)
+    .eq("status", "pending");
+  if (acceptRequest.error && !acceptRequest.error.message.includes("tournament_join_requests")) {
+    return NextResponse.json({ error: acceptRequest.error.message }, { status: 500 });
+  }
+
+  const acceptInvite = await supabaseServer
+    .from("tournament_invites")
+    .update({
+      status: "accepted",
+      resolved_at: nowIso,
+    })
+    .eq("tournament_id", tournamentId)
+    .eq("player_id", playerId)
+    .eq("status", "pending");
+  if (acceptInvite.error && !acceptInvite.error.message.includes("tournament_invites")) {
+    return NextResponse.json({ error: acceptInvite.error.message }, { status: 500 });
+  }
+
   const batchErr = await deactivateActiveBatch(tournamentId);
   if (batchErr) return NextResponse.json({ error: batchErr.message }, { status: 500 });
 
@@ -122,6 +150,34 @@ export async function DELETE(
     .eq("tournament_id", tournamentId)
     .eq("player_id", playerId);
   if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 });
+
+  const nowIso = new Date().toISOString();
+  const cancelReq = await supabaseServer
+    .from("tournament_join_requests")
+    .update({
+      status: "cancelled",
+      resolved_at: nowIso,
+      resolved_by_player_id: auth.ctx.playerId ?? null,
+    })
+    .eq("tournament_id", tournamentId)
+    .eq("player_id", playerId)
+    .eq("status", "pending");
+  if (cancelReq.error && !cancelReq.error.message.includes("tournament_join_requests")) {
+    return NextResponse.json({ error: cancelReq.error.message }, { status: 500 });
+  }
+
+  const cancelInvite = await supabaseServer
+    .from("tournament_invites")
+    .update({
+      status: "cancelled",
+      resolved_at: nowIso,
+    })
+    .eq("tournament_id", tournamentId)
+    .eq("player_id", playerId)
+    .eq("status", "pending");
+  if (cancelInvite.error && !cancelInvite.error.message.includes("tournament_invites")) {
+    return NextResponse.json({ error: cancelInvite.error.message }, { status: 500 });
+  }
 
   const { error: delAdminErr } = await supabaseServer
     .from("tournament_admins")
