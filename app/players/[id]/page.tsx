@@ -43,6 +43,8 @@ type SparkPoint = {
 
 const CHART_WIDTH = 220;
 const CHART_HEIGHT = 88;
+const CHART_PAD_X = 10;
+const CHART_PAD_Y = 8;
 
 function formatShortDate(iso: string | null): string {
   if (!iso) return "--.--";
@@ -80,28 +82,28 @@ function prestigeColor(tier: number): string {
   return tones[(tier - 1) % tones.length];
 }
 
-function formatChartDateTime(iso: string | null): string {
-  if (!iso) return "brak daty";
+function formatChartTooltipDateTime(iso: string | null): string {
+  if (!iso) return "--.-- --:--";
   const parsed = new Date(iso);
-  if (Number.isNaN(parsed.getTime())) return "brak daty";
-  return parsed.toLocaleString("pl-PL", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  if (Number.isNaN(parsed.getTime())) return "--.-- --:--";
+  const day = String(parsed.getDate()).padStart(2, "0");
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const hours = String(parsed.getHours()).padStart(2, "0");
+  const minutes = String(parsed.getMinutes()).padStart(2, "0");
+  return `${day}.${month} ${hours}:${minutes}`;
 }
 
 function buildSparkPoints(points: MmrPoint[]): SparkPoint[] {
   if (points.length === 0) return [];
   const minY = 0;
   const maxY = 10;
-  const step = points.length > 1 ? CHART_WIDTH / (points.length - 1) : 0;
+  const drawableWidth = CHART_WIDTH - CHART_PAD_X * 2;
+  const drawableHeight = CHART_HEIGHT - CHART_PAD_Y * 2;
+  const step = points.length > 1 ? drawableWidth / (points.length - 1) : 0;
   return points.map((point, index) => {
-    const x = step * index;
+    const x = CHART_PAD_X + step * index;
     const clamped = Math.max(minY, Math.min(maxY, Number(point.mmr ?? 0)));
-    const y = CHART_HEIGHT - (clamped / (maxY - minY)) * CHART_HEIGHT;
+    const y = CHART_PAD_Y + drawableHeight - (clamped / (maxY - minY)) * drawableHeight;
     return {
       x,
       y,
@@ -355,13 +357,14 @@ export default async function PlayerPage({
                         <g className="profile-mmr-chart-grid-wrap">
                           {Array.from({ length: 21 }, (_, idx) => {
                             const mmrValue = idx * 0.5;
-                            const y = CHART_HEIGHT - (mmrValue / 10) * CHART_HEIGHT;
+                            const drawableHeight = CHART_HEIGHT - CHART_PAD_Y * 2;
+                            const y = CHART_PAD_Y + drawableHeight - (mmrValue / 10) * drawableHeight;
                             return (
                               <line
                                 key={mmrValue}
-                                x1={0}
+                                x1={CHART_PAD_X}
                                 y1={y}
-                                x2={CHART_WIDTH}
+                                x2={CHART_WIDTH - CHART_PAD_X}
                                 y2={y}
                                 className="profile-mmr-chart-grid"
                               />
@@ -370,17 +373,36 @@ export default async function PlayerPage({
                         </g>
                         <polyline points={sparkline} className="profile-mmr-chart-line" />
                         <g className="profile-mmr-chart-dots">
-                          {sparkPoints.map((point, idx) => (
-                            <circle
-                              key={`${idx}-${point.x}-${point.y}`}
-                              cx={point.x}
-                              cy={point.y}
-                              r={idx === sparkPoints.length - 1 ? 3.1 : 2.4}
-                              className="profile-mmr-chart-dot"
-                            >
-                              <title>{`MMR ${point.mmr.toFixed(1)} - ${formatChartDateTime(point.createdAt)}`}</title>
-                            </circle>
-                          ))}
+                          {sparkPoints.map((point, idx) => {
+                            const label = `MMR ${point.mmr.toFixed(1)} | ${formatChartTooltipDateTime(point.createdAt)}`;
+                            const tooltipW = 126;
+                            const tooltipH = 20;
+                            const tooltipX = Math.max(
+                              2,
+                              Math.min(CHART_WIDTH - tooltipW - 2, point.x - tooltipW / 2)
+                            );
+                            const tooltipY = point.y < 26 ? point.y + 8 : point.y - 24;
+
+                            return (
+                              <g key={`${idx}-${point.x}-${point.y}`} className="profile-mmr-chart-point">
+                                <circle
+                                  cx={point.x}
+                                  cy={point.y}
+                                  r={idx === sparkPoints.length - 1 ? 3.1 : 2.5}
+                                  className="profile-mmr-chart-dot"
+                                />
+                                <g
+                                  className="profile-mmr-chart-tooltip"
+                                  transform={`translate(${tooltipX.toFixed(1)},${tooltipY.toFixed(1)})`}
+                                >
+                                  <rect width={tooltipW} height={tooltipH} rx={6} ry={6} />
+                                  <text x={tooltipW / 2} y={14} textAnchor="middle">
+                                    {label}
+                                  </text>
+                                </g>
+                              </g>
+                            );
+                          })}
                         </g>
                       </svg>
                     ) : (
