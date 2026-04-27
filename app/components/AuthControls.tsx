@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { authedFetch } from "@/lib/authClient";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 
@@ -76,6 +77,7 @@ function formatDateTime(iso: string | null | undefined): string {
 }
 
 export default function AuthControls() {
+  const pathname = usePathname();
   const [auth, setAuth] = useState<AuthState>({
     loading: true,
     authenticated: false,
@@ -94,6 +96,13 @@ export default function AuthControls() {
   const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [localAdminContext, setLocalAdminContext] = useState<{
+    tournamentId: string | null;
+    isTournamentAdmin: boolean;
+  }>({
+    tournamentId: null,
+    isTournamentAdmin: false,
+  });
 
   const pendingCount = useMemo(() => {
     if (!notifications) return 0;
@@ -125,6 +134,39 @@ export default function AuthControls() {
       listener.subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const match = pathname.match(/^\/tournaments\/([^/]+)(?:\/.*)?$/);
+      if (!auth.authenticated || !match?.[1]) {
+        if (!cancelled) {
+          setLocalAdminContext({ tournamentId: null, isTournamentAdmin: false });
+        }
+        return;
+      }
+
+      const tournamentId = decodeURIComponent(match[1]);
+      const res = await authedFetch(`/api/public/tournaments/${encodeURIComponent(tournamentId)}/membership`, {
+        cache: "no-store",
+      });
+      const json = await res.json().catch(() => ({}));
+      if (cancelled) return;
+      if (!res.ok) {
+        setLocalAdminContext({ tournamentId, isTournamentAdmin: false });
+        return;
+      }
+      setLocalAdminContext({
+        tournamentId,
+        isTournamentAdmin: json.isTournamentAdmin === true,
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname, auth.authenticated]);
 
   async function logout() {
     const supabase = getSupabaseBrowserClient();
@@ -298,6 +340,15 @@ export default function AuthControls() {
             {auth.isMainAdmin ? (
               <Link className="auth-menu-item" href="/admin/tournaments" onClick={() => setMenuOpen(false)}>
                 Main admin
+              </Link>
+            ) : null}
+            {localAdminContext.isTournamentAdmin && localAdminContext.tournamentId ? (
+              <Link
+                className="auth-menu-item"
+                href={`/tournaments/${localAdminContext.tournamentId}/admin`}
+                onClick={() => setMenuOpen(false)}
+              >
+                Admin lokalny
               </Link>
             ) : null}
             <button className="auth-menu-item auth-menu-item-danger" type="button" onClick={logout}>

@@ -398,9 +398,6 @@ export default async function TournamentPage({
         )}
       </div>
 
-      <Link href={`/tournaments/${id}/admin`} className="admin-fab" aria-label="Panel lokalnego admina">
-        Admin
-      </Link>
     </main>
   );
 }

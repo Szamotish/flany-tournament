@@ -35,6 +35,8 @@ type InviteRow = {
 };
 
 export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
+  const [accessChecked, setAccessChecked] = useState(false);
+  const [hasAdminAccess, setHasAdminAccess] = useState(false);
   const [teamSize, setTeamSize] = useState(5);
   const [allowUneven, setAllowUneven] = useState(true);
   const [iterations, setIterations] = useState(500);
@@ -91,10 +93,35 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
   }, [tournamentId]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const res = await authedFetch(`/api/public/tournaments/${tournamentId}/membership`, {
+        cache: "no-store",
+      });
+      const json = await res.json().catch(() => ({}));
+      if (cancelled) return;
+
+      const canAccess = res.ok && json.isTournamentAdmin === true;
+      setHasAdminAccess(canAccess);
+      setAccessChecked(true);
+
+      if (!canAccess) {
+        setMsg("Brak uprawnien lokalnego admina.");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tournamentId]);
+
+  useEffect(() => {
+    if (!hasAdminAccess) return;
     void loadMeta();
     void loadJoinRequests();
     void loadInvites();
-  }, [loadInvites, loadJoinRequests, loadMeta]);
+  }, [hasAdminAccess, loadInvites, loadJoinRequests, loadMeta]);
 
   async function generate() {
     setMsg(null);
@@ -324,6 +351,43 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
       teamName: team.name,
     }))
   );
+
+  if (!accessChecked) {
+    return (
+      <main className="tour-root">
+        <div className="tour-shell">
+          <div className="tour-topbar">
+            <Link className="underline opacity-80" href={`/tournaments/${tournamentId}`}>
+              Back
+            </Link>
+            <span className="tour-kicker">Lokalny admin</span>
+          </div>
+          <section className="tour-admin-panel mt-4">
+            <p className="tour-muted">Sprawdzanie uprawnien...</p>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
+  if (!hasAdminAccess) {
+    return (
+      <main className="tour-root">
+        <div className="tour-shell">
+          <div className="tour-topbar">
+            <Link className="underline opacity-80" href={`/tournaments/${tournamentId}`}>
+              Back
+            </Link>
+            <span className="tour-kicker">Lokalny admin</span>
+          </div>
+          <section className="tour-admin-panel mt-4">
+            <p className="tour-card-title">Brak dostepu</p>
+            <p className="tour-muted mt-2">Tylko lokalny admin tego turnieju moze wejsc do tego panelu.</p>
+          </section>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="tour-root">

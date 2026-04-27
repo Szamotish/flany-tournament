@@ -33,6 +33,13 @@ async function writeMmrHistoryEntry(
   }
 }
 
+async function clearMmrHistory(playerId: string) {
+  const del = await supabaseServer.from("player_mmr_history").delete().eq("player_id", playerId);
+  if (del.error && !del.error.message.includes("player_mmr_history")) {
+    throw new Error(del.error.message);
+  }
+}
+
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -115,6 +122,9 @@ export async function PATCH(
     if (retry.error) return NextResponse.json({ error: retry.error.message }, { status: 500 });
     if (hasMmr || resetMmr) {
       try {
+        if (resetMmr) {
+          await clearMmrHistory(playerId);
+        }
         await writeMmrHistoryEntry(
           playerId,
           (retry.data as { mmr?: number | null }).mmr ?? null,
@@ -136,6 +146,9 @@ export async function PATCH(
   if (hasMmr || resetMmr) {
     const row = primaryUpdate.data as { mmr?: number | null; prestige_points?: number | null };
     try {
+      if (resetMmr) {
+        await clearMmrHistory(playerId);
+      }
       await writeMmrHistoryEntry(
         playerId,
         row.mmr ?? null,
@@ -166,35 +179,12 @@ export async function DELETE(
 
   const { data: player, error: pErr } = await supabaseServer
     .from("players")
-    .select("id,name")
+    .select("id,name,auth_user_id")
     .eq("id", playerId)
     .maybeSingle();
 
   if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 });
   if (!player) return NextResponse.json({ error: "player_not_found" }, { status: 404 });
-
-  const ratingsDelete = await supabaseServer
-    .from("ratings")
-    .delete()
-    .or(`rated_player_id.eq.${playerId},rater_player_id.eq.${playerId}`);
-
-  if (ratingsDelete.error && ratingsDelete.error.message.includes("rater_player_id")) {
-    const legacyRatingsDelete = await supabaseServer
-      .from("ratings")
-      .delete()
-      .eq("rated_player_id", playerId);
-    if (legacyRatingsDelete.error) {
-      return NextResponse.json({ error: legacyRatingsDelete.error.message }, { status: 500 });
-    }
-  } else if (ratingsDelete.error) {
-    return NextResponse.json({ error: ratingsDelete.error.message }, { status: 500 });
-  }
-
-  const { error: tpErr } = await supabaseServer
-    .from("tournament_players")
-    .delete()
-    .eq("player_id", playerId);
-  if (tpErr) return NextResponse.json({ error: tpErr.message }, { status: 500 });
 
   const { error: taErr } = await supabaseServer
     .from("tournament_admins")
@@ -204,22 +194,41 @@ export async function DELETE(
     return NextResponse.json({ error: taErr.message }, { status: 500 });
   }
 
-  const { error: tmErr } = await supabaseServer
-    .from("team_members")
-    .delete()
-    .eq("player_id", playerId);
-  if (tmErr) return NextResponse.json({ error: tmErr.message }, { status: 500 });
+  const deactivatedName = `deleted-${playerId.slice(0, 8)}-${Date.now().toString(36)}`;
 
-  const { error: dErr } = await supabaseServer.from("players").delete().eq("id", playerId);
-  if (!dErr) {
-    return NextResponse.json({ deleted: true, playerId });
+  const playerUpdatePrimary = await supabaseServer
+    .from("players")
+    .update({
+      active: false,
+      is_main_admin: false,
+      auth_user_id: null,
+      email_notifications_enabled: false,
+      name: deactivatedName,
+    })
+    .eq("id", playerId);
+
+  let playerUpdateErr = playerUpdatePrimary.error;
+  if (playerUpdatePrimary.error && playerUpdatePrimary.error.message.includes("email_notifications_enabled")) {
+    const fallbackUpdate = await supabaseServer
+      .from("players")
+      .update({
+        active: false,
+        is_main_admin: false,
+        auth_user_id: null,
+        name: deactivatedName,
+      })
+      .eq("id", playerId);
+    playerUpdateErr = fallbackUpdate.error;
+  }
+  if (playerUpdateErr) return NextResponse.json({ error: playerUpdateErr.message }, { status: 500 });
+
+  const authUserId = typeof player.auth_user_id === "string" ? player.auth_user_id : null;
+  if (authUserId) {
+    const authDelete = await supabaseServer.auth.admin.deleteUser(authUserId);
+    if (authDelete.error && !authDelete.error.message.toLowerCase().includes("not found")) {
+      return NextResponse.json({ error: authDelete.error.message }, { status: 500 });
+    }
   }
 
-  const { error: softErr } = await supabaseServer
-    .from("players")
-    .update({ active: false })
-    .eq("id", playerId);
-  if (softErr) return NextResponse.json({ error: softErr.message }, { status: 500 });
-
-  return NextResponse.json({ deleted: false, softDeleted: true, playerId });
+  return NextResponse.json({ deleted: true, softDeleted: true, playerId });
 }

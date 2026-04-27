@@ -53,7 +53,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           error: "cooldown",
-          message: `Możesz zmienić ocenę za ~${hoursLeft}h`,
+          message: `Mozesz zmienic ocene za ~${hoursLeft}h`,
           hoursLeft,
         },
         { status: 429 }
@@ -61,14 +61,47 @@ export async function POST(req: Request) {
     }
   }
 
-  const { data, error } = await supabaseServer
+  const upsertPayload: {
+    rater_player_id: string;
+    rated_player_id: string;
+    value: number;
+    updated_at: string;
+    rater_device_id: string;
+  } = {
+    rater_player_id: auth.ctx.playerId,
+    rated_player_id: ratedId,
+    value,
+    updated_at: new Date().toISOString(),
+    // Backward compatibility for older schema where rater_device_id is NOT NULL.
+    rater_device_id: `auth:${auth.ctx.userId}`,
+  };
+
+  const primaryUpsert = await supabaseServer
     .from("ratings")
-    .upsert(
-      { rater_player_id: auth.ctx.playerId, rated_player_id: ratedId, value, updated_at: new Date().toISOString() },
-      { onConflict: "rater_player_id,rated_player_id" }
-    )
+    .upsert(upsertPayload, { onConflict: "rater_player_id,rated_player_id" })
     .select("id,rater_player_id,rated_player_id,value,updated_at")
     .single();
+
+  let data = primaryUpsert.data;
+  let error = primaryUpsert.error;
+
+  if (error && error.message.includes("rater_device_id")) {
+    const fallbackUpsert = await supabaseServer
+      .from("ratings")
+      .upsert(
+        {
+          rater_player_id: auth.ctx.playerId,
+          rated_player_id: ratedId,
+          value,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "rater_player_id,rated_player_id" }
+      )
+      .select("id,rater_player_id,rated_player_id,value,updated_at")
+      .single();
+    data = fallbackUpsert.data;
+    error = fallbackUpsert.error;
+  }
 
   if (error) {
     if (error.message.includes("rater_player_id")) {

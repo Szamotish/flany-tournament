@@ -21,14 +21,35 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid_value" }, { status: 400 });
   }
 
-  const { data, error } = await supabaseServer
+  const primaryUpsert = await supabaseServer
     .from("ratings")
     .upsert(
-      { rater_player_id: raterId, rated_player_id: ratedId, value },
+      {
+        rater_player_id: raterId,
+        rated_player_id: ratedId,
+        value,
+        rater_device_id: `admin:${raterId}`,
+      },
       { onConflict: "rater_player_id,rated_player_id" }
     )
     .select("id,rater_player_id,rated_player_id,value,updated_at")
     .single();
+
+  let data = primaryUpsert.data;
+  let error = primaryUpsert.error;
+
+  if (error && error.message.includes("rater_device_id")) {
+    const fallbackUpsert = await supabaseServer
+      .from("ratings")
+      .upsert(
+        { rater_player_id: raterId, rated_player_id: ratedId, value },
+        { onConflict: "rater_player_id,rated_player_id" }
+      )
+      .select("id,rater_player_id,rated_player_id,value,updated_at")
+      .single();
+    data = fallbackUpsert.data;
+    error = fallbackUpsert.error;
+  }
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
