@@ -7,6 +7,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 `supabase/migrations/20260427_account_auth_and_roles.sql`
 `supabase/migrations/20260427_tournament_requests_and_meta.sql`
 `supabase/migrations/20260427_player_mmr_history.sql`
+`supabase/migrations/20260427_tournament_round_schedules.sql`
 
 2. (Optional fresh start) run:
 

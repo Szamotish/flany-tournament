@@ -34,6 +34,16 @@ type MmrPoint = {
   createdAt: string | null;
 };
 
+type SparkPoint = {
+  x: number;
+  y: number;
+  mmr: number;
+  createdAt: string | null;
+};
+
+const CHART_WIDTH = 220;
+const CHART_HEIGHT = 88;
+
 function formatShortDate(iso: string | null): string {
   if (!iso) return "--.--";
   return new Date(iso).toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit" });
@@ -70,21 +80,35 @@ function prestigeColor(tier: number): string {
   return tones[(tier - 1) % tones.length];
 }
 
-function buildSparkline(points: MmrPoint[]): string {
-  if (points.length === 0) return "";
-  const width = 220;
-  const height = 88;
+function formatChartDateTime(iso: string | null): string {
+  if (!iso) return "brak daty";
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return "brak daty";
+  return parsed.toLocaleString("pl-PL", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function buildSparkPoints(points: MmrPoint[]): SparkPoint[] {
+  if (points.length === 0) return [];
   const minY = 0;
   const maxY = 10;
-  const step = points.length > 1 ? width / (points.length - 1) : 0;
-  return points
-    .map((point, index) => {
-      const x = step * index;
-      const clamped = Math.max(minY, Math.min(maxY, Number(point.mmr ?? 0)));
-      const y = height - (clamped / (maxY - minY)) * height;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
+  const step = points.length > 1 ? CHART_WIDTH / (points.length - 1) : 0;
+  return points.map((point, index) => {
+    const x = step * index;
+    const clamped = Math.max(minY, Math.min(maxY, Number(point.mmr ?? 0)));
+    const y = CHART_HEIGHT - (clamped / (maxY - minY)) * CHART_HEIGHT;
+    return {
+      x,
+      y,
+      mmr: clamped,
+      createdAt: point.createdAt,
+    };
+  });
 }
 
 export default async function PlayerPage({
@@ -279,7 +303,8 @@ export default async function PlayerPage({
       createdAt: typeof row.created_at === "string" ? row.created_at : null,
     }));
   }
-  const sparkline = buildSparkline(mmrHistoryPoints);
+  const sparkPoints = buildSparkPoints(mmrHistoryPoints);
+  const sparkline = sparkPoints.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
 
   return (
     <main className="player-profile-root">
@@ -309,12 +334,61 @@ export default async function PlayerPage({
           <div className="profile-rating-box mt-5">
             <div className="profile-rating-layout">
               <div className="profile-rating-copy">
-                <p className="profile-section-title">Rating</p>
-                <div className="profile-rating-row">
-                  <span className="profile-rating-value">{rating !== null ? rating.toFixed(1) : "--"}</span>
-                  <span className="profile-rating-scale">/10</span>
+                <div className="profile-rating-head">
+                  <div>
+                    <p className="profile-section-title">Rating</p>
+                    <div className="profile-rating-row">
+                      <span className="profile-rating-value">{rating !== null ? rating.toFixed(1) : "--"}</span>
+                      <span className="profile-rating-scale">/10</span>
+                    </div>
+                    <p className="profile-muted mt-1">Liczba ocen: {ratingValues.length}</p>
+                  </div>
+
+                  <div className="profile-mmr-chart">
+                    <p className="profile-muted">Historia MMR</p>
+                    {sparkline ? (
+                      <svg
+                        viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
+                        preserveAspectRatio="none"
+                        className="profile-mmr-chart-svg"
+                      >
+                        <g className="profile-mmr-chart-grid-wrap">
+                          {Array.from({ length: 21 }, (_, idx) => {
+                            const mmrValue = idx * 0.5;
+                            const y = CHART_HEIGHT - (mmrValue / 10) * CHART_HEIGHT;
+                            return (
+                              <line
+                                key={mmrValue}
+                                x1={0}
+                                y1={y}
+                                x2={CHART_WIDTH}
+                                y2={y}
+                                className="profile-mmr-chart-grid"
+                              />
+                            );
+                          })}
+                        </g>
+                        <polyline points={sparkline} className="profile-mmr-chart-line" />
+                        <g className="profile-mmr-chart-dots">
+                          {sparkPoints.map((point, idx) => (
+                            <circle
+                              key={`${idx}-${point.x}-${point.y}`}
+                              cx={point.x}
+                              cy={point.y}
+                              r={idx === sparkPoints.length - 1 ? 3.1 : 2.4}
+                              className="profile-mmr-chart-dot"
+                            >
+                              <title>{`MMR ${point.mmr.toFixed(1)} - ${formatChartDateTime(point.createdAt)}`}</title>
+                            </circle>
+                          ))}
+                        </g>
+                      </svg>
+                    ) : (
+                      <p className="profile-muted">Brak historii ranked.</p>
+                    )}
+                  </div>
                 </div>
-                <p className="profile-muted mt-1">Liczba ocen: {ratingValues.length}</p>
+
                 <div className="mt-2 flex items-center gap-2">
                   <span className="profile-rating-chip">MMR {Number.isFinite(rankedMmr) ? rankedMmr.toFixed(1) : "0.0"}</span>
                   <span
@@ -334,16 +408,6 @@ export default async function PlayerPage({
               </div>
 
               <aside className="profile-rank-preview" aria-label="Obramowka rangi">
-                <div className="profile-mmr-chart">
-                  <p className="profile-muted">Historia MMR</p>
-                  {sparkline ? (
-                    <svg viewBox="0 0 220 88" preserveAspectRatio="none" className="profile-mmr-chart-svg" aria-hidden>
-                      <polyline points={sparkline} className="profile-mmr-chart-line" />
-                    </svg>
-                  ) : (
-                    <p className="profile-muted">Brak historii ranked.</p>
-                  )}
-                </div>
                 {profileRankFrameUrl ? (
                   <span className="profile-rank-preview-wrap">
                     <span

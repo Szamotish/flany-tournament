@@ -18,6 +18,14 @@ type Match = {
   teamA: { id: string; name: string } | null;
   teamB: { id: string; name: string } | null;
   winnerTeamId: string | null;
+  scheduledAt: string | null;
+  scheduledLocation: string | null;
+};
+
+type RoundScheduleDraft = {
+  scheduledAt: string;
+  location: string;
+  saving: boolean;
 };
 
 function bracketLabel(bracket: Bracket): string {
@@ -38,9 +46,31 @@ function statusTone(status: string): string {
   return status === "finished" ? "tour-match-status-finished" : "tour-match-status-pending";
 }
 
+function toInputDateTimeValue(iso: string | null): string {
+  if (!iso) return "";
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return "";
+  const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
+function formatDateTime(iso: string | null): string {
+  if (!iso) return "brak";
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return "brak";
+  return parsed.toLocaleString("pl-PL", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function AdminMatchesPanel({ tournamentId }: { tournamentId: string }) {
   const [matches, setMatches] = useState<Match[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
+  const [roundScheduleDrafts, setRoundScheduleDrafts] = useState<Record<string, RoundScheduleDraft>>({});
 
   async function load() {
     const res = await fetch(`/api/public/tournaments/${tournamentId}/matches`, { cache: "no-store" });
@@ -67,6 +97,23 @@ export default function AdminMatchesPanel({ tournamentId }: { tournamentId: stri
       cancelled = true;
     };
   }, [tournamentId]);
+
+  useEffect(() => {
+    setRoundScheduleDrafts((prev) => {
+      const next: Record<string, RoundScheduleDraft> = { ...prev };
+      for (const match of matches) {
+        const key = `${match.bracket}:${match.roundNo}`;
+        if (!next[key]) {
+          next[key] = {
+            scheduledAt: toInputDateTimeValue(match.scheduledAt),
+            location: match.scheduledLocation ?? "",
+            saving: false,
+          };
+        }
+      }
+      return next;
+    });
+  }, [matches]);
 
   async function start() {
     setMsg(null);
@@ -101,6 +148,41 @@ export default function AdminMatchesPanel({ tournamentId }: { tournamentId: stri
 
     await load();
     setMsg("Zapisano wynik.");
+  }
+
+  async function saveRoundSchedule(bracket: Bracket, roundNo: number) {
+    const key = `${bracket}:${roundNo}`;
+    const draft = roundScheduleDrafts[key] ?? { scheduledAt: "", location: "", saving: false };
+
+    setRoundScheduleDrafts((prev) => ({
+      ...prev,
+      [key]: { ...draft, saving: true },
+    }));
+
+    const res = await authedFetch(`/api/admin/tournaments/${tournamentId}/round-schedules`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        bracket,
+        roundNo,
+        scheduledAt: draft.scheduledAt || "",
+        location: draft.location || "",
+      }),
+    });
+    const json = await res.json().catch(() => ({}));
+
+    setRoundScheduleDrafts((prev) => ({
+      ...prev,
+      [key]: { ...(prev[key] ?? draft), saving: false },
+    }));
+
+    if (!res.ok) {
+      setMsg(`Blad harmonogramu rundy: ${json.error ?? res.statusText}`);
+      return;
+    }
+
+    setMsg("Zapisano harmonogram rundy.");
+    await load();
   }
 
   const grouped = useMemo(() => {
@@ -171,6 +253,81 @@ export default function AdminMatchesPanel({ tournamentId }: { tournamentId: stri
                 {roundNos.map((roundNo) => (
                   <article key={roundNo} className="tour-round-card">
                     <p className="tour-round-title">Runda {roundNo}</p>
+                    {(() => {
+                      const key = `${bracket}:${roundNo}`;
+                      const roundMatches = rounds[String(roundNo)] ?? [];
+                      const source = roundMatches[0] ?? null;
+                      const draft = roundScheduleDrafts[key] ?? {
+                        scheduledAt: toInputDateTimeValue(source?.scheduledAt ?? null),
+                        location: source?.scheduledLocation ?? "",
+                        saving: false,
+                      };
+
+                      return (
+                        <div className="tour-round-schedule mt-2">
+                          <div className="tour-round-schedule-fields">
+                            <input
+                              className="tour-admin-input"
+                              type="datetime-local"
+                              value={draft.scheduledAt}
+                              onChange={(e) =>
+                                setRoundScheduleDrafts((prev) => ({
+                                  ...prev,
+                                  [key]: {
+                                    ...(prev[key] ?? draft),
+                                    scheduledAt: e.target.value,
+                                  },
+                                }))
+                              }
+                            />
+                            <input
+                              className="tour-admin-input"
+                              value={draft.location}
+                              onChange={(e) =>
+                                setRoundScheduleDrafts((prev) => ({
+                                  ...prev,
+                                  [key]: {
+                                    ...(prev[key] ?? draft),
+                                    location: e.target.value,
+                                  },
+                                }))
+                              }
+                              placeholder="Miejsce rundy"
+                              maxLength={140}
+                            />
+                            <button
+                              className="tour-action-btn"
+                              type="button"
+                              disabled={draft.saving}
+                              onClick={() => void saveRoundSchedule(bracket, roundNo)}
+                            >
+                              {draft.saving ? "Zapisywanie..." : "Zapisz"}
+                            </button>
+                            <button
+                              className="tour-action-btn"
+                              type="button"
+                              disabled={draft.saving}
+                              onClick={() =>
+                                setRoundScheduleDrafts((prev) => ({
+                                  ...prev,
+                                  [key]: {
+                                    ...(prev[key] ?? draft),
+                                    scheduledAt: "",
+                                    location: "",
+                                  },
+                                }))
+                              }
+                            >
+                              Wyczysc
+                            </button>
+                          </div>
+                          <p className="tour-muted">
+                            Ustawiono: {formatDateTime(source?.scheduledAt ?? null)}
+                            {source?.scheduledLocation ? ` - ${source.scheduledLocation}` : ""}
+                          </p>
+                        </div>
+                      );
+                    })()}
 
                     <div className="tour-match-list mt-3">
                       {(rounds[String(roundNo)] ?? []).map((m) => (

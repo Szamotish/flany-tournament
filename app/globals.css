@@ -1059,6 +1059,66 @@ body {
   font-size: 0.82rem;
 }
 
+.tour-upcoming-pairs {
+  margin-top: 0.38rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.34rem;
+}
+
+.tour-upcoming-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.24rem;
+  border: 1px solid rgba(62, 99, 84, 0.24);
+  border-radius: 999px;
+  padding: 0.18rem 0.42rem;
+  background: rgba(255, 255, 255, 0.7);
+  max-width: 100%;
+}
+
+.tour-upcoming-badge {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(53, 78, 64, 0.3);
+  background: linear-gradient(150deg, rgba(218, 242, 228, 0.9), rgba(180, 220, 199, 0.85));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.58rem;
+  font-weight: 800;
+  color: rgba(31, 58, 44, 0.9);
+  flex: 0 0 auto;
+}
+
+.tour-upcoming-name {
+  max-width: 84px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.73rem;
+  font-weight: 620;
+  color: rgba(31, 56, 45, 0.9);
+}
+
+.tour-upcoming-vs {
+  font-size: 0.66rem;
+  font-weight: 730;
+  color: rgba(56, 43, 23, 0.7);
+  text-transform: uppercase;
+}
+
+.tour-upcoming-more {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px dashed rgba(62, 99, 84, 0.34);
+  padding: 0.17rem 0.46rem;
+  font-size: 0.72rem;
+  color: rgba(35, 58, 45, 0.82);
+}
+
 .tour-status {
   border: 1px solid rgba(80, 48, 8, 0.22);
   border-radius: 999px;
@@ -1619,6 +1679,57 @@ body {
   color: rgba(55, 36, 12, 0.85);
   text-transform: uppercase;
   letter-spacing: 0.06em;
+}
+
+.tour-round-schedule {
+  display: grid;
+  gap: 0.38rem;
+}
+
+.tour-round-schedule-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.42rem;
+}
+
+.tour-round-summaries {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.tour-round-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid rgba(80, 48, 8, 0.2);
+  border-radius: 0.7rem;
+  padding: 0.34rem 0.5rem;
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.tour-round-summary-title {
+  font-size: 0.72rem;
+  font-weight: 760;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(59, 36, 10, 0.84);
+}
+
+.tour-round-summary-meta {
+  font-size: 0.8rem;
+  color: var(--muted-ink);
+}
+
+@media (min-width: 760px) {
+  .tour-round-schedule-fields {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
+    align-items: end;
+  }
+
+  .tour-round-summaries {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .tour-match-list {
@@ -2512,6 +2623,13 @@ body {
   min-width: 0;
 }
 
+.profile-rating-head {
+  display: grid;
+  gap: 0.7rem;
+  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .profile-rank-preview {
   display: grid;
   align-content: start;
@@ -2521,17 +2639,23 @@ body {
 }
 
 .profile-mmr-chart {
-  width: min(240px, 68vw);
+  width: 100%;
+  max-width: 280px;
 }
 
 .profile-mmr-chart-svg {
   display: block;
   width: 100%;
-  height: 92px;
+  height: 98px;
   border-radius: 10px;
   border: 1px solid rgba(85, 61, 23, 0.2);
   background: rgba(255, 255, 255, 0.58);
   padding: 0.28rem;
+}
+
+.profile-mmr-chart-grid {
+  stroke: rgba(79, 60, 30, 0.14);
+  stroke-width: 1;
 }
 
 .profile-mmr-chart-line {
@@ -2540,6 +2664,12 @@ body {
   stroke-width: 2.4;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.profile-mmr-chart-dot {
+  fill: #1f8b57;
+  stroke: rgba(255, 255, 255, 0.95);
+  stroke-width: 1.2;
 }
 
 .profile-rank-preview-wrap {
@@ -2760,6 +2890,11 @@ body {
 @media (min-width: 900px) {
   .profile-rating-layout {
     grid-template-columns: minmax(0, 1fr) 300px;
+  }
+
+  .profile-rating-head {
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+    column-gap: 1rem;
   }
 
   .profile-rank-preview {

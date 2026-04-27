@@ -20,6 +20,8 @@ type MatchView = {
   teamBId: string | null;
   teamA: TeamRef | null;
   teamB: TeamRef | null;
+  scheduledAt: string | null;
+  scheduledLocation: string | null;
 };
 
 function parseTeamRef(value: unknown): TeamRef | null {
@@ -70,6 +72,32 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  const schedulesRes = await supabasePublic
+    .from("tournament_round_schedules")
+    .select("bracket,round_no,scheduled_at,location")
+    .eq("tournament_id", tournamentId);
+
+  if (
+    schedulesRes.error &&
+    !schedulesRes.error.message.includes("tournament_round_schedules")
+  ) {
+    return NextResponse.json({ error: schedulesRes.error.message }, { status: 500 });
+  }
+
+  const schedulesMap = new Map<
+    string,
+    { scheduledAt: string | null; location: string | null }
+  >();
+  for (const row of schedulesRes.data ?? []) {
+    const bracket = parseBracket(row.bracket);
+    const roundNo = Number(row.round_no ?? 0);
+    if (!roundNo) continue;
+    schedulesMap.set(`${bracket}:${roundNo}`, {
+      scheduledAt: typeof row.scheduled_at === "string" ? row.scheduled_at : null,
+      location: typeof row.location === "string" ? row.location : null,
+    });
+  }
+
   const matches: MatchView[] = (data ?? []).map((item) => {
     const m = item as {
       id?: unknown;
@@ -87,6 +115,7 @@ export async function GET(
       team_b?: unknown;
     };
 
+    const schedule = schedulesMap.get(`${parseBracket(m.bracket)}:${Number(m.round_no ?? 0)}`);
     return {
       id: String(m.id ?? ""),
       bracket: parseBracket(m.bracket),
@@ -101,6 +130,8 @@ export async function GET(
       teamBId: typeof m.team_b_id === "string" ? m.team_b_id : null,
       teamA: parseTeamRef(m.team_a),
       teamB: parseTeamRef(m.team_b),
+      scheduledAt: schedule?.scheduledAt ?? null,
+      scheduledLocation: schedule?.location ?? null,
     };
   });
 

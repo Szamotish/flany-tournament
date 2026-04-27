@@ -18,6 +18,13 @@ type Match = {
   teamB: { id: string; name: string } | null;
 };
 
+type RoundSchedule = {
+  bracket: Match["bracket"];
+  roundNo: number;
+  scheduledAt: string | null;
+  location: string | null;
+};
+
 function parseTeamRef(value: unknown): { id: string; name: string } | null {
   const source = Array.isArray(value) ? value[0] : value;
   if (!source || typeof source !== "object") return null;
@@ -59,6 +66,19 @@ function teamState(match: Match, teamId: string | null): "empty" | "pending" | "
   return match.winnerTeamId === teamId ? "winner" : "loser";
 }
 
+function formatDateTime(iso: string | null): string {
+  if (!iso) return "brak terminu";
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return "brak terminu";
+  return parsed.toLocaleString("pl-PL", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default async function MatchesPage({
   params,
 }: {
@@ -75,6 +95,26 @@ export default async function MatchesPage({
     .order("bracket", { ascending: true })
     .order("round_no", { ascending: true })
     .order("match_no", { ascending: true });
+
+  const scheduleRes = await supabaseServer
+    .from("tournament_round_schedules")
+    .select("bracket,round_no,scheduled_at,location")
+    .eq("tournament_id", id);
+
+  const roundSchedules: RoundSchedule[] = !scheduleRes.error
+    ? (scheduleRes.data ?? [])
+        .map((row) => ({
+          bracket: parseBracket(row.bracket),
+          roundNo: Number(row.round_no ?? 0),
+          scheduledAt: typeof row.scheduled_at === "string" ? row.scheduled_at : null,
+          location: typeof row.location === "string" ? row.location : null,
+        }))
+        .filter((row) => row.roundNo > 0)
+    : [];
+
+  const scheduleByKey = new Map(
+    roundSchedules.map((row) => [`${row.bracket}:${row.roundNo}`, row] as const)
+  );
 
   const matches: Match[] = (data ?? []).map((item) => {
     const m = item as {
@@ -175,6 +215,23 @@ export default async function MatchesPage({
                   <h2 className="tour-section-title">{bracketLabel(bracket)}</h2>
                   <span className={`tour-bracket-pill ${bracketTone(bracket)}`}>{roundNos.length} rund</span>
                 </div>
+
+                {roundNos.length > 0 ? (
+                  <div className="tour-round-summaries mt-2">
+                    {roundNos.map((roundNo) => {
+                      const schedule = scheduleByKey.get(`${bracket}:${roundNo}`);
+                      return (
+                        <div key={`${bracket}-${roundNo}`} className="tour-round-summary">
+                          <span className="tour-round-summary-title">R{roundNo}</span>
+                          <span className="tour-round-summary-meta">
+                            {formatDateTime(schedule?.scheduledAt ?? null)}
+                            {schedule?.location ? ` - ${schedule.location}` : ""}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
 
                 <div className="mt-3">
                   <BracketTree rounds={treeRounds} variant="detailed" />
