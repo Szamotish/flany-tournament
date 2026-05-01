@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { MouseEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { authedFetch } from "@/lib/authClient";
 
@@ -9,6 +10,8 @@ type Player = {
   name: string;
   active: boolean;
   mmr?: number | null;
+  prestige_points?: number | null;
+  rating_override?: number | null;
   mmr_manual_override?: boolean | null;
   has_account?: boolean;
 };
@@ -58,6 +61,12 @@ export default function AdminTournamentsPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [localAdminId, setLocalAdminId] = useState("");
+  const [playerActionMenu, setPlayerActionMenu] = useState<{
+    player: Player;
+    x: number;
+    y: number;
+    openUp: boolean;
+  } | null>(null);
 
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
@@ -85,7 +94,7 @@ export default function AdminTournamentsPage() {
   );
 
   async function loadPlayers(query: string) {
-    const res = await fetch(`/api/public/players/search?q=${encodeURIComponent(query)}`, {
+    const res = await authedFetch(`/api/public/players/search?q=${encodeURIComponent(query)}`, {
       cache: "no-store",
     });
     const json = await res.json().catch(() => ({}));
@@ -106,7 +115,7 @@ export default function AdminTournamentsPage() {
     async function bootstrap() {
       const [authRes, playersRes, tournamentsRes, backgroundRes] = await Promise.all([
         authedFetch("/api/auth/me", { cache: "no-store" }),
-        fetch("/api/public/players/search?q=", { cache: "no-store" }),
+        authedFetch("/api/public/players/search?q=", { cache: "no-store" }),
         fetch("/api/public/tournaments", { cache: "no-store" }),
         fetch("/api/public/background", { cache: "no-store" }),
       ]);
@@ -258,6 +267,68 @@ export default function AdminTournamentsPage() {
     await loadPlayers(q);
   }
 
+  async function setPlayerRating(playerId: string, playerName: string, currentRating: number | null | undefined) {
+    const current = Number(currentRating);
+    const raw = window.prompt(
+      `Manualny rating dla "${playerName}" (1-10). Zostaw puste, aby wyczyscic override:`,
+      Number.isFinite(current) ? current.toFixed(1) : ""
+    );
+    if (raw === null) return;
+
+    const trimmed = raw.trim();
+    const ratingOverride = trimmed === "" ? null : Number(trimmed.replace(",", "."));
+    if (ratingOverride !== null && !Number.isFinite(ratingOverride)) {
+      setMsg("Blad ratingu: podaj liczbe, np. 8.5 albo zostaw puste.");
+      return;
+    }
+
+    setMsg(null);
+    const res = await authedFetch(`/api/admin/players/${playerId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ratingOverride }),
+    });
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg(`Blad ustawiania ratingu: ${mapApiError(json.error ?? res.statusText)}`);
+      return;
+    }
+
+    setMsg(ratingOverride === null ? "Manualny rating wyczyszczony." : "Manualny rating zawodnika zaktualizowany.");
+    await loadPlayers(q);
+  }
+
+  async function setPlayerPrestige(playerId: string, playerName: string, currentPrestige: number | null | undefined) {
+    const raw = window.prompt(
+      `Punkty PP dla "${playerName}" (0-9999):`,
+      Number.isFinite(Number(currentPrestige)) ? String(Math.floor(Number(currentPrestige))) : "0"
+    );
+    if (raw === null) return;
+
+    const value = Number(raw.replace(",", "."));
+    if (!Number.isFinite(value)) {
+      setMsg("Blad PP: podaj liczbe, np. 120");
+      return;
+    }
+
+    setMsg(null);
+    const res = await authedFetch(`/api/admin/players/${playerId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ prestigePoints: value }),
+    });
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg(`Blad ustawiania PP: ${mapApiError(json.error ?? res.statusText)}`);
+      return;
+    }
+
+    setMsg("Punkty PP zawodnika zaktualizowane.");
+    await loadPlayers(q);
+  }
+
   async function resetPlayerMmr(playerId: string, playerName: string) {
     if (!window.confirm(`Zresetowac MMR i Prestige dla "${playerName}" do stanu poczatkowego?`)) return;
 
@@ -276,6 +347,18 @@ export default function AdminTournamentsPage() {
 
     setMsg("MMR i Prestige zawodnika zresetowane.");
     await loadPlayers(q);
+  }
+
+  function openPlayerActions(e: MouseEvent<HTMLButtonElement>, player: Player) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const panelHeight = 245;
+    const openUp = rect.bottom + panelHeight > window.innerHeight;
+    setPlayerActionMenu({
+      player,
+      x: Math.min(window.innerWidth - 12, rect.right),
+      y: openUp ? rect.top - 6 : rect.bottom + 6,
+      openUp,
+    });
   }
 
   async function deleteTournament(tournamentId: string, tournamentName: string) {
@@ -577,7 +660,7 @@ export default function AdminTournamentsPage() {
                 <p className="tour-muted mt-2">Wybrani: {selectedIds.length}</p>
                 <p className="tour-muted">Lokalni admini: {localAdminIds.length}</p>
 
-                <div className="tour-admin-player-list mt-2">
+                <div className="tour-admin-player-list mt-2" onScroll={() => setPlayerActionMenu(null)}>
                   {players.map((p) => {
                     const selectedNow = selected[p.id] === true;
                     return (
@@ -595,57 +678,15 @@ export default function AdminTournamentsPage() {
                           <span className="tour-muted">
                             MMR {Number.isFinite(Number(p.mmr ?? 0)) ? Number(p.mmr ?? 0).toFixed(1) : "0.0"}
                           </span>
-                          <details className="tour-player-menu">
-                            <summary className="tour-player-menu-trigger" aria-label={`Opcje zawodnika ${p.name}`} title="Akcje">
-                              ...
-                            </summary>
-                            <div className="tour-player-menu-panel">
-                              <button
-                                className="tour-player-menu-item"
-                                type="button"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  void renamePlayer(p.id, p.name);
-                                  e.currentTarget.closest("details")?.removeAttribute("open");
-                                }}
-                              >
-                                Zmien nazwe
-                              </button>
-                              <button
-                                className="tour-player-menu-item"
-                                type="button"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  void setPlayerMmr(p.id, p.name, p.mmr);
-                                  e.currentTarget.closest("details")?.removeAttribute("open");
-                                }}
-                              >
-                                Ustaw MMR
-                              </button>
-                              <button
-                                className="tour-player-menu-item"
-                                type="button"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  void resetPlayerMmr(p.id, p.name);
-                                  e.currentTarget.closest("details")?.removeAttribute("open");
-                                }}
-                              >
-                                Reset MMR
-                              </button>
-                              <button
-                                className="tour-player-menu-item tour-player-menu-item-danger"
-                                type="button"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  void deletePlayer(p.id, p.name);
-                                  e.currentTarget.closest("details")?.removeAttribute("open");
-                                }}
-                              >
-                                Usun
-                              </button>
-                            </div>
-                          </details>
+                          <button
+                            className="tour-player-menu-trigger"
+                            type="button"
+                            aria-label={`Opcje zawodnika ${p.name}`}
+                            title="Akcje"
+                            onClick={(e) => openPlayerActions(e, p)}
+                          >
+                            ...
+                          </button>
                         </div>
                       </div>
                     );
@@ -708,6 +749,91 @@ export default function AdminTournamentsPage() {
           </section>
         </div>
       </div>
+      {playerActionMenu ? (
+        <div
+          className="tour-player-menu-backdrop"
+          role="presentation"
+          onClick={() => setPlayerActionMenu(null)}
+        >
+          <div
+            className="tour-player-menu-panel tour-player-menu-panel-floating"
+            style={{
+              left: playerActionMenu.x,
+              top: playerActionMenu.y,
+              transform: playerActionMenu.openUp ? "translate(-100%, -100%)" : "translateX(-100%)",
+            }}
+            role="menu"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="tour-player-menu-item"
+              type="button"
+              onClick={() => {
+                const p = playerActionMenu.player;
+                setPlayerActionMenu(null);
+                void renamePlayer(p.id, p.name);
+              }}
+            >
+              Zmien nazwe
+            </button>
+            <button
+              className="tour-player-menu-item"
+              type="button"
+              onClick={() => {
+                const p = playerActionMenu.player;
+                setPlayerActionMenu(null);
+                void setPlayerMmr(p.id, p.name, p.mmr);
+              }}
+            >
+              Ustaw MMR
+            </button>
+            <button
+              className="tour-player-menu-item"
+              type="button"
+              onClick={() => {
+                const p = playerActionMenu.player;
+                setPlayerActionMenu(null);
+                void setPlayerRating(p.id, p.name, p.rating_override);
+              }}
+            >
+              Ustaw rating
+            </button>
+            <button
+              className="tour-player-menu-item"
+              type="button"
+              onClick={() => {
+                const p = playerActionMenu.player;
+                setPlayerActionMenu(null);
+                void setPlayerPrestige(p.id, p.name, p.prestige_points);
+              }}
+            >
+              Ustaw PP
+            </button>
+            <button
+              className="tour-player-menu-item"
+              type="button"
+              onClick={() => {
+                const p = playerActionMenu.player;
+                setPlayerActionMenu(null);
+                void resetPlayerMmr(p.id, p.name);
+              }}
+            >
+              Reset MMR / PP
+            </button>
+            <button
+              className="tour-player-menu-item tour-player-menu-item-danger"
+              type="button"
+              onClick={() => {
+                const p = playerActionMenu.player;
+                setPlayerActionMenu(null);
+                void deletePlayer(p.id, p.name);
+              }}
+            >
+              Usun
+            </button>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

@@ -8,21 +8,25 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   const primaryPlayer = await supabaseServer
     .from("players")
-    .select("id,name,active,avatar_url,mmr,prestige_points,rank_frame_enabled")
+    .select("id,name,active,avatar_url,mmr,prestige_points,rating_override,rank_frame_enabled")
     .eq("id", playerId)
     .maybeSingle();
 
   let player = primaryPlayer.data;
   let pErr = primaryPlayer.error;
 
-  if (primaryPlayer.error && primaryPlayer.error.message.includes("rank_frame_enabled")) {
+  if (
+    primaryPlayer.error &&
+    (primaryPlayer.error.message.includes("rank_frame_enabled") ||
+      primaryPlayer.error.message.includes("rating_override"))
+  ) {
     const fallback = await supabaseServer
       .from("players")
       .select("id,name,active,avatar_url,mmr,prestige_points")
       .eq("id", playerId)
       .maybeSingle();
 
-    player = fallback.data ? { ...fallback.data, rank_frame_enabled: true } : null;
+    player = fallback.data ? { ...fallback.data, rating_override: null, rank_frame_enabled: true } : null;
     pErr = fallback.error;
   }
 
@@ -37,7 +41,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (rErr) return NextResponse.json({ error: rErr.message }, { status: 500 });
 
   const values = (ratings ?? []).map((x) => x.value);
-  const rating = trimmedMean(values, 0.1);
+  const ratingOverride = Number((player as { rating_override?: number | null }).rating_override);
+  const rating = Number.isFinite(ratingOverride) ? ratingOverride : trimmedMean(values, 0.1);
 
   const { data: memberships, error: mErr } = await supabaseServer
     .from("team_members")

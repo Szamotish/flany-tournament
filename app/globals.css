@@ -2339,10 +2339,6 @@ body {
   flex: 0 0 auto;
 }
 
-.tour-player-menu {
-  position: relative;
-}
-
 .tour-player-menu-trigger {
   list-style: none;
   border: 1px solid rgba(80, 48, 8, 0.34);
@@ -2359,20 +2355,20 @@ body {
   user-select: none;
 }
 
-.tour-player-menu-trigger::-webkit-details-marker {
-  display: none;
-}
-
-.tour-player-menu[open] .tour-player-menu-trigger {
+.tour-player-menu-trigger:hover,
+.tour-player-menu-trigger:focus-visible {
   background: rgba(255, 255, 255, 0.92);
   border-color: rgba(80, 48, 8, 0.5);
 }
 
+.tour-player-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  background: transparent;
+}
+
 .tour-player-menu-panel {
-  position: absolute;
-  top: calc(100% + 0.35rem);
-  right: 0;
-  z-index: 12;
   width: max-content;
   min-width: 140px;
   display: grid;
@@ -2382,6 +2378,11 @@ body {
   border-radius: 0.72rem;
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 10px 24px rgba(35, 20, 2, 0.22);
+}
+
+.tour-player-menu-panel-floating {
+  position: fixed;
+  z-index: 3001;
 }
 
 .tour-player-menu-item {

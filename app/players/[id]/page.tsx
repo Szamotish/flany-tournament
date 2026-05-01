@@ -122,7 +122,7 @@ export default async function PlayerPage({
 
   const primaryPlayer = await supabaseServer
     .from("players")
-    .select("id,name,active,avatar_url,mmr,prestige_points,mmr_manual_override,rank_frame_enabled")
+    .select("id,name,active,avatar_url,mmr,prestige_points,rating_override,mmr_manual_override,rank_frame_enabled")
     .eq("id", playerId)
     .maybeSingle();
 
@@ -132,6 +132,7 @@ export default async function PlayerPage({
   if (
     primaryPlayer.error &&
     (primaryPlayer.error.message.includes("mmr_manual_override") ||
+      primaryPlayer.error.message.includes("rating_override") ||
       primaryPlayer.error.message.includes("rank_frame_enabled"))
   ) {
     const fallback = await supabaseServer
@@ -140,7 +141,9 @@ export default async function PlayerPage({
       .eq("id", playerId)
       .maybeSingle();
 
-    player = fallback.data ? { ...fallback.data, mmr_manual_override: false, rank_frame_enabled: true } : null;
+    player = fallback.data
+      ? { ...fallback.data, rating_override: null, mmr_manual_override: false, rank_frame_enabled: true }
+      : null;
     playerErr = fallback.error;
   }
 
@@ -168,7 +171,8 @@ export default async function PlayerPage({
     .eq("rated_player_id", playerId);
 
   const ratingValues = (ratings ?? []).map((r) => Number(r.value)).filter(Number.isFinite);
-  const rating = trimmedMean(ratingValues, 0.1);
+  const ratingOverride = Number((player as { rating_override?: number | null }).rating_override);
+  const rating = Number.isFinite(ratingOverride) ? ratingOverride : trimmedMean(ratingValues, 0.1);
 
   const { data: memberships, error: membershipsErr } = await supabaseServer
     .from("team_members")

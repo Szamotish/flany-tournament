@@ -16,6 +16,20 @@ function clampMmr(value: number): number {
   return roundToOne(value);
 }
 
+function clampRating(value: number): number {
+  if (!Number.isFinite(value)) return 1;
+  if (value < 1) return 1;
+  if (value > 10) return 10;
+  return roundToOne(value);
+}
+
+function clampPrestigePoints(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  if (value < 0) return 0;
+  if (value > 9999) return 9999;
+  return Math.floor(value);
+}
+
 async function writeMmrHistoryEntry(
   playerId: string,
   mmr: number | null | undefined,
@@ -63,21 +77,39 @@ export async function PATCH(
   const hasName = typeof body?.name === "string";
   const name = hasName ? String(body?.name ?? "").trim() : "";
   const hasMmr = body && Object.prototype.hasOwnProperty.call(body, "mmr");
+  const hasRatingOverride = body && Object.prototype.hasOwnProperty.call(body, "ratingOverride");
+  const hasPrestigePoints = body && Object.prototype.hasOwnProperty.call(body, "prestigePoints");
   const resetMmr = body?.resetMmr === true;
 
   if (hasName && !name) return NextResponse.json({ error: "missing_name" }, { status: 400 });
   if (hasName && name.length > 40) return NextResponse.json({ error: "name_too_long" }, { status: 400 });
-  if (!hasName && !hasMmr && !resetMmr) {
+  if (!hasName && !hasMmr && !hasRatingOverride && !hasPrestigePoints && !resetMmr) {
     return NextResponse.json({ error: "missing_update_fields" }, { status: 400 });
   }
 
   let normalizedMmr: number | null = null;
+  let normalizedRatingOverride: number | null = null;
+  let normalizedPrestigePoints: number | null = null;
   if (hasMmr) {
     const numericMmr = Number(body?.mmr);
     if (!Number.isFinite(numericMmr)) {
       return NextResponse.json({ error: "invalid_mmr" }, { status: 400 });
     }
     normalizedMmr = clampMmr(numericMmr);
+  }
+  if (hasRatingOverride && body?.ratingOverride !== null) {
+    const numericRating = Number(body?.ratingOverride);
+    if (!Number.isFinite(numericRating)) {
+      return NextResponse.json({ error: "invalid_rating" }, { status: 400 });
+    }
+    normalizedRatingOverride = clampRating(numericRating);
+  }
+  if (hasPrestigePoints) {
+    const numericPrestige = Number(body?.prestigePoints);
+    if (!Number.isFinite(numericPrestige)) {
+      return NextResponse.json({ error: "invalid_prestige_points" }, { status: 400 });
+    }
+    normalizedPrestigePoints = clampPrestigePoints(numericPrestige);
   }
 
   const { data: player, error: pErr } = await supabaseServer
@@ -93,6 +125,7 @@ export async function PATCH(
     name?: string;
     mmr?: number;
     prestige_points?: number;
+    rating_override?: number | null;
     mmr_manual_override?: boolean;
   } = {};
   if (hasName) updatePayload.name = name;
@@ -104,31 +137,40 @@ export async function PATCH(
     updatePayload.mmr = normalizedMmr;
     updatePayload.mmr_manual_override = true;
   }
+  if (hasPrestigePoints && normalizedPrestigePoints !== null) {
+    updatePayload.prestige_points = normalizedPrestigePoints;
+    updatePayload.mmr_manual_override = true;
+  }
+  if (hasRatingOverride) {
+    updatePayload.rating_override = normalizedRatingOverride;
+  }
 
   const primaryUpdate = await supabaseServer
     .from("players")
     .update(updatePayload)
     .eq("id", playerId)
-    .select("id,name,active,mmr,mmr_manual_override,rank_frame_enabled")
+    .select("id,name,active,mmr,prestige_points,rating_override,mmr_manual_override,rank_frame_enabled")
     .single();
 
   if (
     primaryUpdate.error &&
     (primaryUpdate.error.message.includes("mmr_manual_override") ||
+      primaryUpdate.error.message.includes("rating_override") ||
       primaryUpdate.error.message.includes("rank_frame_enabled"))
   ) {
     const fallbackUpdatePayload = { ...updatePayload };
     delete fallbackUpdatePayload.mmr_manual_override;
+    delete fallbackUpdatePayload.rating_override;
 
     const retry = await supabaseServer
       .from("players")
       .update(fallbackUpdatePayload)
       .eq("id", playerId)
-      .select("id,name,active,mmr")
+      .select("id,name,active,mmr,prestige_points")
       .single();
 
     if (retry.error) return NextResponse.json({ error: retry.error.message }, { status: 500 });
-    if (hasMmr || resetMmr) {
+    if (hasMmr || hasPrestigePoints || resetMmr) {
       try {
         if (resetMmr) {
           await clearMmrHistory(playerId);
@@ -149,17 +191,23 @@ export async function PATCH(
     await writeAuditLog({
       actorUserId: admin.ctx.userId,
       actorPlayerId: admin.ctx.playerId,
-      action: resetMmr ? "player_mmr_reset" : hasMmr ? "player_mmr_set" : "player_update",
+      action: resetMmr
+        ? "player_mmr_reset"
+        : hasMmr || hasPrestigePoints
+          ? "player_rank_values_set"
+          : hasRatingOverride
+            ? "player_rating_override_set"
+            : "player_update",
       targetType: "player",
       targetId: playerId,
-      metadata: { hasName, hasMmr, resetMmr },
+      metadata: { hasName, hasMmr, hasRatingOverride, hasPrestigePoints, resetMmr },
     });
     return NextResponse.json({ player: retry.data });
   }
 
   if (primaryUpdate.error) return NextResponse.json({ error: primaryUpdate.error.message }, { status: 500 });
 
-  if (hasMmr || resetMmr) {
+  if (hasMmr || hasPrestigePoints || resetMmr) {
     const row = primaryUpdate.data as { mmr?: number | null; prestige_points?: number | null };
     try {
       if (resetMmr) {
@@ -182,10 +230,16 @@ export async function PATCH(
   await writeAuditLog({
     actorUserId: admin.ctx.userId,
     actorPlayerId: admin.ctx.playerId,
-    action: resetMmr ? "player_mmr_reset" : hasMmr ? "player_mmr_set" : "player_update",
+    action: resetMmr
+      ? "player_mmr_reset"
+      : hasMmr || hasPrestigePoints
+        ? "player_rank_values_set"
+        : hasRatingOverride
+          ? "player_rating_override_set"
+          : "player_update",
     targetType: "player",
     targetId: playerId,
-    metadata: { hasName, hasMmr, resetMmr },
+    metadata: { hasName, hasMmr, hasRatingOverride, hasPrestigePoints, resetMmr },
   });
 
   return NextResponse.json({ player: primaryUpdate.data });

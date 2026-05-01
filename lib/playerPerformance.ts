@@ -43,20 +43,29 @@ export async function loadPlayerPerformance(
   const [playersPrimary, ratingsResult] = await Promise.all([
     supabaseServer
       .from("players")
-      .select("id,mmr,prestige_points,mmr_manual_override")
+      .select("id,mmr,prestige_points,rating_override,mmr_manual_override")
       .in("id", ids),
     supabaseServer.from("ratings").select("rated_player_id,value").in("rated_player_id", ids),
   ]);
 
   let playerRows = playersPrimary.data as
-    | Array<{ id: string; mmr: number | null; prestige_points: number | null; mmr_manual_override?: boolean | null }>
+    | Array<{
+        id: string;
+        mmr: number | null;
+        prestige_points: number | null;
+        rating_override?: number | null;
+        mmr_manual_override?: boolean | null;
+      }>
     | null;
   let playerErr = playersPrimary.error;
 
   const ratingsRows = ratingsResult.data;
   const ratingsErr = ratingsResult.error;
 
-  if (playerErr && playerErr.message.includes("mmr_manual_override")) {
+  if (
+    playerErr &&
+    (playerErr.message.includes("mmr_manual_override") || playerErr.message.includes("rating_override"))
+  ) {
     const playersRetry = await supabaseServer
       .from("players")
       .select("id,mmr,prestige_points")
@@ -66,6 +75,7 @@ export async function loadPlayerPerformance(
       id: String(row.id),
       mmr: Number(row.mmr ?? 0),
       prestige_points: Number(row.prestige_points ?? 0),
+      rating_override: null,
       mmr_manual_override: false,
     }));
     playerErr = playersRetry.error;
@@ -86,8 +96,12 @@ export async function loadPlayerPerformance(
 
   const ratingByPlayer = new Map<string, number>();
   for (const playerId of ids) {
+    const playerOverride = (playerRows ?? []).find((row) => row.id === playerId) as
+      | { rating_override?: number | null }
+      | undefined;
+    const override = Number(playerOverride?.rating_override);
     const rating = trimmedMean(ratingsGrouped.get(playerId) ?? []);
-    ratingByPlayer.set(playerId, fallbackRating(rating));
+    ratingByPlayer.set(playerId, fallbackRating(Number.isFinite(override) ? override : rating));
   }
 
   const { data: memberships, error: membershipsErr } = await supabaseServer

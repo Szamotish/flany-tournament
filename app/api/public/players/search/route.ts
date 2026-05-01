@@ -12,6 +12,8 @@ type PlayerSearchRow = {
   active: boolean;
   created_at: string;
   mmr: number | null;
+  prestige_points?: number | null;
+  rating_override?: number | null;
   mmr_manual_override?: boolean | null;
   auth_user_id?: string | null;
 };
@@ -32,8 +34,8 @@ export async function GET(req: Request) {
   const canSeeAccountState = auth.ok && (auth.ctx.isMainAdmin || auth.ctx.playerActive);
   const client = canSeeAccountState ? supabaseServer : supabasePublic;
   const selectColumns = canSeeAccountState
-    ? "id,name,active,created_at,mmr,mmr_manual_override,auth_user_id"
-    : "id,name,active,created_at,mmr,mmr_manual_override";
+    ? "id,name,active,created_at,mmr,prestige_points,rating_override,mmr_manual_override,auth_user_id"
+    : "id,name,active,created_at,mmr,prestige_points,rating_override,mmr_manual_override";
 
   let query = client
     .from("players")
@@ -55,7 +57,7 @@ export async function GET(req: Request) {
   ) {
     let fallbackQuery = client
       .from("players")
-      .select("id,name,active,created_at,mmr")
+      .select("id,name,active,created_at,mmr,prestige_points")
       .eq("active", true)
       .order("created_at", { ascending: true })
       .limit(50);
@@ -70,6 +72,7 @@ export async function GET(req: Request) {
     const fallbackRows = (fallback.data ?? []).map((row) => ({
       ...row,
       mmr_manual_override: false,
+      rating_override: null,
       has_account: false,
     }));
 
@@ -84,6 +87,8 @@ export async function GET(req: Request) {
     active: row.active,
     created_at: row.created_at,
     mmr: row.mmr,
+    prestige_points: row.prestige_points,
+    rating_override: row.rating_override,
     mmr_manual_override: row.mmr_manual_override,
     has_account:
       canSeeAccountState &&

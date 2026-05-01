@@ -18,6 +18,7 @@ type PlayerRow = {
   avatar_url: string | null;
   mmr: number | null;
   prestige_points: number | null;
+  rating_override?: number | null;
   mmr_manual_override?: boolean | null;
   rank_frame_enabled?: boolean | null;
 };
@@ -53,7 +54,7 @@ function formatMmr(value: number | null): string {
 
 export default async function PlayersPage() {
   const selectWithSettings =
-    "id,name,active,avatar_url,mmr,prestige_points,mmr_manual_override,rank_frame_enabled";
+    "id,name,active,avatar_url,mmr,prestige_points,rating_override,mmr_manual_override,rank_frame_enabled";
   const selectLegacy = "id,name,active,avatar_url,mmr,prestige_points";
 
   const primaryPlayers = await supabaseServer
@@ -68,6 +69,7 @@ export default async function PlayersPage() {
   if (
     primaryPlayers.error &&
     (primaryPlayers.error.message.includes("mmr_manual_override") ||
+      primaryPlayers.error.message.includes("rating_override") ||
       primaryPlayers.error.message.includes("rank_frame_enabled"))
   ) {
     const fallback = await supabaseServer
@@ -79,6 +81,7 @@ export default async function PlayersPage() {
     players = ((fallback.data ?? []) as PlayerRow[]).map((row) => ({
       ...row,
       mmr_manual_override: false,
+      rating_override: null,
       rank_frame_enabled: true,
     }));
     error = fallback.error;
@@ -111,7 +114,12 @@ export default async function PlayersPage() {
       }
 
       for (const playerId of playerIds) {
-        averageRatingByPlayer.set(playerId, trimmedMean(grouped.get(playerId) ?? []));
+        const player = players.find((row) => row.id === playerId);
+        const override = Number(player?.rating_override);
+        averageRatingByPlayer.set(
+          playerId,
+          Number.isFinite(override) ? override : trimmedMean(grouped.get(playerId) ?? [])
+        );
       }
     }
   }
