@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { readAuthContext } from "@/app/api/admin/_auth";
+import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 export async function GET(req: Request) {
@@ -26,9 +27,15 @@ export async function GET(req: Request) {
 }
 
 export async function PATCH(req: Request) {
+  const ip = clientIp(req);
+  const ipLimit = rateLimit({ key: `settings:ip:${ip}`, limit: 60, windowMs: 60 * 60 * 1000 });
+  if (!ipLimit.ok) return rateLimitResponse(ipLimit);
+
   const auth = await readAuthContext(req);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
   if (!auth.ctx.playerId) return NextResponse.json({ error: "missing_player_profile" }, { status: 403 });
+  const userLimit = rateLimit({ key: `settings:user:${auth.ctx.userId}`, limit: 20, windowMs: 60 * 60 * 1000 });
+  if (!userLimit.ok) return rateLimitResponse(userLimit);
 
   const body = await req.json().catch(() => null);
   if (typeof body?.emailNotificationsEnabled !== "boolean") {

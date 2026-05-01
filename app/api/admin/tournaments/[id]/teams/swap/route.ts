@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { assertTournamentAdmin } from "@/app/api/admin/tournaments/_auth";
+import { writeAuditLog } from "@/lib/auditLog";
+import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 async function hasTournamentStarted(tournamentId: string): Promise<boolean> {
@@ -14,11 +16,17 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const ip = clientIp(req);
+  const ipLimit = rateLimit({ key: `teams-swap:ip:${ip}`, limit: 120, windowMs: 60 * 60 * 1000 });
+  if (!ipLimit.ok) return rateLimitResponse(ipLimit);
+
   const { id: tournamentId } = await params;
   const auth = await assertTournamentAdmin(req, tournamentId);
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 });
   }
+  const userLimit = rateLimit({ key: `teams-swap:user:${auth.ctx.userId}`, limit: 80, windowMs: 60 * 60 * 1000 });
+  if (!userLimit.ok) return rateLimitResponse(userLimit);
 
   if (await hasTournamentStarted(tournamentId)) {
     return NextResponse.json({ error: "tournament_already_started" }, { status: 400 });
@@ -98,6 +106,15 @@ export async function POST(
 
   if (updA.error) return NextResponse.json({ error: updA.error.message }, { status: 500 });
   if (updB.error) return NextResponse.json({ error: updB.error.message }, { status: 500 });
+
+  await writeAuditLog({
+    actorUserId: auth.ctx.userId,
+    actorPlayerId: auth.ctx.playerId,
+    action: "teams_swap_players",
+    targetType: "tournament",
+    targetId: tournamentId,
+    metadata: { playerAId, playerBId, teamA, teamB },
+  });
 
   return NextResponse.json({
     swapped: true,

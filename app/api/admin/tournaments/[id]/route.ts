@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { assertMainAdmin } from "@/app/api/admin/_auth";
+import { writeAuditLog } from "@/lib/auditLog";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 export async function DELETE(
@@ -93,6 +94,15 @@ export async function DELETE(
     .delete()
     .eq("id", tournamentId);
   if (delTournamentErr) return NextResponse.json({ error: delTournamentErr.message }, { status: 500 });
+
+  await writeAuditLog({
+    actorUserId: admin.ctx.userId,
+    actorPlayerId: admin.ctx.playerId,
+    action: "tournament_delete",
+    targetType: "tournament",
+    targetId: tournamentId,
+    metadata: { batchCount: batchIds.length, teamCount: teamIds.length },
+  });
 
   return NextResponse.json({ deleted: true, tournamentId });
 }

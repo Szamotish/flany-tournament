@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { writeAuditLog } from "@/lib/auditLog";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { assertMainAdmin } from "@/app/api/admin/_auth";
 import { normalizeMode } from "@/lib/ranked";
@@ -189,6 +190,20 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ error: adminErr.message }, { status: 500 });
   }
+
+  await writeAuditLog({
+    actorUserId: admin.ctx.userId,
+    actorPlayerId: admin.ctx.playerId,
+    action: "tournament_create",
+    targetType: "tournament",
+    targetId: tournamentId,
+    metadata: {
+      mode,
+      format,
+      playerCount: playerIds.length,
+      localAdminCount: localAdminPlayerIds.length,
+    },
+  });
 
   return NextResponse.json({ tournamentId });
 }

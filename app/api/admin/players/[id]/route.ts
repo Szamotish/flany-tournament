@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { assertMainAdmin } from "@/app/api/admin/_auth";
+import { writeAuditLog } from "@/lib/auditLog";
+import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { BASE_MMR_CAP } from "@/lib/ranked";
 
@@ -44,10 +46,16 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const ip = clientIp(req);
+  const ipLimit = rateLimit({ key: `admin-player-update:ip:${ip}`, limit: 120, windowMs: 60 * 60 * 1000 });
+  if (!ipLimit.ok) return rateLimitResponse(ipLimit);
+
   const admin = await assertMainAdmin(req);
   if (!admin.ok) {
     return NextResponse.json({ error: admin.error }, { status: admin.status });
   }
+  const userLimit = rateLimit({ key: `admin-player-update:user:${admin.ctx.userId}`, limit: 80, windowMs: 60 * 60 * 1000 });
+  if (!userLimit.ok) return rateLimitResponse(userLimit);
 
   const { id: playerId } = await params;
 
@@ -138,6 +146,14 @@ export async function PATCH(
         );
       }
     }
+    await writeAuditLog({
+      actorUserId: admin.ctx.userId,
+      actorPlayerId: admin.ctx.playerId,
+      action: resetMmr ? "player_mmr_reset" : hasMmr ? "player_mmr_set" : "player_update",
+      targetType: "player",
+      targetId: playerId,
+      metadata: { hasName, hasMmr, resetMmr },
+    });
     return NextResponse.json({ player: retry.data });
   }
 
@@ -163,6 +179,15 @@ export async function PATCH(
     }
   }
 
+  await writeAuditLog({
+    actorUserId: admin.ctx.userId,
+    actorPlayerId: admin.ctx.playerId,
+    action: resetMmr ? "player_mmr_reset" : hasMmr ? "player_mmr_set" : "player_update",
+    targetType: "player",
+    targetId: playerId,
+    metadata: { hasName, hasMmr, resetMmr },
+  });
+
   return NextResponse.json({ player: primaryUpdate.data });
 }
 
@@ -170,10 +195,16 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const ip = clientIp(req);
+  const ipLimit = rateLimit({ key: `admin-player-delete:ip:${ip}`, limit: 30, windowMs: 60 * 60 * 1000 });
+  if (!ipLimit.ok) return rateLimitResponse(ipLimit);
+
   const admin = await assertMainAdmin(req);
   if (!admin.ok) {
     return NextResponse.json({ error: admin.error }, { status: admin.status });
   }
+  const userLimit = rateLimit({ key: `admin-player-delete:user:${admin.ctx.userId}`, limit: 20, windowMs: 60 * 60 * 1000 });
+  if (!userLimit.ok) return rateLimitResponse(userLimit);
 
   const { id: playerId } = await params;
 
@@ -229,6 +260,15 @@ export async function DELETE(
       return NextResponse.json({ error: authDelete.error.message }, { status: 500 });
     }
   }
+
+  await writeAuditLog({
+    actorUserId: admin.ctx.userId,
+    actorPlayerId: admin.ctx.playerId,
+    action: "player_delete",
+    targetType: "player",
+    targetId: playerId,
+    metadata: { name: player.name, hadAccount: Boolean(authUserId) },
+  });
 
   return NextResponse.json({ deleted: true, softDeleted: true, playerId });
 }

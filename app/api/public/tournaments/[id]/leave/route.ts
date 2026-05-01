@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { readAuthContext } from "@/app/api/admin/_auth";
+import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 async function hasTournamentStarted(tournamentId: string): Promise<boolean> {
@@ -14,11 +15,17 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const ip = clientIp(req);
+  const ipLimit = rateLimit({ key: `tournament-leave:ip:${ip}`, limit: 60, windowMs: 60 * 60 * 1000 });
+  if (!ipLimit.ok) return rateLimitResponse(ipLimit);
+
   const auth = await readAuthContext(req);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
   if (!auth.ctx.playerId) {
     return NextResponse.json({ error: "missing_player_profile" }, { status: 403 });
   }
+  const userLimit = rateLimit({ key: `tournament-leave:user:${auth.ctx.userId}`, limit: 20, windowMs: 60 * 60 * 1000 });
+  if (!userLimit.ok) return rateLimitResponse(userLimit);
 
   const { id: tournamentId } = await params;
 

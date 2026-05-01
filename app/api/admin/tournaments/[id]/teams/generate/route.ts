@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { generateTeams } from "@/lib/teams";
 import { assertTournamentAdmin } from "@/app/api/admin/tournaments/_auth";
+import { writeAuditLog } from "@/lib/auditLog";
+import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { loadPlayerPerformance } from "@/lib/playerPerformance";
 
 type TournamentPlayer = {
@@ -76,12 +78,18 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const ip = clientIp(req);
+  const ipLimit = rateLimit({ key: `teams-generate:ip:${ip}`, limit: 50, windowMs: 60 * 60 * 1000 });
+  if (!ipLimit.ok) return rateLimitResponse(ipLimit);
+
   const { id: tournamentId } = await params;
 
   const auth = await assertTournamentAdmin(req, tournamentId);
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 });
   }
+  const userLimit = rateLimit({ key: `teams-generate:user:${auth.ctx.userId}`, limit: 25, windowMs: 60 * 60 * 1000 });
+  if (!userLimit.ok) return rateLimitResponse(userLimit);
 
   const body = await req.json().catch(() => null);
   const teamSize = Number(body?.teamSize ?? 5);
@@ -207,6 +215,15 @@ export async function POST(
 
   const { error: mErr } = await supabaseServer.from("team_members").insert(members);
   if (mErr) return NextResponse.json({ error: mErr.message }, { status: 500 });
+
+  await writeAuditLog({
+    actorUserId: auth.ctx.userId,
+    actorPlayerId: auth.ctx.playerId,
+    action: "teams_generate",
+    targetType: "tournament",
+    targetId: tournamentId,
+    metadata: { batchId, teamSize, allowUneven, iterations, generationMode },
+  });
 
   return NextResponse.json({ batchId, score, generationMode });
 }

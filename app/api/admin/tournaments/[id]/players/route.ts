@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { assertTournamentAdmin } from "@/app/api/admin/tournaments/_auth";
+import { writeAuditLog } from "@/lib/auditLog";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 function parsePlayer(value: unknown): { id: string; name: string; active: boolean } | null {
@@ -125,6 +126,15 @@ export async function POST(
   const batchErr = await deactivateActiveBatch(tournamentId);
   if (batchErr) return NextResponse.json({ error: batchErr.message }, { status: 500 });
 
+  await writeAuditLog({
+    actorUserId: auth.ctx.userId,
+    actorPlayerId: auth.ctx.playerId,
+    action: "tournament_player_add",
+    targetType: "tournament",
+    targetId: tournamentId,
+    metadata: { playerId },
+  });
+
   return NextResponse.json({ added: true, playerId, needsRegenerateTeams: true });
 }
 
@@ -190,6 +200,15 @@ export async function DELETE(
 
   const batchErr = await deactivateActiveBatch(tournamentId);
   if (batchErr) return NextResponse.json({ error: batchErr.message }, { status: 500 });
+
+  await writeAuditLog({
+    actorUserId: auth.ctx.userId,
+    actorPlayerId: auth.ctx.playerId,
+    action: "tournament_player_remove",
+    targetType: "tournament",
+    targetId: tournamentId,
+    metadata: { playerId },
+  });
 
   return NextResponse.json({ removed: true, playerId, needsRegenerateTeams: true });
 }

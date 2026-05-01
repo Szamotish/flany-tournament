@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { readAuthContext } from "@/app/api/admin/_auth";
+import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 
 const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 dni
 
 export async function POST(req: Request) {
+  const ip = clientIp(req);
+  const ipLimit = rateLimit({ key: `ratings:ip:${ip}`, limit: 60, windowMs: 60 * 60 * 1000 });
+  if (!ipLimit.ok) return rateLimitResponse(ipLimit);
+
   const auth = await readAuthContext(req);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
   if (!auth.ctx.playerId) {
@@ -13,6 +18,8 @@ export async function POST(req: Request) {
   if (auth.ctx.playerActive !== true) {
     return NextResponse.json({ error: "player_inactive" }, { status: 403 });
   }
+  const userLimit = rateLimit({ key: `ratings:user:${auth.ctx.userId}`, limit: 30, windowMs: 60 * 60 * 1000 });
+  if (!userLimit.ok) return rateLimitResponse(userLimit);
 
   const body = await req.json().catch(() => null);
   const ratedId = typeof body?.ratedId === "string" ? body.ratedId : "";

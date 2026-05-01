@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Script from "next/script";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
@@ -20,6 +21,7 @@ function AuthPageInner() {
   const searchParams = useSearchParams();
   const redirectTo = useMemo(() => searchParams.get("next") || "/", [searchParams]);
   const confirmed = searchParams.get("confirmed") === "1";
+  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
   const [mode, setMode] = useState<Mode>("login");
   const [pseudonym, setPseudonym] = useState("");
@@ -76,6 +78,8 @@ function AuthPageInner() {
   async function doSignup() {
     setMsg(null);
     setBusy(true);
+    const turnstileToken =
+      document.querySelector<HTMLInputElement>('input[name="cf-turnstile-response"]')?.value ?? "";
 
     const signupRes = await fetch("/api/auth/signup", {
       method: "POST",
@@ -84,6 +88,7 @@ function AuthPageInner() {
         pseudonym,
         email: email.trim().toLowerCase(),
         password,
+        turnstileToken,
       }),
     });
 
@@ -96,6 +101,14 @@ function AuthPageInner() {
         setMsg("Pseudonim musi miec min. 2 znaki.");
       } else if (signupJson.error === "password_too_short") {
         setMsg("Haslo musi miec min. 8 znakow.");
+      } else if (
+        signupJson.error === "missing_turnstile_token" ||
+        signupJson.error === "turnstile_rejected" ||
+        signupJson.error === "turnstile_verify_failed"
+      ) {
+        setMsg("Potwierdz zabezpieczenie antybotowe i sproboj ponownie.");
+      } else if (signupJson.error === "turnstile_not_configured") {
+        setMsg("Rejestracja wymaga konfiguracji zabezpieczenia antybotowego.");
       } else {
         setMsg(`Blad rejestracji: ${signupJson.error ?? signupRes.statusText}`);
       }
@@ -137,6 +150,9 @@ function AuthPageInner() {
 
   return (
     <main className="mx-auto max-w-md p-4 md:p-6">
+      {turnstileSiteKey ? (
+        <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer />
+      ) : null}
       <Link className="underline opacity-80" href="/">
         Back
       </Link>
@@ -185,6 +201,10 @@ function AuthPageInner() {
               required
             />
           </div>
+
+          {mode === "signup" && turnstileSiteKey ? (
+            <div className="cf-turnstile" data-sitekey={turnstileSiteKey} />
+          ) : null}
 
           <button
             className="rounded-xl border border-black/30 bg-black/90 px-4 py-2 font-semibold text-white disabled:opacity-60"

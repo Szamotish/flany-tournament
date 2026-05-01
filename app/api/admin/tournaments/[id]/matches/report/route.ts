@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { assertTournamentAdmin } from "@/app/api/admin/tournaments/_auth";
+import { writeAuditLog } from "@/lib/auditLog";
+import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { propagateFromMatch } from "@/lib/matches/propagate";
 import { autoAdvanceSingleElim } from "@/lib/matches/autoAdvanceSingle";
 import { nextStepDoubleElim } from "@/lib/matches/nextStepDouble";
@@ -119,12 +121,18 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const ip = clientIp(req);
+  const ipLimit = rateLimit({ key: `match-report:ip:${ip}`, limit: 180, windowMs: 60 * 60 * 1000 });
+  if (!ipLimit.ok) return rateLimitResponse(ipLimit);
+
   const { id: tournamentId } = await params;
 
   const auth = await assertTournamentAdmin(req, tournamentId);
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 });
   }
+  const userLimit = rateLimit({ key: `match-report:user:${auth.ctx.userId}`, limit: 120, windowMs: 60 * 60 * 1000 });
+  if (!userLimit.ok) return rateLimitResponse(userLimit);
 
   const body = await req.json().catch(() => null);
   const matchId = String(body?.matchId ?? "");
@@ -366,6 +374,21 @@ export async function POST(
       { status: 500 }
     );
   }
+
+  await writeAuditLog({
+    actorUserId: auth.ctx.userId,
+    actorPlayerId: auth.ctx.playerId,
+    action: "match_report",
+    targetType: "match",
+    targetId: matchId,
+    metadata: {
+      tournamentId,
+      scoreA,
+      scoreB,
+      status: updated.status,
+      winnerTeamId: updated.winner_team_id,
+    },
+  });
 
   return NextResponse.json({ match: updated });
 }

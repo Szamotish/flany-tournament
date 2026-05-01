@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { readAuthContext } from "@/app/api/admin/_auth";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 
 async function hasTournamentStarted(tournamentId: string): Promise<boolean> {
   const { count } = await supabaseServer
@@ -14,11 +15,17 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const ip = clientIp(req);
+  const ipLimit = rateLimit({ key: `join-request:ip:${ip}`, limit: 50, windowMs: 60 * 60 * 1000 });
+  if (!ipLimit.ok) return rateLimitResponse(ipLimit);
+
   const auth = await readAuthContext(req);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
   if (!auth.ctx.playerId || !auth.ctx.playerActive) {
     return NextResponse.json({ error: "missing_active_player_profile" }, { status: 403 });
   }
+  const userLimit = rateLimit({ key: `join-request:user:${auth.ctx.userId}`, limit: 20, windowMs: 60 * 60 * 1000 });
+  if (!userLimit.ok) return rateLimitResponse(userLimit);
 
   const { id: tournamentId } = await params;
 
@@ -92,6 +99,10 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const ip = clientIp(req);
+  const ipLimit = rateLimit({ key: `join-request-cancel:ip:${ip}`, limit: 80, windowMs: 60 * 60 * 1000 });
+  if (!ipLimit.ok) return rateLimitResponse(ipLimit);
+
   const auth = await readAuthContext(req);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
   if (!auth.ctx.playerId) {

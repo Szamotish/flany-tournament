@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabasePublic } from "@/lib/supabasePublic";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
+import { verifyTurnstile } from "@/lib/turnstile";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PSEUDONYM_RE = /^[\p{L}\p{N}._ -]{2,40}$/u;
@@ -9,12 +11,38 @@ function normalizePseudo(value: unknown): string {
   return String(value ?? "").trim().slice(0, 40);
 }
 
+function appOrigin(req: Request): string {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL;
+  if (siteUrl) return siteUrl.replace(/\/+$/, "");
+
+  const requestOrigin = req.headers.get("origin") ?? new URL(req.url).origin;
+  const allowed = new Set([
+    "https://flany-tournament.com",
+    "https://www.flany-tournament.com",
+    "http://localhost:3000",
+  ]);
+
+  return allowed.has(requestOrigin) ? requestOrigin : "https://flany-tournament.com";
+}
+
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const pseudonym = normalizePseudo(body?.pseudonym);
   const email = String(body?.email ?? "").trim().toLowerCase();
   const password = String(body?.password ?? "");
-  const origin = req.headers.get("origin") ?? new URL(req.url).origin;
+  const ip = clientIp(req);
+  const origin = appOrigin(req);
+  const turnstileToken = String(body?.turnstileToken ?? "");
+
+  const ipLimit = rateLimit({ key: `signup:ip:${ip}`, limit: 8, windowMs: 60 * 60 * 1000 });
+  if (!ipLimit.ok) return rateLimitResponse(ipLimit);
+  const emailLimit = rateLimit({ key: `signup:email:${email}`, limit: 3, windowMs: 60 * 60 * 1000 });
+  if (!emailLimit.ok) return rateLimitResponse(emailLimit);
+
+  const captcha = await verifyTurnstile(turnstileToken, ip);
+  if (!captcha.ok) {
+    return NextResponse.json({ error: captcha.error }, { status: 400 });
+  }
 
   if (!PSEUDONYM_RE.test(pseudonym)) {
     return NextResponse.json({ error: "invalid_pseudonym" }, { status: 400 });

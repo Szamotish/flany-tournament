@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -221,6 +222,10 @@ function mapElementsToCandidates(elements: OverpassElement[], safeLat: number, s
 }
 
 export async function GET(req: Request) {
+  const ip = clientIp(req);
+  const ipLimit = rateLimit({ key: `nearest-liquor:ip:${ip}`, limit: 40, windowMs: 10 * 60 * 1000 });
+  if (!ipLimit.ok) return rateLimitResponse(ipLimit);
+
   const { searchParams } = new URL(req.url);
   const lat = parseNum(searchParams.get("lat"));
   const lon = parseNum(searchParams.get("lon"));

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { assertTournamentAdmin } from "@/app/api/admin/tournaments/_auth";
+import { writeAuditLog } from "@/lib/auditLog";
+import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 async function hasTournamentStarted(tournamentId: string): Promise<boolean> {
@@ -54,9 +56,15 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const ip = clientIp(req);
+  const ipLimit = rateLimit({ key: `admin-join-request:ip:${ip}`, limit: 160, windowMs: 60 * 60 * 1000 });
+  if (!ipLimit.ok) return rateLimitResponse(ipLimit);
+
   const { id: tournamentId } = await params;
   const auth = await assertTournamentAdmin(req, tournamentId);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 });
+  const userLimit = rateLimit({ key: `admin-join-request:user:${auth.ctx.userId}`, limit: 120, windowMs: 60 * 60 * 1000 });
+  if (!userLimit.ok) return rateLimitResponse(userLimit);
 
   const body = await req.json().catch(() => null);
   const requestId = typeof body?.requestId === "string" ? body.requestId : "";
@@ -110,6 +118,15 @@ export async function PATCH(
   if (updateRes.error) {
     return NextResponse.json({ error: updateRes.error.message }, { status: 500 });
   }
+
+  await writeAuditLog({
+    actorUserId: auth.ctx.userId,
+    actorPlayerId: auth.ctx.playerId,
+    action: action === "accept" ? "tournament_join_request_accept" : "tournament_join_request_reject",
+    targetType: "tournament",
+    targetId: tournamentId,
+    metadata: { requestId, playerId: row.player_id },
+  });
 
   return NextResponse.json({ request: updateRes.data });
 }
