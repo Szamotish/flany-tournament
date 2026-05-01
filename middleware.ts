@@ -36,7 +36,7 @@ export function middleware(req: NextRequest) {
       "img-src 'self' data: blob: https://*.supabase.co",
       "font-src 'self' https://fonts.gstatic.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
+      "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://unpkg.com",
       "frame-src https://challenges.cloudflare.com",
       `connect-src ${connectSrc.join(" ")}`,
     ].join("; ")
