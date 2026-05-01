@@ -14,6 +14,7 @@ export async function POST(req: Request) {
   const pseudonym = normalizePseudo(body?.pseudonym);
   const email = String(body?.email ?? "").trim().toLowerCase();
   const password = String(body?.password ?? "");
+  const origin = req.headers.get("origin") ?? new URL(req.url).origin;
 
   if (!PSEUDONYM_RE.test(pseudonym)) {
     return NextResponse.json({ error: "invalid_pseudonym" }, { status: 400 });
@@ -43,6 +44,7 @@ export async function POST(req: Request) {
     password,
     options: {
       data: { pseudonym },
+      emailRedirectTo: `${origin}/auth?confirmed=1`,
     },
   });
 

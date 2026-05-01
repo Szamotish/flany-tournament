@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 
@@ -19,6 +19,7 @@ function AuthPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = useMemo(() => searchParams.get("next") || "/", [searchParams]);
+  const confirmed = searchParams.get("confirmed") === "1";
 
   const [mode, setMode] = useState<Mode>("login");
   const [pseudonym, setPseudonym] = useState("");
@@ -26,6 +27,31 @@ function AuthPageInner() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!confirmed) return;
+
+    let cancelled = false;
+    const supabase = getSupabaseBrowserClient();
+
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (cancelled) return;
+
+      if (data.session) {
+        router.replace(redirectTo);
+        router.refresh();
+        return;
+      }
+
+      setMsg("Email potwierdzony. Mozesz sie teraz zalogowac.");
+      setMode("login");
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [confirmed, redirectTo, router]);
 
   async function doLogin() {
     setMsg(null);
