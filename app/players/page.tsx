@@ -115,10 +115,13 @@ export default async function PlayersPage() {
 
       for (const playerId of playerIds) {
         const player = players.find((row) => row.id === playerId);
-        const override = Number(player?.rating_override);
+        const overrideRaw = player?.rating_override;
+        const override = Number(overrideRaw);
         averageRatingByPlayer.set(
           playerId,
-          Number.isFinite(override) ? override : trimmedMean(grouped.get(playerId) ?? [])
+          overrideRaw !== null && overrideRaw !== undefined && Number.isFinite(override)
+            ? override
+            : trimmedMean(grouped.get(playerId) ?? [])
         );
       }
     }

@@ -41,8 +41,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (rErr) return NextResponse.json({ error: rErr.message }, { status: 500 });
 
   const values = (ratings ?? []).map((x) => x.value);
-  const ratingOverride = Number((player as { rating_override?: number | null }).rating_override);
-  const rating = Number.isFinite(ratingOverride) ? ratingOverride : trimmedMean(values, 0.1);
+  const ratingOverrideRaw = (player as { rating_override?: number | null }).rating_override;
+  const ratingOverride = Number(ratingOverrideRaw);
+  const rating =
+    ratingOverrideRaw !== null && ratingOverrideRaw !== undefined && Number.isFinite(ratingOverride)
+      ? ratingOverride
+      : trimmedMean(values, 0.1);
 
   const { data: memberships, error: mErr } = await supabaseServer
     .from("team_members")

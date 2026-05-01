@@ -99,9 +99,15 @@ export async function loadPlayerPerformance(
     const playerOverride = (playerRows ?? []).find((row) => row.id === playerId) as
       | { rating_override?: number | null }
       | undefined;
-    const override = Number(playerOverride?.rating_override);
+    const overrideRaw = playerOverride?.rating_override;
+    const override = Number(overrideRaw);
     const rating = trimmedMean(ratingsGrouped.get(playerId) ?? []);
-    ratingByPlayer.set(playerId, fallbackRating(Number.isFinite(override) ? override : rating));
+    ratingByPlayer.set(
+      playerId,
+      fallbackRating(
+        overrideRaw !== null && overrideRaw !== undefined && Number.isFinite(override) ? override : rating
+      )
+    );
   }
 
   const { data: memberships, error: membershipsErr } = await supabaseServer

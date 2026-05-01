@@ -171,8 +171,12 @@ export default async function PlayerPage({
     .eq("rated_player_id", playerId);
 
   const ratingValues = (ratings ?? []).map((r) => Number(r.value)).filter(Number.isFinite);
-  const ratingOverride = Number((player as { rating_override?: number | null }).rating_override);
-  const rating = Number.isFinite(ratingOverride) ? ratingOverride : trimmedMean(ratingValues, 0.1);
+  const ratingOverrideRaw = (player as { rating_override?: number | null }).rating_override;
+  const ratingOverride = Number(ratingOverrideRaw);
+  const rating =
+    ratingOverrideRaw !== null && ratingOverrideRaw !== undefined && Number.isFinite(ratingOverride)
+      ? ratingOverride
+      : trimmedMean(ratingValues, 0.1);
 
   const { data: memberships, error: membershipsErr } = await supabaseServer
     .from("team_members")
