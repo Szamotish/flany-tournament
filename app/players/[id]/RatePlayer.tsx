@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authedFetch } from "@/lib/authClient";
+import type { RatingCooldownState } from "@/lib/ratingCooldown";
 
 type RatePlayerProps = {
   playerId: string;
@@ -15,6 +16,8 @@ export default function RatePlayer({ playerId, className }: RatePlayerProps) {
   const [loading, setLoading] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const [isOwnProfile, setIsOwnProfile] = useState(false);
+  const [canRate, setCanRate] = useState(true);
+  const [cooldownState, setCooldownState] = useState<RatingCooldownState>("ready");
 
   const router = useRouter();
 
@@ -43,6 +46,15 @@ export default function RatePlayer({ playerId, className }: RatePlayerProps) {
       if (res.ok && typeof json.value === "number") {
         setValue(json.value);
       }
+      if (res.ok) {
+        setCanRate(json.canRate !== false);
+        if (json.cooldownState === "ready" || json.cooldownState === "soon" || json.cooldownState === "cooldown") {
+          setCooldownState(json.cooldownState);
+        }
+        if (json.canRate === false && typeof json.message === "string") {
+          setMsg(json.message);
+        }
+      }
 
       setLoading(false);
     }
@@ -51,7 +63,7 @@ export default function RatePlayer({ playerId, className }: RatePlayerProps) {
   }, [playerId]);
 
   async function save() {
-    if (!authenticated || isOwnProfile) return;
+    if (!authenticated || isOwnProfile || !canRate) return;
 
     setMsg(null);
 
@@ -66,6 +78,8 @@ export default function RatePlayer({ playerId, className }: RatePlayerProps) {
     if (!res.ok) {
       if (res.status === 429) {
         setMsg(json.message ?? "Cooldown aktywny");
+        setCanRate(false);
+        setCooldownState(Number(json.hoursLeft ?? 999) <= 24 ? "soon" : "cooldown");
       } else {
         if (json.error === "missing_player_profile") {
           setMsg("Twoje konto nie jest jeszcze podlaczone do zawodnika.");
@@ -83,6 +97,8 @@ export default function RatePlayer({ playerId, className }: RatePlayerProps) {
     }
 
     setMsg("Ocena zapisana.");
+    setCanRate(false);
+    setCooldownState("cooldown");
     router.refresh();
   }
 
@@ -107,6 +123,7 @@ export default function RatePlayer({ playerId, className }: RatePlayerProps) {
             max={10}
             step={1}
             value={value}
+            disabled={!canRate}
             onChange={(e) => setValue(Number(e.target.value))}
           />
           <div className="profile-range-scale">
@@ -116,12 +133,21 @@ export default function RatePlayer({ playerId, className }: RatePlayerProps) {
 
           <div className="mt-3 flex items-center justify-between gap-3">
             <span className="profile-rating-chip">{value}</span>
-            <button className="profile-btn profile-btn-primary" onClick={save}>
+            <button
+              className="profile-btn profile-btn-primary"
+              disabled={!canRate}
+              title={!canRate ? msg ?? "Cooldown aktywny" : "Zapisz ocene"}
+              onClick={save}
+            >
               Zapisz ocene
             </button>
           </div>
 
-          {msg && <p className="profile-muted mt-3">{msg}</p>}
+          {msg && (
+            <p className={`profile-muted mt-3 ${cooldownState === "cooldown" || cooldownState === "soon" ? "profile-rate-cooldown" : ""}`}>
+              {msg}
+            </p>
+          )}
         </>
       )}
     </div>

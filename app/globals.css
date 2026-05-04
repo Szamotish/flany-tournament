@@ -2789,11 +2789,33 @@ body {
   background: rgba(255, 255, 255, 0.94);
 }
 
+.profile-btn:disabled,
+.profile-range:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.profile-btn:disabled:hover {
+  transform: none;
+}
+
 .profile-btn-primary {
   background: linear-gradient(145deg, #f3ba47 0%, #d07c16 100%);
   border-color: rgba(101, 52, 0, 0.42);
   color: #2c1902;
   box-shadow: 0 7px 14px rgba(108, 52, 0, 0.2);
+}
+
+.profile-btn-primary:disabled {
+  border-color: rgba(80, 80, 80, 0.28);
+  background: linear-gradient(145deg, rgba(217, 220, 220, 0.9), rgba(158, 163, 163, 0.88));
+  color: rgba(40, 40, 40, 0.74);
+  box-shadow: none;
+}
+
+.profile-rate-cooldown {
+  color: rgba(126, 49, 14, 0.92);
+  font-weight: 650;
 }
 
 .profile-btn-file {

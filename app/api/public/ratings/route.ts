@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { readAuthContext } from "@/app/api/admin/_auth";
 import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
-
-const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 dni
+import { ratingCooldownFromUpdatedAt } from "@/lib/ratingCooldown";
 
 export async function POST(req: Request) {
   const ip = clientIp(req);
@@ -50,18 +49,13 @@ export async function POST(req: Request) {
   }
 
   if (existing?.updated_at) {
-    const last = new Date(existing.updated_at).getTime();
-    const now = Date.now();
-    const age = now - last;
-
-    if (age < COOLDOWN_MS) {
-      const msLeft = COOLDOWN_MS - age;
-      const hoursLeft = Math.ceil(msLeft / (1000 * 60 * 60));
+    const cooldown = ratingCooldownFromUpdatedAt(existing.updated_at);
+    if (!cooldown.canRate) {
       return NextResponse.json(
         {
           error: "cooldown",
-          message: `Mozesz zmienic ocene za ~${hoursLeft}h`,
-          hoursLeft,
+          message: cooldown.message,
+          hoursLeft: cooldown.hoursLeft,
         },
         { status: 429 }
       );

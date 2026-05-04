@@ -3,6 +3,7 @@ import { supabaseServer } from "@/lib/supabaseServer";
 import { trimmedMean } from "@/lib/rating";
 import { loadPlayerPerformance } from "@/lib/playerPerformance";
 import { playerToneStyle } from "@/lib/ui/playerProfile";
+import RatingStatusBadge from "./RatingStatusBadge";
 import {
   FRAME_BY_RANK,
   canShowRankFromMmr,
@@ -25,24 +26,6 @@ type PlayerRow = {
   profile_color?: string | null;
   favorite_beer?: string | null;
 };
-
-type CooldownState = "ready" | "cooldown" | "soon";
-
-function badgeTone(state: CooldownState): string {
-  if (state === "ready") {
-    return "border-emerald-700/40 bg-emerald-100/80 text-emerald-900";
-  }
-  if (state === "soon") {
-    return "border-amber-700/45 bg-amber-100/80 text-amber-900";
-  }
-  return "border-rose-700/40 bg-rose-100/80 text-rose-900";
-}
-
-function badgeLabel(state: CooldownState): string {
-  if (state === "ready") return "GO";
-  if (state === "soon") return "~1d";
-  return "CD";
-}
 
 function formatAverage(value: number | null): string {
   if (value === null || !Number.isFinite(value)) return "--";
@@ -134,11 +117,6 @@ export default async function PlayersPage() {
     }
   }
 
-  const cooldownByPlayer = new Map<string, { state: CooldownState; hint: string }>();
-  for (const player of players) {
-    cooldownByPlayer.set(player.id, { state: "ready", hint: "Mozesz teraz wystawic ocene." });
-  }
-
   const effectiveMmrByPlayer = new Map<string, number>();
   const hasFinishedMatchByPlayer = new Map<string, boolean>();
   const mmrManualOverrideByPlayer = new Map<string, boolean>();
@@ -222,19 +200,10 @@ export default async function PlayersPage() {
                         Ranga: {shownRankLabel}
                       </span>
                     </span>
-                    <span
-                      title={cooldownByPlayer.get(p.id)?.hint ?? "Status cooldownu niedostepny."}
-                      className={`inline-flex h-12 min-w-[3.2rem] sm:min-w-[3.6rem] flex-col items-center justify-center rounded-lg border px-2 ${badgeTone(
-                        cooldownByPlayer.get(p.id)?.state ?? "ready"
-                      )}`}
-                    >
-                      <span className="text-sm font-extrabold leading-none">
-                        {formatAverage(averageRatingByPlayer.get(p.id) ?? null)}
-                      </span>
-                      <span className="text-[0.58rem] font-semibold uppercase tracking-[0.08em] leading-none mt-1">
-                        {badgeLabel(cooldownByPlayer.get(p.id)?.state ?? "ready")}
-                      </span>
-                    </span>
+                    <RatingStatusBadge
+                      playerId={p.id}
+                      averageLabel={formatAverage(averageRatingByPlayer.get(p.id) ?? null)}
+                    />
                   </div>
                 </div>
               </Link>

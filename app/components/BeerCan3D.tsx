@@ -80,6 +80,10 @@ const LEGACY_WRAP_FILE_BY_KEY: Record<string, string> = {
 };
 const LABEL_DRAW_SCALE_BY_KEY: Record<string, number> = {
   kozel: 0.72,
+  perlenbacher: 0.72,
+};
+const LABEL_CROP_ANCHOR_Y_BY_KEY: Record<string, number> = {
+  perlenbacher: 0.22,
 };
 
 function normalizeBeerKey(value: string): string {
@@ -122,6 +126,17 @@ function resolveLabelDrawScale(beerName: string): number {
     if (normalized.includes(key)) return scale;
   }
   return 1;
+}
+
+function resolveLabelCropAnchorY(beerName: string): number {
+  const normalized = normalizeBeerKey(beerName);
+  const direct = LABEL_CROP_ANCHOR_Y_BY_KEY[normalized];
+  if (typeof direct === "number") return direct;
+
+  for (const [key, anchor] of Object.entries(LABEL_CROP_ANCHOR_Y_BY_KEY)) {
+    if (normalized.includes(key)) return anchor;
+  }
+  return 0.5;
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -175,6 +190,7 @@ async function createCanWrapTexture(beerName: string): Promise<string> {
   const bandTop = Math.round(height * 0.03);
   const bandHeight = Math.round(height * 0.46);
   const labelDrawScale = Math.max(0.2, Math.min(1, resolveLabelDrawScale(beerName)));
+  const labelCropAnchorY = Math.max(0, Math.min(1, resolveLabelCropAnchorY(beerName)));
   const drawWidth = Math.round(width * labelDrawScale);
   const drawX = Math.round((width - drawWidth) / 2);
 
@@ -190,7 +206,7 @@ async function createCanWrapTexture(beerName: string): Promise<string> {
 
     if (targetH >= bandHeight) {
       const srcH = Math.max(1, bandHeight / scaleToWidth);
-      const srcY = Math.max(0, (labelImage.height - srcH) / 2);
+      const srcY = Math.max(0, (labelImage.height - srcH) * labelCropAnchorY);
       ctx.drawImage(labelImage, 0, srcY, labelImage.width, srcH, drawX, bandTop, drawWidth, bandHeight);
     } else {
       const destY = bandTop + (bandHeight - targetH) / 2;
@@ -307,6 +323,5 @@ export default function BeerCan3D({ beer }: BeerCan3DProps) {
     </div>
   );
 }
-
 
 

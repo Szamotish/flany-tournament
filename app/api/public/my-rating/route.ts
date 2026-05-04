@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { readAuthContext } from "@/app/api/admin/_auth";
+import { ratingCooldownFromUpdatedAt } from "@/lib/ratingCooldown";
 
 export async function GET(req: Request) {
   const auth = await readAuthContext(req);
@@ -14,6 +15,18 @@ export async function GET(req: Request) {
 
   if (!ratedId) {
     return NextResponse.json({ error: "missing_ratedId" }, { status: 400 });
+  }
+
+  if (ratedId === auth.ctx.playerId) {
+    return NextResponse.json({
+      value: null,
+      updatedAt: null,
+      canRate: false,
+      cooldownState: "cooldown",
+      hoursLeft: null,
+      message: "Nie mozesz wystawic oceny sobie.",
+      isSelf: true,
+    });
   }
 
   const { data, error } = await supabaseServer
@@ -30,8 +43,15 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  const cooldown = ratingCooldownFromUpdatedAt(data?.updated_at ?? null);
+
   return NextResponse.json({
     value: data?.value ?? null,
     updatedAt: data?.updated_at ?? null,
+    canRate: cooldown.canRate,
+    cooldownState: cooldown.state,
+    hoursLeft: cooldown.hoursLeft,
+    message: cooldown.message,
+    isSelf: false,
   });
 }
