@@ -1205,6 +1205,47 @@ body {
   transform: none;
 }
 
+.tour-action-danger {
+  border-color: rgba(177, 43, 43, 0.48);
+  background: rgba(255, 228, 226, 0.86);
+  color: #8f1d1d;
+}
+
+.tour-action-danger:hover {
+  border-color: rgba(177, 43, 43, 0.68);
+  background: rgba(255, 211, 208, 0.96);
+}
+
+.tour-rules-textarea {
+  min-height: 320px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.tour-rules-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font: inherit;
+  line-height: 1.55;
+  color: var(--ink);
+}
+
+.tour-card-clickable {
+  cursor: pointer;
+  transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+
+.tour-card-clickable:hover {
+  transform: translateY(-1px);
+  border-color: rgba(80, 48, 8, 0.34);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.tour-card-selected {
+  border-color: rgba(37, 106, 73, 0.5);
+  box-shadow: 0 0 0 2px rgba(76, 145, 98, 0.14);
+}
+
 .tour-champion-inner {
   display: flex;
   align-items: center;
@@ -1846,6 +1887,56 @@ body {
   font-size: 0.82rem;
   color: var(--muted-ink);
   font-weight: 640;
+}
+
+.tour-admin-label-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.tour-info-tooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.05rem;
+  height: 1.05rem;
+  border: 1px solid rgba(80, 48, 8, 0.34);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: help;
+}
+
+.tour-info-tooltip-box {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 0.55rem);
+  z-index: 40;
+  width: min(290px, 78vw);
+  transform: translateX(-50%) translateY(4px);
+  border: 1px solid rgba(80, 48, 8, 0.28);
+  border-radius: 0.8rem;
+  padding: 0.65rem 0.75rem;
+  background: rgba(255, 252, 240, 0.96);
+  box-shadow: 0 12px 28px rgba(48, 28, 3, 0.18);
+  color: var(--ink);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  text-align: left;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.tour-info-tooltip:hover .tour-info-tooltip-box,
+.tour-info-tooltip:focus .tour-info-tooltip-box,
+.tour-info-tooltip:focus-within .tour-info-tooltip-box {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 .tour-admin-input {

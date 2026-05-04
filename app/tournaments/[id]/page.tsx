@@ -294,6 +294,9 @@ export default async function TournamentPage({
                     <Link className="tour-action-btn" href={`/tournaments/${id}/matches`}>
                       Mecze
                     </Link>
+                    <Link className="tour-action-btn" href={`/tournaments/${id}/rules`}>
+                      Zasady
+                    </Link>
                   </div>
 
                   <TournamentJoinActions tournamentId={id} />

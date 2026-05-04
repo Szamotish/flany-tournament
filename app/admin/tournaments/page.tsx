@@ -24,6 +24,10 @@ type Tournament = {
   mode: "normal" | "ranked";
   bo_default: 1 | 3 | 5;
   bo_finals: 1 | 3 | 5;
+  gf_reset_enabled?: boolean | null;
+  event_at?: string | null;
+  event_location?: string | null;
+  join_deadline_at?: string | null;
 };
 
 type AppBackgroundVariant = "finn_bmo" | "finn_beer";
@@ -56,6 +60,8 @@ export default function AdminTournamentsPage() {
   const [eventAt, setEventAt] = useState("");
   const [eventLocation, setEventLocation] = useState("");
   const [joinDeadlineAt, setJoinDeadlineAt] = useState("");
+  const [editingTournamentId, setEditingTournamentId] = useState<string | null>(null);
+  const [editingStarted, setEditingStarted] = useState(false);
 
   const [q, setQ] = useState("");
   const [players, setPlayers] = useState<Player[]>([]);
@@ -107,6 +113,58 @@ export default function AdminTournamentsPage() {
     const res = await fetch("/api/public/tournaments", { cache: "no-store" });
     const json = await res.json().catch(() => ({}));
     if (res.ok) setTournaments(json.tournaments ?? []);
+  }
+
+  function resetTournamentForm() {
+    setEditingTournamentId(null);
+    setEditingStarted(false);
+    setName("");
+    setFormat("double_elim");
+    setMode("normal");
+    setBoDefault(1);
+    setBoFinals(3);
+    setGfResetEnabled(true);
+    setEventAt("");
+    setEventLocation("");
+    setJoinDeadlineAt("");
+    setSelected({});
+    setLocalAdminId("");
+  }
+
+  async function loadTournamentForEdit(tournamentId: string) {
+    setMsg(null);
+    const res = await authedFetch(`/api/admin/tournaments/${tournamentId}`, { cache: "no-store" });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg(`Blad pobierania turnieju: ${mapApiError(json.error ?? res.statusText)}`);
+      return;
+    }
+
+    const tournament = json.tournament as Tournament;
+    setEditingTournamentId(tournamentId);
+    setEditingStarted(json.started === true);
+    setName(tournament.name ?? "");
+    setFormat(tournament.format === "single_elim" ? "single_elim" : "double_elim");
+    setMode(tournament.mode === "ranked" ? "ranked" : "normal");
+    setBoDefault(parseBo(String(tournament.bo_default)) ?? 1);
+    setBoFinals(parseBo(String(tournament.bo_finals)) ?? 3);
+    setGfResetEnabled(tournament.gf_reset_enabled !== false);
+    setEventAt(typeof tournament.event_at === "string" ? tournament.event_at.slice(0, 16) : "");
+    setEventLocation(typeof tournament.event_location === "string" ? tournament.event_location : "");
+    setJoinDeadlineAt(typeof tournament.join_deadline_at === "string" ? tournament.join_deadline_at.slice(0, 16) : "");
+
+    const nextSelected: Record<string, boolean> = {};
+    for (const playerId of (json.playerIds ?? []) as string[]) {
+      nextSelected[playerId] = true;
+    }
+    setSelected(nextSelected);
+    const adminIds = ((json.localAdminPlayerIds ?? []) as string[]).filter(Boolean);
+    setLocalAdminId(adminIds[0] ?? "");
+    setMsg(
+      json.started === true
+        ? "Wczytano turniej. Turniej ma juz mecze, wiec nie zmieniaj formatu/BO/trybu."
+        : "Wczytano turniej do edycji."
+    );
   }
 
   useEffect(() => {
@@ -186,6 +244,38 @@ export default function AdminTournamentsPage() {
     setJoinDeadlineAt("");
     setSelected({});
     setLocalAdminId("");
+    await loadTournaments();
+  }
+
+  async function saveTournamentChanges() {
+    if (!editingTournamentId) return;
+    setMsg(null);
+
+    const res = await authedFetch(`/api/admin/tournaments/${editingTournamentId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name,
+        format,
+        mode,
+        boDefault,
+        boFinals,
+        gfResetEnabled,
+        eventAt,
+        eventLocation,
+        joinDeadlineAt,
+        playerIds: selectedIds,
+        localAdminPlayerIds: localAdminIds,
+      }),
+    });
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg(`Blad zapisu turnieju: ${mapApiError(json.error ?? res.statusText)}`);
+      return;
+    }
+
+    setMsg("Turniej zaktualizowany.");
     await loadTournaments();
   }
 
@@ -451,6 +541,9 @@ export default function AdminTournamentsPage() {
         <section className="tour-admin-panel mt-4">
           <div className="tour-card-head">
             <p className="tour-card-title">Tlo aplikacji</p>
+            <Link className="tour-action-btn" href="/admin/rules">
+              Zasady
+            </Link>
           </div>
           <div className="tour-admin-grid mt-3">
             <div>
@@ -478,7 +571,12 @@ export default function AdminTournamentsPage() {
         <div className="tour-admin-split mt-4">
           <section className="tour-admin-panel">
             <div className="tour-card-head">
-              <p className="tour-card-title">Utworz turniej</p>
+              <p className="tour-card-title">{editingTournamentId ? "Edytuj turniej" : "Utworz turniej"}</p>
+              {editingTournamentId ? (
+                <button className="tour-action-btn" type="button" onClick={resetTournamentForm}>
+                  Nowy turniej
+                </button>
+              ) : null}
             </div>
 
             <div className="tour-admin-grid mt-3">
@@ -698,11 +796,17 @@ export default function AdminTournamentsPage() {
                 <button
                   className="tour-action-btn"
                   disabled={!name || selectedIds.length < 2 || localAdminIds.length < 1}
-                  onClick={createTournament}
+                  onClick={editingTournamentId ? saveTournamentChanges : createTournament}
                 >
-                  Utworz turniej
+                  {editingTournamentId ? "Zapisz zmiany" : "Utworz turniej"}
                 </button>
               </div>
+
+              {editingStarted ? (
+                <p className="tour-muted">
+                  Ten turniej ma juz mecze. Zmiana uczestnikow/formatu/BO/trybu jest ograniczona, zeby nie uszkodzic drabinki.
+                </p>
+              ) : null}
 
               {msg ? (
                 <p className={`tour-admin-msg ${msg.toLowerCase().includes("blad") ? "tour-admin-msg-error" : ""}`}>
@@ -725,7 +829,12 @@ export default function AdminTournamentsPage() {
             ) : (
               <div className="tour-list mt-3">
                 {tournaments.map((t) => (
-                  <article key={t.id} className="tour-card">
+                  <article
+                    key={t.id}
+                    className={`tour-card tour-card-clickable ${editingTournamentId === t.id ? "tour-card-selected" : ""}`}
+                    onClick={() => void loadTournamentForEdit(t.id)}
+                    title="Kliknij, aby edytowac turniej w formularzu po lewej"
+                  >
                     <div className="tour-card-head">
                       <div>
                         <p className="tour-card-title">{t.name}</p>
@@ -734,10 +843,20 @@ export default function AdminTournamentsPage() {
                         </p>
                       </div>
                       <div className="tour-admin-actions">
-                        <Link className="tour-action-btn" href={`/tournaments/${t.id}`}>
+                        <Link className="tour-action-btn" href={`/tournaments/${t.id}`} onClick={(e) => e.stopPropagation()}>
                           Podglad
                         </Link>
-                        <button className="tour-action-btn" type="button" onClick={() => void deleteTournament(t.id, t.name)}>
+                        <Link className="tour-action-btn" href={`/tournaments/${t.id}/rules`} onClick={(e) => e.stopPropagation()}>
+                          Zasady
+                        </Link>
+                        <button
+                          className="tour-action-btn tour-action-danger"
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void deleteTournament(t.id, t.name);
+                          }}
+                        >
                           Usun
                         </button>
                       </div>

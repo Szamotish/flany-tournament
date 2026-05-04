@@ -556,7 +556,7 @@ export default function AuthControls() {
 
               <div className="auth-settings-box">
                 <p className="auth-modal-subtitle">Usun konto</p>
-                <button className="tour-action-btn" type="button" onClick={() => void deleteAccount()}>
+                <button className="tour-action-btn tour-action-danger" type="button" onClick={() => void deleteAccount()}>
                   Usuń konto
                 </button>
               </div>

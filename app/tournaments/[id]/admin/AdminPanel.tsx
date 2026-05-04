@@ -146,11 +146,14 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
         ? "Druzyny zostaly wygenerowane losowo."
         : "Druzyny zostaly wygenerowane (balans)."
     );
+    await loadTeams();
   }
 
-  async function loadTeams() {
-    setLoadingTeams(true);
-    setMsg(null);
+  async function loadTeams(silent = false) {
+    if (!silent) {
+      setLoadingTeams(true);
+      setMsg(null);
+    }
     try {
       const res = await fetch(`/api/public/tournaments/${tournamentId}/teams`, { cache: "no-store" });
       const json = await res.json().catch(() => ({}));
@@ -160,7 +163,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
       }
       setTeams(json.teams ?? []);
     } finally {
-      setLoadingTeams(false);
+      if (!silent) setLoadingTeams(false);
     }
   }
 
@@ -187,9 +190,11 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
     setMsg("Nazwa druzyny zostala zmieniona.");
   }
 
-  async function loadTournamentPlayers() {
-    setLoadingPlayers(true);
-    setMsg(null);
+  async function loadTournamentPlayers(silent = false): Promise<PlayerOption[]> {
+    if (!silent) {
+      setLoadingPlayers(true);
+      setMsg(null);
+    }
     try {
       const res = await authedFetch(`/api/admin/tournaments/${tournamentId}/players`, {
         cache: "no-store",
@@ -197,15 +202,17 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         setMsg(`Blad pobierania zawodnikow: ${json.error ?? res.statusText}`);
-        return;
+        return [];
       }
-      setTournamentPlayers(json.players ?? []);
+      const list = (json.players ?? []) as PlayerOption[];
+      setTournamentPlayers(list);
+      return list;
     } finally {
-      setLoadingPlayers(false);
+      if (!silent) setLoadingPlayers(false);
     }
   }
 
-  async function searchPlayers(query: string) {
+  async function searchPlayers(query: string, currentTournamentPlayers = tournamentPlayers) {
     const res = await fetch(`/api/public/players/search?q=${encodeURIComponent(query)}`);
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -213,12 +220,52 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
       return;
     }
 
-    const inTournament = new Set(tournamentPlayers.map((p) => p.id));
+    const inTournament = new Set(currentTournamentPlayers.map((p) => p.id));
     const list: PlayerOption[] = (json.players ?? [])
       .filter((p: PlayerOption) => p.active && !inTournament.has(p.id))
       .sort((a: PlayerOption, b: PlayerOption) => a.name.localeCompare(b.name, "pl"));
     setAvailablePlayers(list);
   }
+
+  async function refreshPlayerLists(silent = false) {
+    const current = await loadTournamentPlayers(silent);
+    await searchPlayers(playerSearch, current);
+  }
+
+  useEffect(() => {
+    if (!hasAdminAccess) return;
+
+    let cancelled = false;
+    async function tick(silent = true) {
+      if (cancelled) return;
+      await Promise.all([
+        loadTeams(silent),
+        refreshPlayerLists(silent),
+        loadJoinRequests(),
+        loadInvites(),
+      ]);
+    }
+
+    void tick(false);
+    const interval = window.setInterval(() => void tick(true), 10000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+    // playerSearch intentionally excluded; it has a separate debounced effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasAdminAccess, tournamentId]);
+
+  useEffect(() => {
+    if (!hasAdminAccess) return;
+    const timeout = window.setTimeout(() => {
+      void searchPlayers(playerSearch);
+    }, 250);
+    return () => window.clearTimeout(timeout);
+    // searchPlayers reads the latest tournamentPlayers value from this render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasAdminAccess, playerSearch, tournamentPlayers]);
 
   async function addPlayer(playerId: string) {
     setMsg(null);
@@ -236,8 +283,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
     }
 
     setMsg("Dodano zawodnika do turnieju. Wygeneruj druzyny ponownie.");
-    await loadTournamentPlayers();
-    await searchPlayers(playerSearch);
+    await refreshPlayerLists();
     setTeams([]);
   }
 
@@ -259,8 +305,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
     }
 
     setMsg("Usunieto zawodnika z turnieju. Wygeneruj druzyny ponownie.");
-    await loadTournamentPlayers();
-    await searchPlayers(playerSearch);
+    await refreshPlayerLists();
     setTeams([]);
   }
 
@@ -301,7 +346,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
       return;
     }
     setMsg(action === "accept" ? "Prosba zaakceptowana." : "Prosba odrzucona.");
-    await Promise.all([loadJoinRequests(), loadTournamentPlayers(), searchPlayers(playerSearch)]);
+    await Promise.all([loadJoinRequests(), refreshPlayerLists()]);
   }
 
   async function invitePlayer(playerId: string) {
@@ -419,16 +464,26 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
               </div>
 
               <div>
-                <label className="tour-admin-label">Iteracje</label>
-                <input
+                <label className="tour-admin-label tour-admin-label-inline">
+                  Liczba prob balansu
+                  <span className="tour-info-tooltip" tabIndex={0} aria-label="Informacja o liczbie prob balansu">
+                    i
+                    <span className="tour-info-tooltip-box">
+                      Szybki jest najszybszy, ale podzial moze byc gorszy. Zbalansowany to mieszanka czasu i jakosci
+                      balansu. Dokladny daje najlepszy balans kosztem dluzszego liczenia.
+                    </span>
+                  </span>
+                </label>
+                <select
                   className="tour-admin-input"
-                  type="number"
-                  min={1}
-                  max={5000}
                   value={iterations}
                   disabled={generationMode === "full_random"}
                   onChange={(e) => setIterations(Number(e.target.value))}
-                />
+                >
+                  <option value={200}>Szybki (200)</option>
+                  <option value={1000}>Zbalansowany (1000)</option>
+                  <option value={2000}>Dokladny (2000)</option>
+                </select>
               </div>
             </div>
 
@@ -519,18 +574,6 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
               <button className="tour-action-btn" onClick={generate}>
                 Generuj druzyny
               </button>
-              <button className="tour-action-btn" onClick={loadTeams}>
-                {loadingTeams ? "Ladowanie..." : "Pokaz druzyny"}
-              </button>
-              <button className="tour-action-btn" onClick={loadTournamentPlayers}>
-                {loadingPlayers ? "Ladowanie..." : "Zawodnicy turnieju"}
-              </button>
-              <button className="tour-action-btn" onClick={loadJoinRequests}>
-                Prosby ({requests.filter((r) => r.status === "pending").length})
-              </button>
-              <button className="tour-action-btn" onClick={loadInvites}>
-                Zaproszenia ({invites.filter((r) => r.status === "pending").length})
-              </button>
               <Link className="tour-action-btn" href={`/tournaments/${tournamentId}/admin-matches`}>
                 Admin mecze
               </Link>
@@ -552,7 +595,9 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
               </div>
 
               {tournamentPlayers.length === 0 ? (
-                <p className="tour-muted mt-2">Brak zawodnikow. Uzyj przycisku Zawodnicy turnieju.</p>
+                <p className="tour-muted mt-2">
+                  {loadingPlayers ? "Ladowanie zawodnikow..." : "Brak zawodnikow w turnieju."}
+                </p>
               ) : (
                 <div className="tour-admin-player-list mt-2">
                   {tournamentPlayers.map((p) => (
@@ -585,12 +630,6 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
                   onChange={(e) => setPlayerSearch(e.target.value)}
                   placeholder="Szukaj zawodnika"
                 />
-                <button className="tour-action-btn" onClick={() => void searchPlayers(playerSearch)}>
-                  Szukaj
-                </button>
-                <button className="tour-action-btn" onClick={loadTournamentPlayers}>
-                  Odswiez
-                </button>
               </div>
 
               {availablePlayers.length === 0 ? (
@@ -725,9 +764,6 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
                 <button className="tour-action-btn" type="button" onClick={() => void swapPlayers()}>
                   Zrob swap
                 </button>
-                <button className="tour-action-btn" type="button" onClick={loadTeams}>
-                  Odswiez druzyny
-                </button>
               </div>
             </div>
           </div>
@@ -736,7 +772,9 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
         <section className="tour-list mt-4">
           {teams.length === 0 ? (
             <article className="tour-card">
-              <p className="tour-muted">Brak druzyn do edycji. Uzyj przycisku Pokaz druzyny.</p>
+              <p className="tour-muted">
+                {loadingTeams ? "Ladowanie druzyn..." : "Brak druzyn do edycji. Wygeneruj druzyny."}
+              </p>
             </article>
           ) : (
             teams.map((team) => (

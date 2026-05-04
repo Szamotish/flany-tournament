@@ -123,7 +123,7 @@ export default function TournamentJoinActions({ tournamentId }: Props) {
           Turniej rozpoczety
         </button>
       ) : state.inTournament ? (
-        <button className="tour-action-btn" type="button" onClick={leaveTournament} disabled={busy}>
+        <button className="tour-action-btn tour-action-danger" type="button" onClick={leaveTournament} disabled={busy}>
           Opusc turniej
         </button>
       ) : state.pendingRequest ? (
