@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { assertTournamentAdmin } from "@/app/api/admin/tournaments/_auth";
 import { writeAuditLog } from "@/lib/auditLog";
+import { notifyJoinRequestDecision } from "@/lib/emailNotifications";
 import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { supabaseServer } from "@/lib/supabaseServer";
 
@@ -126,6 +127,19 @@ export async function PATCH(
     targetType: "tournament",
     targetId: tournamentId,
     metadata: { requestId, playerId: row.player_id },
+  });
+
+  const tournamentRes = await supabaseServer
+    .from("tournaments")
+    .select("name")
+    .eq("id", tournamentId)
+    .maybeSingle();
+
+  await notifyJoinRequestDecision({
+    playerId: row.player_id,
+    tournamentId,
+    tournamentName: String(tournamentRes.data?.name ?? "Turniej"),
+    accepted: action === "accept",
   });
 
   return NextResponse.json({ request: updateRes.data });

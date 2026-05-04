@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { assertTournamentAdmin } from "@/app/api/admin/tournaments/_auth";
 import { writeAuditLog } from "@/lib/auditLog";
+import { notifyTournamentInvite } from "@/lib/emailNotifications";
 import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { supabaseServer } from "@/lib/supabaseServer";
 
@@ -132,6 +133,12 @@ export async function POST(
     return NextResponse.json({ error: insertRes.error.message }, { status: 500 });
   }
 
+  const tournamentRes = await supabaseServer
+    .from("tournaments")
+    .select("name")
+    .eq("id", tournamentId)
+    .maybeSingle();
+
   await writeAuditLog({
     actorUserId: auth.ctx.userId,
     actorPlayerId: auth.ctx.playerId,
@@ -139,6 +146,13 @@ export async function POST(
     targetType: "tournament",
     targetId: tournamentId,
     metadata: { invitedPlayerId, inviteId: insertRes.data.id },
+  });
+
+  await notifyTournamentInvite({
+    invitedPlayerId,
+    inviterName: auth.ctx.playerName,
+    tournamentId,
+    tournamentName: String(tournamentRes.data?.name ?? "Turniej"),
   });
 
   return NextResponse.json({ invite: insertRes.data });

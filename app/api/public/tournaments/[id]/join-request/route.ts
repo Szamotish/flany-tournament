@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { readAuthContext } from "@/app/api/admin/_auth";
+import { notifyTournamentJoinRequest } from "@/lib/emailNotifications";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 
@@ -31,7 +32,7 @@ export async function POST(
 
   const primaryTournament = await supabaseServer
     .from("tournaments")
-    .select("id,join_deadline_at")
+    .select("id,name,join_deadline_at")
     .eq("id", tournamentId)
     .maybeSingle();
 
@@ -41,7 +42,7 @@ export async function POST(
   if (primaryTournament.error && primaryTournament.error.message.includes("join_deadline_at")) {
     const fallbackTournament = await supabaseServer
       .from("tournaments")
-      .select("id")
+      .select("id,name")
       .eq("id", tournamentId)
       .maybeSingle();
     t = fallbackTournament.data ? { ...fallbackTournament.data, join_deadline_at: null } : null;
@@ -91,6 +92,12 @@ export async function POST(
     }
     return NextResponse.json({ error: insertRes.error.message }, { status: 500 });
   }
+
+  await notifyTournamentJoinRequest({
+    requesterName: auth.ctx.playerName,
+    tournamentId,
+    tournamentName: String(t.name ?? "Turniej"),
+  });
 
   return NextResponse.json({ request: insertRes.data });
 }
