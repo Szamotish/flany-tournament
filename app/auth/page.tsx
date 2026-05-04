@@ -2,11 +2,31 @@
 
 import Link from "next/link";
 import Script from "next/script";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 
 type Mode = "login" | "signup";
+
+type TurnstileApi = {
+  render: (
+    container: HTMLElement,
+    options: {
+      sitekey: string;
+      callback: (token: string) => void;
+      "expired-callback": () => void;
+      "error-callback": () => void;
+    }
+  ) => string;
+  remove?: (widgetId: string) => void;
+  reset?: (widgetId: string) => void;
+};
+
+declare global {
+  interface Window {
+    turnstile?: TurnstileApi;
+  }
+}
 
 function mapAuthError(error: string): string {
   if (error.includes("Invalid login credentials")) return "Niepoprawny email lub haslo.";
@@ -29,6 +49,10 @@ function AuthPageInner() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [turnstileReady, setTurnstileReady] = useState(false);
+  const turnstileContainerRef = useRef<HTMLDivElement | null>(null);
+  const turnstileWidgetIdRef = useRef<string | null>(null);
+  const turnstileTokenRef = useRef("");
 
   useEffect(() => {
     if (!confirmed) return;
@@ -55,6 +79,51 @@ function AuthPageInner() {
     };
   }, [confirmed, redirectTo, router]);
 
+  useEffect(() => {
+    if (!turnstileSiteKey || mode !== "signup") {
+      turnstileTokenRef.current = "";
+      return;
+    }
+
+    const api = window.turnstile;
+    const container = turnstileContainerRef.current;
+    if (!api || !container) return;
+
+    if (turnstileWidgetIdRef.current && api.remove) {
+      api.remove(turnstileWidgetIdRef.current);
+      turnstileWidgetIdRef.current = null;
+    }
+
+    container.innerHTML = "";
+    turnstileTokenRef.current = "";
+    turnstileWidgetIdRef.current = api.render(container, {
+      sitekey: turnstileSiteKey,
+      callback: (token) => {
+        turnstileTokenRef.current = token;
+        setMsg((current) =>
+          current === "Potwierdz zabezpieczenie antybotowe i sproboj ponownie." ? null : current
+        );
+      },
+      "expired-callback": () => {
+        turnstileTokenRef.current = "";
+      },
+      "error-callback": () => {
+        turnstileTokenRef.current = "";
+        setMsg("Nie udalo sie zaladowac zabezpieczenia antybotowego. Odswiez strone i sproboj ponownie.");
+      },
+    });
+
+    return () => {
+      const widgetId = turnstileWidgetIdRef.current;
+      if (widgetId && window.turnstile?.remove) {
+        window.turnstile.remove(widgetId);
+      }
+      if (turnstileWidgetIdRef.current === widgetId) {
+        turnstileWidgetIdRef.current = null;
+      }
+    };
+  }, [mode, turnstileReady, turnstileSiteKey]);
+
   async function doLogin() {
     setMsg(null);
     setBusy(true);
@@ -77,9 +146,16 @@ function AuthPageInner() {
 
   async function doSignup() {
     setMsg(null);
+    if (!turnstileSiteKey) {
+      setMsg("Brak publicznego klucza Turnstile. Dodaj NEXT_PUBLIC_TURNSTILE_SITE_KEY w Vercel i zrob redeploy.");
+      return;
+    }
+    const currentTurnstileToken = turnstileTokenRef.current;
+    if (!currentTurnstileToken) {
+      setMsg("Potwierdz zabezpieczenie antybotowe i sproboj ponownie.");
+      return;
+    }
     setBusy(true);
-    const turnstileToken =
-      document.querySelector<HTMLInputElement>('input[name="cf-turnstile-response"]')?.value ?? "";
 
     const signupRes = await fetch("/api/auth/signup", {
       method: "POST",
@@ -88,7 +164,7 @@ function AuthPageInner() {
         pseudonym,
         email: email.trim().toLowerCase(),
         password,
-        turnstileToken,
+        turnstileToken: currentTurnstileToken,
       }),
     });
 
@@ -151,7 +227,12 @@ function AuthPageInner() {
   return (
     <main className="mx-auto max-w-md p-4 md:p-6">
       {turnstileSiteKey ? (
-        <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer />
+        <Script
+          src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+          async
+          defer
+          onLoad={() => setTurnstileReady(true)}
+        />
       ) : null}
       <Link className="underline opacity-80" href="/">
         Back
@@ -203,7 +284,11 @@ function AuthPageInner() {
           </div>
 
           {mode === "signup" && turnstileSiteKey ? (
-            <div className="cf-turnstile" data-sitekey={turnstileSiteKey} />
+            <div ref={turnstileContainerRef} className="min-h-[72px]" />
+          ) : mode === "signup" ? (
+            <p className="rounded-xl border border-amber-700/30 bg-amber-100/70 px-3 py-2 text-sm text-amber-950">
+              Brak konfiguracji Turnstile po stronie przegladarki.
+            </p>
           ) : null}
 
           <button

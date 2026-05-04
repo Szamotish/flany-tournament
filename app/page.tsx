@@ -1,5 +1,5 @@
 ﻿import Link from "next/link";
-import { supabasePublic } from "@/lib/supabasePublic";
+import { supabaseServer } from "@/lib/supabaseServer";
 import { computeBeersFromFinishedMatches } from "@/lib/beers";
 import BeerCan3D from "@/app/components/BeerCan3D";
 import NearbyLiquorCompassCard from "@/app/components/NearbyLiquorCompassCard";
@@ -151,9 +151,9 @@ export default async function HomePage() {
   const degree = "\u00B0C";
 
   const [playersCountRes, tournamentsCountRes, finishedMatchesRes, weather] = await Promise.all([
-    supabasePublic.from("players").select("id", { count: "exact", head: true }).eq("active", true),
-    supabasePublic.from("tournaments_public").select("id", { count: "exact", head: true }),
-    supabasePublic.from("tournament_matches").select("team_a_id,team_b_id,status").eq("status", "finished"),
+    supabaseServer.from("players").select("id", { count: "exact", head: true }).eq("active", true),
+    supabaseServer.from("tournaments").select("id", { count: "exact", head: true }),
+    supabaseServer.from("tournament_matches").select("team_a_id,team_b_id,status").eq("status", "finished"),
     fetchSarbskWeather(),
   ]);
 
@@ -175,7 +175,7 @@ export default async function HomePage() {
 
   const teamSizeMap = new Map<string, number>();
   if (allTeamIds.length > 0) {
-    const { data: members } = await supabasePublic
+    const { data: members } = await supabaseServer
       .from("team_members")
       .select("team_id")
       .in("team_id", allTeamIds);
