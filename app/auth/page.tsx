@@ -81,7 +81,7 @@ function AuthPageInner() {
   }, [confirmed, passwordReset, redirectTo, router]);
 
   useEffect(() => {
-    if (!turnstileSiteKey || mode !== "signup") {
+    if (!turnstileSiteKey || mode === "login") {
       turnstileTokenRef.current = "";
       return;
     }
@@ -124,6 +124,14 @@ function AuthPageInner() {
       }
     };
   }, [mode, turnstileReady, turnstileSiteKey]);
+
+  function resetTurnstileToken() {
+    turnstileTokenRef.current = "";
+    const widgetId = turnstileWidgetIdRef.current;
+    if (widgetId && window.turnstile?.reset) {
+      window.turnstile.reset(widgetId);
+    }
+  }
 
   async function doLogin() {
     setMsg(null);
@@ -172,6 +180,7 @@ function AuthPageInner() {
     const signupJson = await signupRes.json().catch(() => ({}));
     if (!signupRes.ok) {
       setBusy(false);
+      resetTurnstileToken();
       if (signupJson.error === "pseudonym_taken") {
         setMsg("Ten pseudonim jest juz zajety.");
       } else if (signupJson.error === "invalid_pseudonym") {
@@ -223,16 +232,43 @@ function AuthPageInner() {
       setMsg("Podaj email konta.");
       return;
     }
+    if (!turnstileSiteKey) {
+      setMsg("Brak publicznego klucza Turnstile. Dodaj NEXT_PUBLIC_TURNSTILE_SITE_KEY w Vercel i zrob redeploy.");
+      return;
+    }
+    const currentTurnstileToken = turnstileTokenRef.current;
+    if (!currentTurnstileToken) {
+      setMsg("Potwierdz zabezpieczenie antybotowe i sproboj ponownie.");
+      return;
+    }
 
     setBusy(true);
-    const supabase = getSupabaseBrowserClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-      redirectTo: `${window.location.origin}/auth/reset`,
+    const resetRes = await fetch("/api/auth/reset-password", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: normalizedEmail,
+        turnstileToken: currentTurnstileToken,
+      }),
     });
+    const resetJson = await resetRes.json().catch(() => ({}));
     setBusy(false);
+    resetTurnstileToken();
 
-    if (error) {
-      setMsg(`Blad resetu hasla: ${mapAuthError(error.message)}`);
+    if (!resetRes.ok) {
+      if (
+        resetJson.error === "missing_turnstile_token" ||
+        resetJson.error === "turnstile_rejected" ||
+        resetJson.error === "turnstile_verify_failed"
+      ) {
+        setMsg("Potwierdz zabezpieczenie antybotowe i sproboj ponownie.");
+      } else if (resetJson.error === "rate_limited") {
+        setMsg("Za duzo prob resetu. Sprobuj pozniej.");
+      } else if (resetJson.error === "email_send_failed") {
+        setMsg("Nie udalo sie wyslac maila resetujacego. Sprobuj ponownie za chwile.");
+      } else {
+        setMsg(`Blad resetu hasla: ${resetJson.error ?? resetRes.statusText}`);
+      }
       return;
     }
 
@@ -317,9 +353,9 @@ function AuthPageInner() {
             </div>
           ) : null}
 
-          {mode === "signup" && turnstileSiteKey ? (
+          {mode !== "login" && turnstileSiteKey ? (
             <div ref={turnstileContainerRef} className="min-h-[72px]" />
-          ) : mode === "signup" ? (
+          ) : mode !== "login" ? (
             <p className="rounded-xl border border-amber-700/30 bg-amber-100/70 px-3 py-2 text-sm text-amber-950">
               Brak konfiguracji Turnstile po stronie przegladarki.
             </p>

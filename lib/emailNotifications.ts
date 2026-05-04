@@ -74,6 +74,24 @@ async function sendTransactionalEmail(input: SendEmailInput): Promise<void> {
   }
 }
 
+export async function sendPasswordResetEmail(input: {
+  email: string;
+  resetLink: string;
+}): Promise<void> {
+  const link = escapeHtml(input.resetLink);
+
+  await sendTransactionalEmail({
+    to: [{ email: input.email }],
+    subject: "Reset hasla - Flany Tournament",
+    text: `Aby ustawic nowe haslo, wejdz w link: ${input.resetLink}. Jesli to nie Ty prosiles o reset hasla, zignoruj ta wiadomosc.`,
+    html: `
+      <p>Otrzymalismy prosbe o reset hasla do konta Flany Tournament.</p>
+      <p><a href="${link}">Ustaw nowe haslo</a></p>
+      <p>Jesli to nie Ty prosiles o reset hasla, zignoruj ta wiadomosc.</p>
+    `,
+  });
+}
+
 async function playerRecipients(players: PlayerEmailTarget[]): Promise<EmailRecipient[]> {
   const eligible = players.filter(
     (player) => player.auth_user_id && player.email_notifications_enabled === true
