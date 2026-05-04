@@ -6,7 +6,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 
-type Mode = "login" | "signup";
+type Mode = "login" | "signup" | "forgot";
 
 type TurnstileApi = {
   render: (
@@ -41,6 +41,7 @@ function AuthPageInner() {
   const searchParams = useSearchParams();
   const redirectTo = useMemo(() => searchParams.get("next") || "/", [searchParams]);
   const confirmed = searchParams.get("confirmed") === "1";
+  const passwordReset = searchParams.get("reset") === "done";
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
   const [mode, setMode] = useState<Mode>("login");
@@ -55,7 +56,7 @@ function AuthPageInner() {
   const turnstileTokenRef = useRef("");
 
   useEffect(() => {
-    if (!confirmed) return;
+    if (!confirmed && !passwordReset) return;
 
     let cancelled = false;
     const supabase = getSupabaseBrowserClient();
@@ -64,20 +65,20 @@ function AuthPageInner() {
       const { data } = await supabase.auth.getSession();
       if (cancelled) return;
 
-      if (data.session) {
+      if (confirmed && data.session) {
         router.replace(redirectTo);
         router.refresh();
         return;
       }
 
-      setMsg("Email potwierdzony. Mozesz sie teraz zalogowac.");
+      setMsg(passwordReset ? "Haslo zmienione. Mozesz sie teraz zalogowac." : "Email potwierdzony. Mozesz sie teraz zalogowac.");
       setMode("login");
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [confirmed, redirectTo, router]);
+  }, [confirmed, passwordReset, redirectTo, router]);
 
   useEffect(() => {
     if (!turnstileSiteKey || mode !== "signup") {
@@ -215,10 +216,37 @@ function AuthPageInner() {
     router.refresh();
   }
 
+  async function doForgotPassword() {
+    setMsg(null);
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      setMsg("Podaj email konta.");
+      return;
+    }
+
+    setBusy(true);
+    const supabase = getSupabaseBrowserClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+      redirectTo: `${window.location.origin}/auth/reset`,
+    });
+    setBusy(false);
+
+    if (error) {
+      setMsg(`Blad resetu hasla: ${mapAuthError(error.message)}`);
+      return;
+    }
+
+    setMsg("Jesli konto istnieje, wyslalismy link do resetu hasla na podany email.");
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (mode === "login") {
       await doLogin();
+      return;
+    }
+    if (mode === "forgot") {
+      await doForgotPassword();
       return;
     }
     await doSignup();
@@ -239,11 +267,15 @@ function AuthPageInner() {
       </Link>
 
       <section className="mt-4 rounded-2xl border border-black/15 bg-white/70 p-4 shadow-[0_12px_28px_rgba(0,0,0,0.12)] backdrop-blur">
-        <h1 className="text-2xl font-semibold">{mode === "login" ? "Logowanie" : "Rejestracja"}</h1>
+        <h1 className="text-2xl font-semibold">
+          {mode === "login" ? "Logowanie" : mode === "signup" ? "Rejestracja" : "Reset hasla"}
+        </h1>
         <p className="mt-1 text-sm opacity-80">
           {mode === "login"
             ? "Zaloguj sie, aby oceniac graczy i korzystac z paneli admina."
-            : "Utworz konto gracza: pseudonim + email + haslo."}
+            : mode === "signup"
+              ? "Utworz konto gracza: pseudonim + email + haslo."
+              : "Podaj email konta, a wyslemy link do ustawienia nowego hasla."}
         </p>
 
         <form className="mt-4 space-y-3" onSubmit={onSubmit}>
@@ -271,7 +303,8 @@ function AuthPageInner() {
             />
           </div>
 
-          <div>
+          {mode !== "forgot" ? (
+            <div>
             <label className="block text-sm font-medium">Haslo</label>
             <input
               className="mt-1 w-full rounded-lg border border-black/25 bg-white/90 px-3 py-2"
@@ -281,7 +314,8 @@ function AuthPageInner() {
               minLength={8}
               required
             />
-          </div>
+            </div>
+          ) : null}
 
           {mode === "signup" && turnstileSiteKey ? (
             <div ref={turnstileContainerRef} className="min-h-[72px]" />
@@ -296,15 +330,26 @@ function AuthPageInner() {
             type="submit"
             disabled={busy}
           >
-            {busy ? "Prosze czekac..." : mode === "login" ? "Zaloguj" : "Utworz konto"}
+            {busy
+              ? "Prosze czekac..."
+              : mode === "login"
+                ? "Zaloguj"
+                : mode === "signup"
+                  ? "Utworz konto"
+                  : "Wyslij link resetujacy"}
           </button>
         </form>
 
         <div className="mt-4 text-sm">
           {mode === "login" ? (
-            <button className="underline opacity-90" type="button" onClick={() => setMode("signup")}>
-              Nie masz konta? Zarejestruj sie
-            </button>
+            <div className="flex flex-col gap-2">
+              <button className="text-left underline opacity-90" type="button" onClick={() => setMode("signup")}>
+                Nie masz konta? Zarejestruj sie
+              </button>
+              <button className="text-left underline opacity-90" type="button" onClick={() => setMode("forgot")}>
+                Nie pamietasz hasla?
+              </button>
+            </div>
           ) : (
             <button className="underline opacity-90" type="button" onClick={() => setMode("login")}>
               Masz juz konto? Zaloguj sie
