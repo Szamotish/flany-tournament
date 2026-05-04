@@ -1,13 +1,15 @@
 import Link from "next/link";
 import RatePlayer from "./RatePlayer";
 import UploadAvatar from "./UploadAvatar";
-import RankFrameToggle from "./RankFrameToggle";
+import ProfileSettingsButton from "./ProfileSettingsButton";
+import BeerCan3D from "@/app/components/BeerCan3D";
 import { trimmedMean } from "@/lib/rating";
 import { supabaseServer } from "@/lib/supabaseServer";
 import TrophyIcon from "@/app/components/TrophyIcon";
 import BackNavButton from "@/app/components/BackNavButton";
 import { PRESTIGE_POINTS_PER_MMR } from "@/lib/ranked";
 import { loadPlayerPerformance } from "@/lib/playerPerformance";
+import { playerToneStyle } from "@/lib/ui/playerProfile";
 import {
   FRAME_BY_RANK,
   canShowRankFromMmr,
@@ -122,7 +124,7 @@ export default async function PlayerPage({
 
   const primaryPlayer = await supabaseServer
     .from("players")
-    .select("id,name,active,avatar_url,mmr,prestige_points,rating_override,mmr_manual_override,rank_frame_enabled")
+    .select("id,name,active,avatar_url,mmr,prestige_points,rating_override,mmr_manual_override,rank_frame_enabled,profile_color,favorite_beer")
     .eq("id", playerId)
     .maybeSingle();
 
@@ -133,7 +135,9 @@ export default async function PlayerPage({
     primaryPlayer.error &&
     (primaryPlayer.error.message.includes("mmr_manual_override") ||
       primaryPlayer.error.message.includes("rating_override") ||
-      primaryPlayer.error.message.includes("rank_frame_enabled"))
+      primaryPlayer.error.message.includes("rank_frame_enabled") ||
+      primaryPlayer.error.message.includes("profile_color") ||
+      primaryPlayer.error.message.includes("favorite_beer"))
   ) {
     const fallback = await supabaseServer
       .from("players")
@@ -142,7 +146,14 @@ export default async function PlayerPage({
       .maybeSingle();
 
     player = fallback.data
-      ? { ...fallback.data, rating_override: null, mmr_manual_override: false, rank_frame_enabled: true }
+      ? {
+          ...fallback.data,
+          rating_override: null,
+          mmr_manual_override: false,
+          rank_frame_enabled: true,
+          profile_color: null,
+          favorite_beer: null,
+        }
       : null;
     playerErr = fallback.error;
   }
@@ -298,6 +309,9 @@ export default async function PlayerPage({
   const currentRank = displayRankFromProgress(canShowRank, rankedMmr, rankedPrestigePoints);
   const currentRankLabel = rankLabel(currentRank);
   const rankFrameEnabled = player.rank_frame_enabled !== false;
+  const profileColor = typeof player.profile_color === "string" ? player.profile_color : null;
+  const favoriteBeer = typeof player.favorite_beer === "string" ? player.favorite_beer : null;
+  const profileStyle = playerToneStyle(profileColor);
   const profileRankFrameUrl = FRAME_BY_RANK[currentRank] ?? null;
   const historyRes = await supabaseServer
     .from("player_mmr_history")
@@ -324,7 +338,13 @@ export default async function PlayerPage({
       </div>
 
       <section className="player-grid mt-4">
-        <article className="profile-card profile-hero">
+        <article className="profile-card profile-hero player-tone-card" style={profileStyle}>
+          <ProfileSettingsButton
+            playerId={playerId}
+            initialRankFrameEnabled={rankFrameEnabled}
+            initialProfileColor={profileColor}
+            initialFavoriteBeer={favoriteBeer}
+          />
           <div className="profile-hero-top">
             {player.avatar_url ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -333,8 +353,15 @@ export default async function PlayerPage({
               <div className="profile-avatar profile-avatar-fallback">{player.name.slice(0, 1).toUpperCase()}</div>
             )}
 
-            <div>
-              <h1 className="profile-name">{player.name}</h1>
+            <div className="profile-hero-name-block">
+              <div className="profile-name-row">
+                <h1 className="profile-name">{player.name}</h1>
+                {favoriteBeer ? (
+                  <span className="profile-favorite-beer" title={`Ulubione piwo: ${favoriteBeer}`}>
+                    <BeerCan3D beer={{ name: favoriteBeer }} />
+                  </span>
+                ) : null}
+              </div>
               <p className="profile-muted">{player.active ? "aktywny" : "nieaktywny"}</p>
             </div>
           </div>
@@ -432,7 +459,6 @@ export default async function PlayerPage({
                   <span className="profile-rating-chip">Ranga: {currentRankLabel}</span>
                 </div>
                 <p className="profile-muted mt-1">Punkty prestige: {Number.isFinite(rankedPrestigePoints) ? rankedPrestigePoints : 0}</p>
-                <RankFrameToggle playerId={playerId} initialEnabled={rankFrameEnabled} />
                 {ratingsErr && <p className="profile-muted mt-1">Blad ocen: {ratingsErr.message}</p>}
                 {membershipsErr && <p className="profile-muted mt-1">Blad historii: {membershipsErr.message}</p>}
               </div>

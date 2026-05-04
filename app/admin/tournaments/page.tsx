@@ -28,6 +28,7 @@ type Tournament = {
   event_at?: string | null;
   event_location?: string | null;
   join_deadline_at?: string | null;
+  is_private?: boolean | null;
 };
 
 type AppBackgroundVariant = "finn_bmo" | "finn_beer";
@@ -60,6 +61,7 @@ export default function AdminTournamentsPage() {
   const [eventAt, setEventAt] = useState("");
   const [eventLocation, setEventLocation] = useState("");
   const [joinDeadlineAt, setJoinDeadlineAt] = useState("");
+  const [isPrivate, setIsPrivate] = useState(false);
   const [editingTournamentId, setEditingTournamentId] = useState<string | null>(null);
   const [editingStarted, setEditingStarted] = useState(false);
 
@@ -110,7 +112,7 @@ export default function AdminTournamentsPage() {
   }
 
   async function loadTournaments() {
-    const res = await fetch("/api/public/tournaments", { cache: "no-store" });
+    const res = await authedFetch("/api/public/tournaments", { cache: "no-store" });
     const json = await res.json().catch(() => ({}));
     if (res.ok) setTournaments(json.tournaments ?? []);
   }
@@ -127,6 +129,7 @@ export default function AdminTournamentsPage() {
     setEventAt("");
     setEventLocation("");
     setJoinDeadlineAt("");
+    setIsPrivate(false);
     setSelected({});
     setLocalAdminId("");
   }
@@ -152,6 +155,7 @@ export default function AdminTournamentsPage() {
     setEventAt(typeof tournament.event_at === "string" ? tournament.event_at.slice(0, 16) : "");
     setEventLocation(typeof tournament.event_location === "string" ? tournament.event_location : "");
     setJoinDeadlineAt(typeof tournament.join_deadline_at === "string" ? tournament.join_deadline_at.slice(0, 16) : "");
+    setIsPrivate(tournament.is_private === true);
 
     const nextSelected: Record<string, boolean> = {};
     for (const playerId of (json.playerIds ?? []) as string[]) {
@@ -174,7 +178,7 @@ export default function AdminTournamentsPage() {
       const [authRes, playersRes, tournamentsRes, backgroundRes] = await Promise.all([
         authedFetch("/api/auth/me", { cache: "no-store" }),
         authedFetch("/api/public/players/search?q=", { cache: "no-store" }),
-        fetch("/api/public/tournaments", { cache: "no-store" }),
+        authedFetch("/api/public/tournaments", { cache: "no-store" }),
         fetch("/api/public/background", { cache: "no-store" }),
       ]);
 
@@ -225,6 +229,7 @@ export default function AdminTournamentsPage() {
         eventAt,
         eventLocation,
         joinDeadlineAt,
+        isPrivate,
         playerIds: selectedIds,
         localAdminPlayerIds: localAdminIds,
       }),
@@ -242,6 +247,7 @@ export default function AdminTournamentsPage() {
     setEventAt("");
     setEventLocation("");
     setJoinDeadlineAt("");
+    setIsPrivate(false);
     setSelected({});
     setLocalAdminId("");
     await loadTournaments();
@@ -264,6 +270,7 @@ export default function AdminTournamentsPage() {
         eventAt,
         eventLocation,
         joinDeadlineAt,
+        isPrivate,
         playerIds: selectedIds,
         localAdminPlayerIds: localAdminIds,
       }),
@@ -702,6 +709,15 @@ export default function AdminTournamentsPage() {
                   />
                 </div>
 
+                <label className="tour-admin-check">
+                  <input
+                    type="checkbox"
+                    checked={isPrivate}
+                    onChange={(e) => setIsPrivate(e.target.checked)}
+                  />
+                  <span>Turniej prywatny</span>
+                </label>
+
                 <div>
                   <label className="tour-admin-label">Admin lokalny</label>
                   <select
@@ -841,6 +857,7 @@ export default function AdminTournamentsPage() {
                         <p className="tour-card-sub">
                           {t.mode === "ranked" ? "ranked" : "normal"} - {t.format} - BO{t.bo_default} - final BO{t.bo_finals}
                         </p>
+                        {t.is_private ? <p className="tour-card-sub">Prywatny</p> : null}
                       </div>
                       <div className="tour-admin-actions">
                         <Link className="tour-action-btn" href={`/tournaments/${t.id}`} onClick={(e) => e.stopPropagation()}>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabaseServer";
 import TrophyIcon from "@/app/components/TrophyIcon";
+import TournamentsPrivateList from "./TournamentsPrivateList";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ type TournamentRow = {
   event_at: string | null;
   event_location: string | null;
   join_deadline_at: string | null;
+  is_private?: boolean | null;
 };
 
 type PlayerBrief = { id: string; name: string };
@@ -94,7 +96,8 @@ function parseTeamName(value: unknown): string | null {
 export default async function TournamentsPage() {
   const primary = await supabaseServer
     .from("tournaments")
-    .select("id,name,created_at,format,mode,bo_default,bo_finals,event_at,event_location,join_deadline_at")
+    .select("id,name,created_at,format,mode,bo_default,bo_finals,event_at,event_location,join_deadline_at,is_private")
+    .or("is_private.is.null,is_private.eq.false")
     .order("created_at", { ascending: false });
 
   let data = primary.data;
@@ -104,7 +107,8 @@ export default async function TournamentsPage() {
     primary.error &&
     (primary.error.message.includes("event_at") ||
       primary.error.message.includes("event_location") ||
-      primary.error.message.includes("join_deadline_at"))
+      primary.error.message.includes("join_deadline_at") ||
+      primary.error.message.includes("is_private"))
   ) {
     const fallback = await supabaseServer
       .from("tournaments")
@@ -115,6 +119,7 @@ export default async function TournamentsPage() {
       event_at: null,
       event_location: null,
       join_deadline_at: null,
+      is_private: false,
     }));
     error = fallback.error;
   }
@@ -373,6 +378,7 @@ export default async function TournamentsPage() {
             })}
           </section>
         )}
+        <TournamentsPrivateList publicIds={tournamentIds} />
       </div>
     </main>
   );

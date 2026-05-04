@@ -1,21 +1,23 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { teamToneVars } from "@/lib/ui/teamTone";
+import { playerToneStyle } from "@/lib/ui/playerProfile";
 
 export const dynamic = "force-dynamic";
 
-type PlayerBrief = { id: string; name: string; avatarUrl: string | null };
+type PlayerBrief = { id: string; name: string; avatarUrl: string | null; profileColor: string | null };
 type TeamSummary = { id: string; name: string; players: PlayerBrief[] };
 
 function parsePlayerRef(value: unknown): PlayerBrief | null {
   const source = Array.isArray(value) ? value[0] : value;
   if (!source || typeof source !== "object") return null;
-  const p = source as { id?: unknown; name?: unknown; avatar_url?: unknown };
+  const p = source as { id?: unknown; name?: unknown; avatar_url?: unknown; profile_color?: unknown };
   if (typeof p.id !== "string" || typeof p.name !== "string") return null;
   return {
     id: p.id,
     name: p.name,
     avatarUrl: typeof p.avatar_url === "string" ? p.avatar_url : null,
+    profileColor: typeof p.profile_color === "string" ? p.profile_color : null,
   };
 }
 
@@ -46,7 +48,7 @@ export default async function TournamentTeamsPage({
 
     const { data: members } = await supabaseServer
       .from("team_members")
-      .select("team_id, players(id,name,avatar_url)")
+      .select("team_id, players(id,name,avatar_url,profile_color)")
       .in("team_id", teamIds);
 
     const rosterMap = new Map<string, PlayerBrief[]>();
@@ -108,7 +110,7 @@ export default async function TournamentTeamsPage({
                 ) : (
                   <div className="tour-players-grid mt-3">
                     {team.players.map((p) => (
-                      <Link key={p.id} className="tour-player-chip tour-player-chip-avatar" href={`/players/${p.id}`}>
+                      <Link key={p.id} className="tour-player-chip tour-player-chip-avatar player-tone-card" style={playerToneStyle(p.profileColor)} href={`/players/${p.id}`}>
                         {p.avatarUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={p.avatarUrl} alt="" className="tour-player-avatar" />
@@ -134,3 +136,6 @@ export default async function TournamentTeamsPage({
     </main>
   );
 }
+
+
+

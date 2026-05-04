@@ -1,14 +1,10 @@
 ﻿import Link from "next/link";
 import { supabaseServer } from "@/lib/supabaseServer";
-import { computeBeersFromFinishedMatches } from "@/lib/beers";
+import { beerOfTheDay, computeBeersFromFinishedMatches } from "@/lib/beers";
 import BeerCan3D from "@/app/components/BeerCan3D";
 import NearbyLiquorCompassCard from "@/app/components/NearbyLiquorCompassCard";
 
 export const dynamic = "force-dynamic";
-
-type BeerOfTheDay = {
-  name: string;
-};
 
 type WeatherData = {
   temp: number;
@@ -19,44 +15,6 @@ type WeatherData = {
   max: number;
   dayLabel: string;
 } | null;
-
-const BEER_LIST: BeerOfTheDay[] = [
-  { name: "Tatra" },
-  { name: "\u017Bywiec" },
-  { name: "Warka" },
-  { name: "Lech" },
-  { name: "\u0141om\u017Ca" },
-  { name: "Tyskie" },
-  { name: "Per\u0142a" },
-  { name: "Okocim" },
-  { name: "Harna\u015B" },
-  { name: "Kasztelan" },
-  { name: "Ksi\u0105\u017C\u0119ce" },
-  { name: "Kr\u00F3lewskie" },
-  { name: "Namys\u0142\u00F3w" },
-  { name: "Desperados" },
-  { name: "Heineken" },
-  { name: "Carlsberg" },
-  { name: "\u017Bubr" },
-  { name: "D\u0119bowe" },
-  { name: "Specjal" },
-  { name: "EB" },
-  { name: "Captain Jack" },
-  { name: "Guinness" },
-  { name: "Kozel" },
-  { name: "Pilsner Urquell" },
-  { name: "Budweiser" },
-  { name: "Bud Light" },
-  { name: "Beck\u2019s" },
-  { name: "Paulaner" },
-  { name: "Super Bock" },
-  { name: "Perlenbacher" },
-  { name: "Argus" },
-  { name: "Kustosz" },
-  { name: "Karpackie" },
-  { name: "Romper" },
-  { name: "Brok" },
-];
 
 const WEATHER_LABELS: Record<number, string> = {
   0: "Bezchmurnie",
@@ -81,14 +39,6 @@ const WEATHER_LABELS: Record<number, string> = {
   96: "Burza z gradem",
   99: "Silna burza z gradem",
 };
-
-function beerOfTheDay(dayKey: string): BeerOfTheDay {
-  let hash = 0;
-  for (let i = 0; i < dayKey.length; i++) {
-    hash = (hash * 33 + dayKey.charCodeAt(i)) >>> 0;
-  }
-  return BEER_LIST[hash % BEER_LIST.length];
-}
 
 function weatherLabel(code: number): string {
   return WEATHER_LABELS[code] ?? "Warunki zmienne";

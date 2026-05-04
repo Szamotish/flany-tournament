@@ -3,12 +3,13 @@ import TrophyIcon from "@/app/components/TrophyIcon";
 import BracketTree, { type BracketTreeRound } from "@/app/components/BracketTree";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { teamToneVars } from "@/lib/ui/teamTone";
+import { playerToneStyle } from "@/lib/ui/playerProfile";
 import { computeBeersFromFinishedMatches } from "@/lib/beers";
 import TournamentJoinActions from "./TournamentJoinActions";
 
 export const dynamic = "force-dynamic";
 
-type PlayerRef = { id: string; name: string; avatarUrl: string | null };
+type PlayerRef = { id: string; name: string; avatarUrl: string | null; profileColor: string | null };
 type Bracket = "single" | "winners" | "losers" | "grand_final";
 
 type MatchView = {
@@ -33,12 +34,13 @@ type ChampionData = {
 function parsePlayerRef(value: unknown): PlayerRef | null {
   const source = Array.isArray(value) ? value[0] : value;
   if (!source || typeof source !== "object") return null;
-  const player = source as { id?: unknown; name?: unknown; avatar_url?: unknown };
+  const player = source as { id?: unknown; name?: unknown; avatar_url?: unknown; profile_color?: unknown };
   if (typeof player.id !== "string" || typeof player.name !== "string") return null;
   return {
     id: player.id,
     name: player.name,
     avatarUrl: typeof player.avatar_url === "string" ? player.avatar_url : null,
+    profileColor: typeof player.profile_color === "string" ? player.profile_color : null,
   };
 }
 
@@ -100,7 +102,7 @@ export default async function TournamentPage({
       .maybeSingle(),
     supabaseServer
       .from("tournament_players")
-      .select("player_id, players(id,name,avatar_url)")
+      .select("player_id, players(id,name,avatar_url,profile_color)")
       .eq("tournament_id", id),
     supabaseServer
       .from("tournament_matches")
@@ -312,7 +314,12 @@ export default async function TournamentPage({
                   ) : (
                     <div className="tour-players-grid mt-3">
                       {players.map((p) => (
-                        <Link key={p.id} className="tour-player-chip tour-player-chip-avatar" href={`/players/${p.id}`}>
+                        <Link
+                          key={p.id}
+                          className="tour-player-chip tour-player-chip-avatar player-tone-card"
+                          style={playerToneStyle(p.profileColor)}
+                          href={`/players/${p.id}`}
+                        >
                           {p.avatarUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={p.avatarUrl} alt="" className="tour-player-avatar" />

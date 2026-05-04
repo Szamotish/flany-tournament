@@ -34,7 +34,7 @@ export async function GET(
   const [tournamentRes, playersRes, adminsRes, startedRes] = await Promise.all([
     supabaseServer
       .from("tournaments")
-      .select("id,name,created_at,format,mode,bo_default,bo_finals,gf_reset_enabled,event_at,event_location,join_deadline_at")
+      .select("id,name,created_at,format,mode,bo_default,bo_finals,gf_reset_enabled,event_at,event_location,join_deadline_at,is_private")
       .eq("id", tournamentId)
       .maybeSingle(),
     supabaseServer
@@ -94,6 +94,7 @@ export async function PATCH(
   const eventAtRaw = typeof body?.eventAt === "string" ? body.eventAt.trim() : "";
   const joinDeadlineAtRaw = typeof body?.joinDeadlineAt === "string" ? body.joinDeadlineAt.trim() : "";
   const eventLocation = typeof body?.eventLocation === "string" ? body.eventLocation.trim().slice(0, 140) : "";
+  const isPrivate = body?.isPrivate === true;
 
   const playerIds: string[] = Array.isArray(body?.playerIds)
     ? Array.from(new Set(body.playerIds.map((value: unknown) => String(value)).filter(Boolean)))
@@ -170,9 +171,10 @@ export async function PATCH(
       event_at: eventAt ? eventAt.toISOString() : null,
       event_location: eventLocation || null,
       join_deadline_at: joinDeadlineAt ? joinDeadlineAt.toISOString() : null,
+      is_private: isPrivate,
     })
     .eq("id", tournamentId)
-    .select("id,name,format,mode,bo_default,bo_finals,gf_reset_enabled,event_at,event_location,join_deadline_at")
+    .select("id,name,format,mode,bo_default,bo_finals,gf_reset_enabled,event_at,event_location,join_deadline_at,is_private")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -201,7 +203,7 @@ export async function PATCH(
     action: "tournament_update",
     targetType: "tournament",
     targetId: tournamentId,
-    metadata: { started: started.started, playerCount: playerIds.length, localAdminCount: localAdminPlayerIds.length },
+    metadata: { started: started.started, playerCount: playerIds.length, localAdminCount: localAdminPlayerIds.length, isPrivate },
   });
 
   return NextResponse.json({ tournament: data, started: started.started });

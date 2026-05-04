@@ -22,6 +22,7 @@ export async function POST(req: Request) {
   const joinDeadlineAtRaw =
     typeof body?.joinDeadlineAt === "string" ? body.joinDeadlineAt.trim() : "";
   const eventLocation = typeof body?.eventLocation === "string" ? body.eventLocation.trim().slice(0, 140) : "";
+  const isPrivate = body?.isPrivate === true;
 
   const playerIds: string[] = Array.isArray(body?.playerIds)
     ? Array.from(new Set(body.playerIds.map((value: unknown) => String(value)).filter(Boolean)))
@@ -119,6 +120,7 @@ export async function POST(req: Request) {
     event_at: eventAt ? eventAt.toISOString() : null,
     event_location: eventLocation || null,
     join_deadline_at: joinDeadlineAt ? joinDeadlineAt.toISOString() : null,
+    is_private: isPrivate,
   };
   const legacyTournamentInsert = {
     name,
@@ -145,7 +147,8 @@ export async function POST(req: Request) {
     insertPrimary.error &&
     (insertPrimary.error.message.includes("event_at") ||
       insertPrimary.error.message.includes("event_location") ||
-      insertPrimary.error.message.includes("join_deadline_at"))
+      insertPrimary.error.message.includes("join_deadline_at") ||
+      insertPrimary.error.message.includes("is_private"))
   ) {
     const retryLegacy = await supabaseServer
       .from("tournaments")
@@ -202,6 +205,7 @@ export async function POST(req: Request) {
       format,
       playerCount: playerIds.length,
       localAdminCount: localAdminPlayerIds.length,
+      isPrivate,
     },
   });
 

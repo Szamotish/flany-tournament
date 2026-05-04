@@ -2,13 +2,15 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { trimmedMean } from "@/lib/rating";
 import { readAuthContext } from "@/app/api/admin/_auth";
+import { isKnownBeerName } from "@/lib/beers";
+import { normalizeProfileColor } from "@/lib/ui/playerProfile";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: playerId } = await params;
 
   const primaryPlayer = await supabaseServer
     .from("players")
-    .select("id,name,active,avatar_url,mmr,prestige_points,rating_override,rank_frame_enabled")
+    .select("id,name,active,avatar_url,mmr,prestige_points,rating_override,rank_frame_enabled,profile_color,favorite_beer")
     .eq("id", playerId)
     .maybeSingle();
 
@@ -18,7 +20,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (
     primaryPlayer.error &&
     (primaryPlayer.error.message.includes("rank_frame_enabled") ||
-      primaryPlayer.error.message.includes("rating_override"))
+      primaryPlayer.error.message.includes("rating_override") ||
+      primaryPlayer.error.message.includes("profile_color") ||
+      primaryPlayer.error.message.includes("favorite_beer"))
   ) {
     const fallback = await supabaseServer
       .from("players")
@@ -26,7 +30,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       .eq("id", playerId)
       .maybeSingle();
 
-    player = fallback.data ? { ...fallback.data, rating_override: null, rank_frame_enabled: true } : null;
+    player = fallback.data
+      ? { ...fallback.data, rating_override: null, rank_frame_enabled: true, profile_color: null, favorite_beer: null }
+      : null;
     pErr = fallback.error;
   }
 
@@ -145,8 +151,37 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 
   const body = await req.json().catch(() => null);
-  if (typeof body?.rankFrameEnabled !== "boolean") {
-    return NextResponse.json({ error: "invalid_rankFrameEnabled" }, { status: 400 });
+  const update: {
+    rank_frame_enabled?: boolean;
+    profile_color?: string | null;
+    favorite_beer?: string | null;
+  } = {};
+
+  if (Object.prototype.hasOwnProperty.call(body ?? {}, "rankFrameEnabled")) {
+    if (typeof body?.rankFrameEnabled !== "boolean") {
+      return NextResponse.json({ error: "invalid_rankFrameEnabled" }, { status: 400 });
+    }
+    update.rank_frame_enabled = body.rankFrameEnabled;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body ?? {}, "profileColor")) {
+    const color = normalizeProfileColor(body?.profileColor);
+    if (body?.profileColor && !color) {
+      return NextResponse.json({ error: "invalid_profileColor" }, { status: 400 });
+    }
+    update.profile_color = color;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body ?? {}, "favoriteBeer")) {
+    const beer = typeof body?.favoriteBeer === "string" ? body.favoriteBeer.trim() : "";
+    if (beer && !isKnownBeerName(beer)) {
+      return NextResponse.json({ error: "invalid_favoriteBeer" }, { status: 400 });
+    }
+    update.favorite_beer = beer || null;
+  }
+
+  if (Object.keys(update).length === 0) {
+    return NextResponse.json({ error: "no_profile_settings" }, { status: 400 });
   }
 
   const { data: player, error: pErr } = await supabaseServer
@@ -160,14 +195,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const { data: updated, error: uErr } = await supabaseServer
     .from("players")
-    .update({ rank_frame_enabled: body.rankFrameEnabled })
+    .update(update)
     .eq("id", playerId)
-    .select("id,rank_frame_enabled")
+    .select("id,rank_frame_enabled,profile_color,favorite_beer")
     .single();
 
   if (uErr) {
     if (uErr.message.includes("rank_frame_enabled")) {
       return NextResponse.json({ error: "missing_rank_frame_enabled_column" }, { status: 500 });
+    }
+    if (uErr.message.includes("profile_color") || uErr.message.includes("favorite_beer")) {
+      return NextResponse.json({ error: "missing_profile_settings_columns" }, { status: 500 });
     }
     return NextResponse.json({ error: uErr.message }, { status: 500 });
   }
@@ -176,6 +214,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     player: {
       id: updated.id,
       rankFrameEnabled: updated.rank_frame_enabled === true,
+      profileColor: updated.profile_color ?? null,
+      favoriteBeer: updated.favorite_beer ?? null,
     },
   });
 }

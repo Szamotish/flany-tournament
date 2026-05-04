@@ -2,6 +2,7 @@ import Link from "next/link";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { trimmedMean } from "@/lib/rating";
 import { loadPlayerPerformance } from "@/lib/playerPerformance";
+import { playerToneStyle } from "@/lib/ui/playerProfile";
 import {
   FRAME_BY_RANK,
   canShowRankFromMmr,
@@ -21,6 +22,8 @@ type PlayerRow = {
   rating_override?: number | null;
   mmr_manual_override?: boolean | null;
   rank_frame_enabled?: boolean | null;
+  profile_color?: string | null;
+  favorite_beer?: string | null;
 };
 
 type CooldownState = "ready" | "cooldown" | "soon";
@@ -54,7 +57,7 @@ function formatMmr(value: number | null): string {
 
 export default async function PlayersPage() {
   const selectWithSettings =
-    "id,name,active,avatar_url,mmr,prestige_points,rating_override,mmr_manual_override,rank_frame_enabled";
+    "id,name,active,avatar_url,mmr,prestige_points,rating_override,mmr_manual_override,rank_frame_enabled,profile_color,favorite_beer";
   const selectLegacy = "id,name,active,avatar_url,mmr,prestige_points";
 
   const primaryPlayers = await supabaseServer
@@ -70,7 +73,9 @@ export default async function PlayersPage() {
     primaryPlayers.error &&
     (primaryPlayers.error.message.includes("mmr_manual_override") ||
       primaryPlayers.error.message.includes("rating_override") ||
-      primaryPlayers.error.message.includes("rank_frame_enabled"))
+      primaryPlayers.error.message.includes("rank_frame_enabled") ||
+      primaryPlayers.error.message.includes("profile_color") ||
+      primaryPlayers.error.message.includes("favorite_beer"))
   ) {
     const fallback = await supabaseServer
       .from("players")
@@ -83,6 +88,8 @@ export default async function PlayersPage() {
       mmr_manual_override: false,
       rating_override: null,
       rank_frame_enabled: true,
+      profile_color: null,
+      favorite_beer: null,
     }));
     error = fallback.error;
   }
@@ -180,7 +187,7 @@ export default async function PlayersPage() {
 
             return (
               <Link key={p.id} href={`/players/${p.id}`} className="block min-w-0 no-underline">
-                <div className={`player-rank-card ${frameClass}`}>
+                <div className={`player-rank-card ${frameClass} player-tone-card`} style={playerToneStyle(p.profile_color)}>
                   <div className="player-rank-main">
                     <span className={`player-rank-avatar-wrap${frameUrl ? " has-frame" : ""}`}>
                       <span className="player-rank-avatar">
