@@ -103,9 +103,6 @@ export default function RulesPageClient({ tournamentId }: { tournamentId: string
               <div className="tour-rules-scroll" aria-label="Zasady turnieju">
                 <div className="tour-rules-scroll-content">
                   <h1>Zasady</h1>
-                  <p className="tour-rules-scroll-source">
-                    {rules?.source === "custom" ? "Zasady tego turnieju" : "Domyslny szablon zasad"}
-                  </p>
                   <pre className="tour-rules-pre">{rules?.content ?? "Ladowanie zasad..."}</pre>
                 </div>
               </div>

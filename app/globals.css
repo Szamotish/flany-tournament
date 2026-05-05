@@ -1241,7 +1241,7 @@ body {
 
 .tour-rules-scroll-content {
   position: absolute;
-  inset: 18.5% 19.5% 14.5%;
+  inset: 18.5% 24% 14.5%;
   overflow: auto;
   color: #3a2109;
   text-align: left;
@@ -1260,22 +1260,12 @@ body {
 }
 
 .tour-rules-scroll-content h1 {
-  margin: 0;
+  margin: 0 0 1.25rem;
   text-align: center;
   font-size: clamp(2rem, 4.4vw, 3.7rem);
   line-height: 0.95;
   letter-spacing: -0.05em;
   text-shadow: 0 1px 0 rgba(255, 239, 193, 0.6);
-}
-
-.tour-rules-scroll-source {
-  margin: 0.45rem 0 1.1rem;
-  text-align: center;
-  font-size: clamp(0.78rem, 1.2vw, 1rem);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(74, 42, 10, 0.76);
 }
 
 .tour-rules-pre {
@@ -1301,7 +1291,7 @@ body {
   }
 
   .tour-rules-scroll-content {
-    inset: 18.8% 18% 14.8%;
+    inset: 18.8% 22.5% 14.8%;
   }
 
   .tour-rules-pre {
