@@ -1222,12 +1222,92 @@ body {
   line-height: 1.45;
 }
 
+.tour-rules-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.tour-rules-scroll {
+  position: relative;
+  width: min(680px, 100%);
+  aspect-ratio: 2 / 3;
+  background-image: url("/scroll.png");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  filter: drop-shadow(0 20px 34px rgba(44, 24, 5, 0.34));
+}
+
+.tour-rules-scroll-content {
+  position: absolute;
+  inset: 18.5% 19.5% 14.5%;
+  overflow: auto;
+  color: #3a2109;
+  text-align: left;
+  font-family: "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(102, 55, 13, 0.55) transparent;
+}
+
+.tour-rules-scroll-content::-webkit-scrollbar {
+  width: 7px;
+}
+
+.tour-rules-scroll-content::-webkit-scrollbar-thumb {
+  background: rgba(102, 55, 13, 0.45);
+  border-radius: 999px;
+}
+
+.tour-rules-scroll-content h1 {
+  margin: 0;
+  text-align: center;
+  font-size: clamp(2rem, 4.4vw, 3.7rem);
+  line-height: 0.95;
+  letter-spacing: -0.05em;
+  text-shadow: 0 1px 0 rgba(255, 239, 193, 0.6);
+}
+
+.tour-rules-scroll-source {
+  margin: 0.45rem 0 1.1rem;
+  text-align: center;
+  font-size: clamp(0.78rem, 1.2vw, 1rem);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(74, 42, 10, 0.76);
+}
+
 .tour-rules-pre {
   margin: 0;
   white-space: pre-wrap;
   font: inherit;
-  line-height: 1.55;
-  color: var(--ink);
+  font-size: clamp(0.95rem, 1.25vw, 1.18rem);
+  line-height: 1.58;
+  color: inherit;
+  text-shadow: 0 1px 0 rgba(255, 242, 203, 0.42);
+}
+
+.tour-rules-actions {
+  justify-content: center;
+  margin-top: -0.4rem;
+}
+
+@media (max-width: 700px) {
+  .tour-rules-scroll {
+    width: min(112vw, 520px);
+    max-width: none;
+    margin-inline: -6vw;
+  }
+
+  .tour-rules-scroll-content {
+    inset: 18.8% 18% 14.8%;
+  }
+
+  .tour-rules-pre {
+    font-size: clamp(0.86rem, 3.2vw, 1rem);
+    line-height: 1.48;
+  }
 }
 
 .tour-card-clickable {

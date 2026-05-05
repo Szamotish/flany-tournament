@@ -76,18 +76,15 @@ export default function RulesPageClient({ tournamentId }: { tournamentId: string
           <span className="tour-kicker">Zasady turnieju</span>
         </div>
 
-        <section className="tour-detail-main mt-4">
-          <h1 className="tour-title">Zasady</h1>
-          <p className="tour-muted mt-1">
-            {rules?.source === "custom" ? "Zasady ustawione dla tego turnieju." : "Pokazujemy domyslny szablon zasad."}
-          </p>
-        </section>
-
-        <section className="tour-admin-panel mt-4">
+        <section className="tour-rules-stage mt-4">
           {editing ? (
-            <>
+            <div className="tour-admin-panel">
+              <h1 className="tour-title">Edytuj zasady</h1>
+              <p className="tour-muted mt-1">
+                Ten tekst bedzie pokazany graczom na pergaminie zasad turnieju.
+              </p>
               <textarea
-                className="tour-admin-input tour-rules-textarea"
+                className="tour-admin-input tour-rules-textarea mt-4"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 rows={14}
@@ -100,12 +97,20 @@ export default function RulesPageClient({ tournamentId }: { tournamentId: string
                   Anuluj
                 </button>
               </div>
-            </>
+            </div>
           ) : (
             <>
-              <pre className="tour-rules-pre">{rules?.content ?? "Ladowanie zasad..."}</pre>
+              <div className="tour-rules-scroll" aria-label="Zasady turnieju">
+                <div className="tour-rules-scroll-content">
+                  <h1>Zasady</h1>
+                  <p className="tour-rules-scroll-source">
+                    {rules?.source === "custom" ? "Zasady tego turnieju" : "Domyslny szablon zasad"}
+                  </p>
+                  <pre className="tour-rules-pre">{rules?.content ?? "Ladowanie zasad..."}</pre>
+                </div>
+              </div>
               {isTournamentAdmin ? (
-                <div className="tour-admin-actions mt-3">
+                <div className="tour-admin-actions tour-rules-actions">
                   <button className="tour-action-btn" type="button" onClick={() => setEditing(true)}>
                     Edytuj zasady
                   </button>
