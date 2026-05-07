@@ -114,6 +114,16 @@ export default function AdminTournamentsPage() {
     [localAdminSelectedIds, localAdminOptions]
   );
 
+  function toggleLocalAdmin(playerId: string, checked: boolean) {
+    setLocalAdminSelectedIds((prev) => {
+      if (checked) {
+        if (prev.includes(playerId)) return prev;
+        return [...prev, playerId];
+      }
+      return prev.filter((id) => id !== playerId);
+    });
+  }
+
   async function loadPlayers(query: string) {
     const res = await authedFetch(`/api/public/players/search?q=${encodeURIComponent(query)}`, {
       cache: "no-store",
@@ -675,7 +685,7 @@ export default function AdminTournamentsPage() {
                   </select>
                 </div>
 
-                <div>
+                <div className={format === "one_vs_one" ? "tour-admin-field-disabled" : ""}>
                   <label className="tour-admin-label">BO finalu</label>
                   <select
                     className="tour-admin-input"
@@ -693,7 +703,7 @@ export default function AdminTournamentsPage() {
                 </div>
                 {format === "one_vs_one" ? <p className="tour-muted">W 1v1 pole BO finalu nie jest uzywane.</p> : null}
 
-                <div>
+                <div className={format === "one_vs_one" ? "tour-admin-field-disabled" : ""}>
                   <label className="tour-admin-label">Grand final reset</label>
                   <select
                     className="tour-admin-input"
@@ -749,22 +759,22 @@ export default function AdminTournamentsPage() {
 
                 <div>
                   <label className="tour-admin-label">Admini lokalni</label>
-                  <select
-                    className="tour-admin-input"
-                    value={localAdminIds}
-                    multiple
-                    size={Math.min(6, Math.max(3, localAdminOptions.length || 3))}
-                    onChange={(e) => {
-                      const values = Array.from(e.target.selectedOptions).map((option) => option.value);
-                      setLocalAdminSelectedIds(values);
-                    }}
-                  >
-                    {localAdminOptions.map((player) => (
-                      <option key={player.id} value={player.id}>
-                        {player.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="tour-admin-checklist">
+                    {localAdminOptions.length === 0 ? (
+                      <span className="tour-muted">Brak dostepnych zawodnikow z kontem.</span>
+                    ) : (
+                      localAdminOptions.map((player) => (
+                        <label key={player.id} className="tour-admin-checklist-item">
+                          <input
+                            type="checkbox"
+                            checked={localAdminIds.includes(player.id)}
+                            onChange={(e) => toggleLocalAdmin(player.id, e.target.checked)}
+                          />
+                          <span>{player.name}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
                   <p className="tour-muted mt-1">
                     {localAdminOptions.length === 0
                       ? "Najpierw zaznacz zawodnikow z kontem."
@@ -772,7 +782,7 @@ export default function AdminTournamentsPage() {
                         ? `Wybrani (${localAdminIds.length}): ${localAdminIds
                             .map((id) => localAdminOptions.find((player) => player.id === id)?.name ?? id)
                             .join(", ")}`
-                        : "Mozesz zaznaczyc wiecej niz jednego admina (Ctrl/Cmd + klik)."}
+                        : "Zaznacz checkboxy przy zawodnikach, ktorzy maja byc adminami lokalnymi."}
                   </p>
                 </div>
               </div>

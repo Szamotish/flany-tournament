@@ -2026,6 +2026,36 @@ body {
   color: inherit;
 }
 
+.tour-admin-input:disabled {
+  background: rgba(225, 230, 236, 0.78);
+  color: rgba(68, 52, 30, 0.6);
+  border-color: rgba(80, 48, 8, 0.2);
+  cursor: not-allowed;
+}
+
+.tour-admin-field-disabled {
+  opacity: 0.78;
+}
+
+.tour-admin-checklist {
+  border: 1px solid rgba(80, 48, 8, 0.2);
+  border-radius: 0.76rem;
+  background: rgba(255, 255, 255, 0.6);
+  max-height: 10.5rem;
+  overflow: auto;
+  padding: 0.35rem 0.45rem;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.tour-admin-checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  line-height: 1.2;
+}
+
 .tour-admin-actions {
   display: flex;
   flex-wrap: wrap;
