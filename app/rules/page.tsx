@@ -20,7 +20,7 @@ export default async function RulesPage() {
           <div className="tour-rules-tablet" aria-label="Bazowe zasady main admina">
             <div className="tour-rules-tablet-content">
               <h1>PRZYKAZANIA</h1>
-              <pre className="tour-rules-pre">{content}</pre>
+              <pre className="tour-rules-pre tour-rules-pre-tablet">{content}</pre>
             </div>
           </div>
         </section>
