@@ -1284,6 +1284,8 @@ body {
   line-height: 1.52;
   padding-inline: 0.36rem;
   text-indent: 1.1em;
+  font-weight: 620;
+  text-shadow: 0 1px 0 rgba(250, 242, 228, 0.55);
 }
 
 .tour-rules-actions {
@@ -1309,12 +1311,19 @@ body {
 
 .tour-rules-tablet-content {
   position: absolute;
-  inset: 12% 26% 14%;
+  top: 12%;
+  bottom: 14%;
+  left: 50%;
+  width: 42%;
+  transform: translateX(-50%);
   overflow: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(74, 54, 37, 0.52) transparent;
-  color: #3f3023;
+  color: #2b1f15;
   text-align: left;
+  background: rgba(238, 227, 207, 0.24);
+  border-radius: 0.56rem;
+  padding: 0.42rem 0.52rem;
 }
 
 .tour-rules-tablet-content::-webkit-scrollbar {
@@ -1363,7 +1372,10 @@ body {
   }
 
   .tour-rules-tablet-content {
-    inset: 11% 21% 12%;
+    top: 11%;
+    bottom: 12%;
+    width: 54%;
+    padding: 0.35rem 0.42rem;
   }
 
   .tour-rules-pre-tablet {
