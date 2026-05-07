@@ -4,6 +4,7 @@ import { writeAuditLog } from "@/lib/auditLog";
 import { notifyTournamentInvite } from "@/lib/emailNotifications";
 import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { isOneVsOneFormat, ONE_V_ONE_PLAYER_LIMIT } from "@/lib/tournamentFormat";
 
 async function hasTournamentStarted(tournamentId: string): Promise<boolean> {
   const { count } = await supabaseServer
@@ -71,6 +72,19 @@ export async function POST(
 
   if (await hasTournamentStarted(tournamentId)) {
     return NextResponse.json({ error: "tournament_already_started" }, { status: 400 });
+  }
+
+  const [tournamentFormatRes, countRes] = await Promise.all([
+    supabaseServer.from("tournaments").select("format").eq("id", tournamentId).maybeSingle(),
+    supabaseServer
+      .from("tournament_players")
+      .select("*", { count: "exact", head: true })
+      .eq("tournament_id", tournamentId),
+  ]);
+  if (tournamentFormatRes.error) return NextResponse.json({ error: tournamentFormatRes.error.message }, { status: 500 });
+  if (countRes.error) return NextResponse.json({ error: countRes.error.message }, { status: 500 });
+  if (isOneVsOneFormat(tournamentFormatRes.data?.format) && (countRes.count ?? 0) >= ONE_V_ONE_PLAYER_LIMIT) {
+    return NextResponse.json({ error: "tournament_1v1_player_limit_reached" }, { status: 400 });
   }
 
   const body = await req.json().catch(() => null);

@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { MouseEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { authedFetch } from "@/lib/authClient";
+import { ONE_V_ONE_PLAYER_LIMIT } from "@/lib/tournamentFormat";
 
 type Player = {
   id: string;
@@ -20,7 +21,7 @@ type Tournament = {
   id: string;
   name: string;
   created_at: string;
-  format: "single_elim" | "double_elim";
+  format: "single_elim" | "double_elim" | "one_vs_one";
   mode: "normal" | "ranked";
   bo_default: 1 | 3 | 5;
   bo_finals: 1 | 3 | 5;
@@ -40,6 +41,12 @@ function parseBo(value: string): 1 | 3 | 5 | null {
   return null;
 }
 
+function formatLabel(value: Tournament["format"]): string {
+  if (value === "double_elim") return "Double elimination";
+  if (value === "one_vs_one") return "1v1";
+  return "Single elimination";
+}
+
 function mapApiError(error: unknown): string {
   const text = String(error ?? "");
   if (text.includes("forbidden_main_admin_only")) return "Ta akcja wymaga roli Main Admin.";
@@ -53,7 +60,7 @@ function mapApiError(error: unknown): string {
 export default function AdminTournamentsPage() {
   const [isMainAdmin, setIsMainAdmin] = useState<boolean | null>(null);
   const [name, setName] = useState("");
-  const [format, setFormat] = useState<"single_elim" | "double_elim">("double_elim");
+  const [format, setFormat] = useState<"single_elim" | "double_elim" | "one_vs_one">("double_elim");
   const [mode, setMode] = useState<"normal" | "ranked">("normal");
   const [boDefault, setBoDefault] = useState<1 | 3 | 5>(1);
   const [boFinals, setBoFinals] = useState<1 | 3 | 5>(3);
@@ -85,6 +92,11 @@ export default function AdminTournamentsPage() {
     () => Object.entries(selected).filter(([, v]) => v).map(([id]) => id),
     [selected]
   );
+  const maxSelectedPlayers = format === "one_vs_one" ? ONE_V_ONE_PLAYER_LIMIT : Number.POSITIVE_INFINITY;
+  const selectedCountValid =
+    format === "one_vs_one"
+      ? selectedIds.length === ONE_V_ONE_PLAYER_LIMIT
+      : selectedIds.length >= 2;
   const localAdminOptions = useMemo(
     () =>
       selectedIds
@@ -147,7 +159,11 @@ export default function AdminTournamentsPage() {
     setEditingTournamentId(tournamentId);
     setEditingStarted(json.started === true);
     setName(tournament.name ?? "");
-    setFormat(tournament.format === "single_elim" ? "single_elim" : "double_elim");
+    if (tournament.format === "double_elim" || tournament.format === "one_vs_one") {
+      setFormat(tournament.format);
+    } else {
+      setFormat("single_elim");
+    }
     setMode(tournament.mode === "ranked" ? "ranked" : "normal");
     setBoDefault(parseBo(String(tournament.bo_default)) ?? 1);
     setBoFinals(parseBo(String(tournament.bo_finals)) ?? 3);
@@ -212,6 +228,19 @@ export default function AdminTournamentsPage() {
       setLocalAdminId("");
     }
   }, [localAdminId, localAdminOptions]);
+
+  useEffect(() => {
+    if (format !== "one_vs_one" || selectedIds.length <= ONE_V_ONE_PLAYER_LIMIT) return;
+    const keep = new Set(selectedIds.slice(0, ONE_V_ONE_PLAYER_LIMIT));
+    setSelected((prev) => {
+      const next: Record<string, boolean> = {};
+      for (const id of Object.keys(prev)) {
+        next[id] = keep.has(id);
+      }
+      return next;
+    });
+    setMsg("Format 1v1: pozostawiono pierwszych 2 zaznaczonych zawodnikow.");
+  }, [format, selectedIds]);
 
   async function createTournament() {
     setMsg(null);
@@ -605,13 +634,14 @@ export default function AdminTournamentsPage() {
                     value={format}
                     onChange={(e) => {
                       const value = e.target.value;
-                      if (value === "single_elim" || value === "double_elim") {
+                      if (value === "single_elim" || value === "double_elim" || value === "one_vs_one") {
                         setFormat(value);
                       }
                     }}
                   >
                     <option value="double_elim">Double elimination</option>
                     <option value="single_elim">Single elimination</option>
+                    <option value="one_vs_one">1v1</option>
                   </select>
                 </div>
 
@@ -653,6 +683,7 @@ export default function AdminTournamentsPage() {
                   <select
                     className="tour-admin-input"
                     value={boFinals}
+                    disabled={format === "one_vs_one"}
                     onChange={(e) => {
                       const parsed = parseBo(e.target.value);
                       if (parsed) setBoFinals(parsed);
@@ -663,20 +694,21 @@ export default function AdminTournamentsPage() {
                     <option value={5}>BO5</option>
                   </select>
                 </div>
+                {format === "one_vs_one" ? <p className="tour-muted">W 1v1 pole BO finalu nie jest uzywane.</p> : null}
 
-                {format === "double_elim" ? (
-                  <div>
-                    <label className="tour-admin-label">Grand final reset</label>
-                    <select
-                      className="tour-admin-input"
-                      value={gfResetEnabled ? "with_reset" : "no_reset"}
-                      onChange={(e) => setGfResetEnabled(e.target.value === "with_reset")}
-                    >
-                      <option value="with_reset">Z resetem (2 mecze gdy WB przegra GF1)</option>
-                      <option value="no_reset">Bez resetu (jeden final)</option>
-                    </select>
-                  </div>
-                ) : null}
+                <div>
+                  <label className="tour-admin-label">Grand final reset</label>
+                  <select
+                    className="tour-admin-input"
+                    value={gfResetEnabled ? "with_reset" : "no_reset"}
+                    disabled={format !== "double_elim"}
+                    onChange={(e) => setGfResetEnabled(e.target.value === "with_reset")}
+                  >
+                    <option value="with_reset">Z resetem (2 mecze gdy WB przegra GF1)</option>
+                    <option value="no_reset">Bez resetu (jeden final)</option>
+                  </select>
+                </div>
+                {format === "one_vs_one" ? <p className="tour-muted">W 1v1 pole grand final reset nie jest uzywane.</p> : null}
 
                 <div>
                   <label className="tour-admin-label">Data i godzina turnieju</label>
@@ -762,7 +794,12 @@ export default function AdminTournamentsPage() {
                     onClick={() => {
                       setSelected((prev) => {
                         const next = { ...prev };
-                        for (const p of players) next[p.id] = true;
+                        if (format === "one_vs_one") {
+                          const firstTwo = players.slice(0, ONE_V_ONE_PLAYER_LIMIT);
+                          for (const p of firstTwo) next[p.id] = true;
+                        } else {
+                          for (const p of players) next[p.id] = true;
+                        }
                         return next;
                       });
                     }}
@@ -772,6 +809,7 @@ export default function AdminTournamentsPage() {
                 </div>
 
                 <p className="tour-muted mt-2">Wybrani: {selectedIds.length}</p>
+                {format === "one_vs_one" ? <p className="tour-muted">Limit dla 1v1: dokladnie 2 zawodnikow.</p> : null}
                 <p className="tour-muted">Lokalni admini: {localAdminIds.length}</p>
 
                 <div className="tour-admin-player-list mt-2" onScroll={() => setPlayerActionMenu(null)}>
@@ -783,7 +821,16 @@ export default function AdminTournamentsPage() {
                           <input
                             type="checkbox"
                             checked={selectedNow}
-                            onChange={(e) => setSelected((s) => ({ ...s, [p.id]: e.target.checked }))}
+                            onChange={(e) =>
+                              setSelected((s) => {
+                                if (!e.target.checked) return { ...s, [p.id]: false };
+                                const alreadySelected = Object.values(s).filter(Boolean).length;
+                                if (format === "one_vs_one" && !s[p.id] && alreadySelected >= maxSelectedPlayers) {
+                                  return s;
+                                }
+                                return { ...s, [p.id]: true };
+                              })
+                            }
                           />
                           <span className="tour-admin-player-name">{p.name}</span>
                         </div>
@@ -811,7 +858,7 @@ export default function AdminTournamentsPage() {
               <div className="tour-admin-actions">
                 <button
                   className="tour-action-btn"
-                  disabled={!name || selectedIds.length < 2 || localAdminIds.length < 1}
+                  disabled={!name || !selectedCountValid || localAdminIds.length < 1}
                   onClick={editingTournamentId ? saveTournamentChanges : createTournament}
                 >
                   {editingTournamentId ? "Zapisz zmiany" : "Utworz turniej"}
@@ -855,7 +902,7 @@ export default function AdminTournamentsPage() {
                       <div>
                         <p className="tour-card-title">{t.name}</p>
                         <p className="tour-card-sub">
-                          {t.mode === "ranked" ? "ranked" : "normal"} - {t.format} - BO{t.bo_default} - final BO{t.bo_finals}
+                          {t.mode === "ranked" ? "ranked" : "normal"} - {formatLabel(t.format)} - BO{t.bo_default} - final BO{t.bo_finals}
                         </p>
                         {t.is_private ? <p className="tour-card-sub">Prywatny</p> : null}
                       </div>

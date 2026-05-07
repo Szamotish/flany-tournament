@@ -1,4 +1,5 @@
 import { supabaseServer } from "@/lib/supabaseServer";
+import { usesSingleBracket } from "@/lib/tournamentFormat";
 
 type RoundMatch = {
   id: string;
@@ -24,7 +25,7 @@ export async function autoAdvanceSingleElim(tournamentId: string) {
     .single();
 
   if (tErr) throw new Error(tErr.message);
-  if (t.format !== "single_elim") return { createdRounds: 0, done: false, championTeamId: null as string | null };
+  if (!usesSingleBracket(t.format)) return { createdRounds: 0, done: false, championTeamId: null as string | null };
 
   let createdRounds = 0;
 

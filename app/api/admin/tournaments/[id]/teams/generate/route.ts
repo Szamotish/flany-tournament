@@ -5,6 +5,7 @@ import { assertTournamentAdmin } from "@/app/api/admin/tournaments/_auth";
 import { writeAuditLog } from "@/lib/auditLog";
 import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { loadPlayerPerformance } from "@/lib/playerPerformance";
+import { isOneVsOneFormat, ONE_V_ONE_PLAYER_LIMIT } from "@/lib/tournamentFormat";
 
 type TournamentPlayer = {
   id: string;
@@ -100,11 +101,21 @@ export async function POST(
     | "overwrite";
   const generationMode = body?.generationMode === "full_random" ? "full_random" : "balanced";
 
-  if (!Number.isInteger(teamSize) || teamSize < 2 || teamSize > 20) {
-    return NextResponse.json({ error: "invalid_teamSize" }, { status: 400 });
-  }
   if (!Number.isInteger(iterations) || iterations < 1 || iterations > 5000) {
     return NextResponse.json({ error: "invalid_iterations" }, { status: 400 });
+  }
+
+  const tournamentRes = await supabaseServer
+    .from("tournaments")
+    .select("format")
+    .eq("id", tournamentId)
+    .maybeSingle();
+
+  if (tournamentRes.error) return NextResponse.json({ error: tournamentRes.error.message }, { status: 500 });
+
+  const isOneVsOne = isOneVsOneFormat(tournamentRes.data?.format);
+  if (!Number.isInteger(teamSize) || teamSize < (isOneVsOne ? 1 : 2) || teamSize > 20) {
+    return NextResponse.json({ error: "invalid_teamSize" }, { status: 400 });
   }
 
   const { data: tp, error: tpErr } = await supabaseServer
@@ -121,6 +132,12 @@ export async function POST(
   if (players.length < 2) {
     return NextResponse.json({ error: "not_enough_players" }, { status: 400 });
   }
+  if (isOneVsOne && players.length !== ONE_V_ONE_PLAYER_LIMIT) {
+    return NextResponse.json({ error: "invalid_player_count_for_1v1" }, { status: 400 });
+  }
+
+  const effectiveTeamSize = isOneVsOne ? 1 : teamSize;
+  const effectiveAllowUneven = isOneVsOne ? false : allowUneven;
 
   const ids = players.map((p) => p.id);
   const perfByPlayer = await loadPlayerPerformance(ids);
@@ -163,7 +180,7 @@ export async function POST(
 
   if (generationMode === "full_random") {
     try {
-      teams = buildRandomTeams(playersWithStrength, teamSize, allowUneven);
+      teams = buildRandomTeams(playersWithStrength, effectiveTeamSize, effectiveAllowUneven);
     } catch (err) {
       if (err instanceof Error && err.message === "cannot_split_evenly") {
         return NextResponse.json({ error: "cannot_split_evenly" }, { status: 400 });
@@ -171,7 +188,7 @@ export async function POST(
       return NextResponse.json({ error: "failed_to_generate_random" }, { status: 500 });
     }
   } else {
-    const generated = generateTeams(playersWithStrength, teamSize, allowUneven, iterations);
+    const generated = generateTeams(playersWithStrength, effectiveTeamSize, effectiveAllowUneven, iterations);
     teams = generated.teams;
     score = generated.score;
   }
@@ -184,8 +201,8 @@ export async function POST(
     .from("team_batches")
     .insert({
       tournament_id: tournamentId,
-      team_size: teamSize,
-      allow_uneven: allowUneven,
+      team_size: effectiveTeamSize,
+      allow_uneven: effectiveAllowUneven,
       iterations,
       is_active: true,
     })
@@ -222,7 +239,14 @@ export async function POST(
     action: "teams_generate",
     targetType: "tournament",
     targetId: tournamentId,
-    metadata: { batchId, teamSize, allowUneven, iterations, generationMode },
+    metadata: {
+      batchId,
+      teamSize: effectiveTeamSize,
+      allowUneven: effectiveAllowUneven,
+      iterations,
+      generationMode,
+      forcedOneVsOne: isOneVsOne,
+    },
   });
 
   return NextResponse.json({ batchId, score, generationMode });

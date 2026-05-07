@@ -34,6 +34,8 @@ type InviteRow = {
   players?: { id: string; name: string; avatar_url?: string | null } | null;
 };
 
+type TournamentFormat = "single_elim" | "double_elim" | "one_vs_one";
+
 export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
   const [accessChecked, setAccessChecked] = useState(false);
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
@@ -57,6 +59,9 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
   const [metaBusy, setMetaBusy] = useState(false);
   const [swapPlayerAId, setSwapPlayerAId] = useState("");
   const [swapPlayerBId, setSwapPlayerBId] = useState("");
+  const [tournamentFormat, setTournamentFormat] = useState<TournamentFormat>("single_elim");
+
+  const isOneVsOne = tournamentFormat === "one_vs_one";
 
   const loadMeta = useCallback(async () => {
     const res = await fetch(`/api/public/tournaments/${tournamentId}`, { cache: "no-store" });
@@ -66,11 +71,21 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
     const eventAtIso = typeof json.tournament?.event_at === "string" ? json.tournament.event_at : "";
     const joinDeadlineIso =
       typeof json.tournament?.join_deadline_at === "string" ? json.tournament.join_deadline_at : "";
+    const formatValue = json.tournament?.format;
+    setTournamentFormat(
+      formatValue === "double_elim" || formatValue === "one_vs_one" ? formatValue : "single_elim"
+    );
 
     setEventAt(eventAtIso ? eventAtIso.slice(0, 16) : "");
     setJoinDeadlineAt(joinDeadlineIso ? joinDeadlineIso.slice(0, 16) : "");
     setEventLocation(typeof json.tournament?.event_location === "string" ? json.tournament.event_location : "");
   }, [tournamentId]);
+
+  useEffect(() => {
+    if (!isOneVsOne) return;
+    setTeamSize(1);
+    setAllowUneven(false);
+  }, [isOneVsOne]);
 
   const loadJoinRequests = useCallback(async () => {
     const res = await authedFetch(`/api/admin/tournaments/${tournamentId}/requests`, { cache: "no-store" });
@@ -125,13 +140,21 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
 
   async function generate() {
     setMsg(null);
+    const effectiveTeamSize = isOneVsOne ? 1 : teamSize;
+    const effectiveAllowUneven = isOneVsOne ? false : allowUneven;
 
     const res = await authedFetch(`/api/admin/tournaments/${tournamentId}/teams/generate`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
       },
-      body: JSON.stringify({ teamSize, allowUneven, iterations, mode, generationMode }),
+      body: JSON.stringify({
+        teamSize: effectiveTeamSize,
+        allowUneven: effectiveAllowUneven,
+        iterations,
+        mode,
+        generationMode,
+      }),
     });
 
     const json = await res.json().catch(() => ({}));
@@ -456,11 +479,13 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
                 <input
                   className="tour-admin-input"
                   type="number"
-                  min={2}
+                  min={isOneVsOne ? 1 : 2}
                   max={20}
-                  value={teamSize}
+                  value={isOneVsOne ? 1 : teamSize}
                   onChange={(e) => setTeamSize(Number(e.target.value))}
+                  disabled={isOneVsOne}
                 />
+                {isOneVsOne ? <p className="tour-muted mt-1">Dla formatu 1v1 rozmiar druzyny jest wymuszony na 1.</p> : null}
               </div>
 
               <div>
@@ -488,7 +513,12 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
             </div>
 
             <label className="tour-admin-check">
-              <input type="checkbox" checked={allowUneven} onChange={(e) => setAllowUneven(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={isOneVsOne ? false : allowUneven}
+                onChange={(e) => setAllowUneven(e.target.checked)}
+                disabled={isOneVsOne}
+              />
               <span>Dopusc nierowne druzyny (roznica maksymalnie 1)</span>
             </label>
 

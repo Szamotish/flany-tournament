@@ -326,17 +326,20 @@ export default function AuthControls() {
           <div className="auth-menu-popover">
             {auth.playerId ? (
               <Link className="auth-menu-item" href={`/players/${auth.playerId}`} onClick={() => setMenuOpen(false)}>
-                1. Moj profil
+                Moj profil
               </Link>
             ) : (
-              <span className="auth-menu-item auth-menu-item-disabled">1. Moj profil</span>
+              <span className="auth-menu-item auth-menu-item-disabled">Moj profil</span>
             )}
             <button className="auth-menu-item" type="button" onClick={() => void openNotificationsModal()}>
-              2. Powiadomienia{pendingCount > 0 ? ` (${pendingCount})` : ""}
+              Powiadomienia{pendingCount > 0 ? ` (${pendingCount})` : ""}
             </button>
             <button className="auth-menu-item" type="button" onClick={() => void openSettingsModal()}>
-              3. Ustawienia
+              Ustawienia
             </button>
+            <Link className="auth-menu-item" href="/rules" onClick={() => setMenuOpen(false)}>
+              Zasady
+            </Link>
             {auth.isMainAdmin ? (
               <Link className="auth-menu-item" href="/admin/tournaments" onClick={() => setMenuOpen(false)}>
                 Main admin
@@ -352,7 +355,7 @@ export default function AuthControls() {
               </Link>
             ) : null}
             <button className="auth-menu-item auth-menu-item-danger" type="button" onClick={logout}>
-              4. Wyloguj
+              Wyloguj
             </button>
           </div>
         ) : null}

@@ -7,7 +7,7 @@ import { authedFetch } from "@/lib/authClient";
 type Tournament = {
   id: string;
   name: string;
-  format: "single_elim" | "double_elim" | null;
+  format: "single_elim" | "double_elim" | "one_vs_one" | null;
   mode: "normal" | "ranked" | null;
   bo_default: number | null;
   bo_finals: number | null;
@@ -15,6 +15,12 @@ type Tournament = {
   event_location: string | null;
   is_private?: boolean | null;
 };
+
+function formatLabel(format: Tournament["format"]): string {
+  if (format === "double_elim") return "Double elimination";
+  if (format === "one_vs_one") return "1v1";
+  return "Single elimination";
+}
 
 function formatDateTime(iso: string | null): string {
   if (!iso) return "brak terminu";
@@ -63,7 +69,7 @@ export default function TournamentsPrivateList({ publicIds }: { publicIds: strin
               <p className="tour-card-title">{t.name}</p>
               <p className="tour-card-sub">
                 Prywatny - {t.mode === "ranked" ? "Ranked" : "Normal"} -{" "}
-                {t.format === "double_elim" ? "Double elimination" : "Single elimination"} - BO
+                {formatLabel(t.format)} - BO
                 {t.bo_default} / final BO{t.bo_finals}
               </p>
               <p className="tour-card-sub">

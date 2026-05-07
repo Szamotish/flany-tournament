@@ -9,7 +9,7 @@ type TournamentRow = {
   id: string;
   name: string;
   created_at: string;
-  format: "single_elim" | "double_elim" | null;
+  format: "single_elim" | "double_elim" | "one_vs_one" | null;
   mode: "normal" | "ranked" | null;
   bo_default: number | null;
   bo_finals: number | null;
@@ -76,6 +76,12 @@ function parsePlayerBrief(value: unknown): PlayerBrief | null {
 function parseBracket(value: unknown): Bracket {
   if (value === "winners" || value === "losers" || value === "grand_final") return value;
   return "single";
+}
+
+function formatLabel(format: TournamentRow["format"]): string {
+  if (format === "double_elim") return "Double elimination";
+  if (format === "one_vs_one") return "1v1";
+  return "Single elimination";
 }
 
 function bracketLabel(bracket: Bracket): string {
@@ -308,7 +314,7 @@ export default async function TournamentsPage() {
                       <p className="tour-card-title">{t.name}</p>
                       <p className="tour-card-sub">
                         {t.mode === "ranked" ? "Ranked" : "Normal"} -{" "}
-                        {t.format === "double_elim" ? "Double elimination" : "Single elimination"} - BO
+                        {formatLabel(t.format)} - BO
                         {t.bo_default} / final BO{t.bo_finals}
                       </p>
                       {!isFinished && upcoming ? (

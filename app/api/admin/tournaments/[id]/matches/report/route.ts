@@ -14,6 +14,14 @@ import {
   RANKED_TOURNAMENT_WIN_BONUS,
 } from "@/lib/ranked";
 import { loadPlayerPerformance } from "@/lib/playerPerformance";
+import { isDoubleElimFormat, isOneVsOneFormat, usesSingleBracket } from "@/lib/tournamentFormat";
+
+const ONE_V_ONE_BASE_WIN_DELTA = 0.1;
+const ONE_V_ONE_BASE_LOSS_DELTA = -0.1;
+const ONE_V_ONE_UPSET_WIN_DELTA = 0.2;
+const ONE_V_ONE_UPSET_LOSS_DELTA = -0.2;
+const ONE_V_ONE_FAVORED_WIN_DELTA = 0;
+const ONE_V_ONE_RATING_DIFF_THRESHOLD = 2.5;
 
 async function mapTeamPlayers(teamIds: string[]): Promise<Map<string, string[]>> {
   const uniqueTeamIds = Array.from(new Set(teamIds.filter(Boolean)));
@@ -117,6 +125,59 @@ async function applyDeltaToTeams(
   await applyDeltaToPlayers(playerIds, delta, options);
 }
 
+async function averageTeamRating(teamId: string, options?: { excludeMatchId?: string }): Promise<number> {
+  const map = await mapTeamPlayers([teamId]);
+  const teamPlayerIds = map.get(teamId) ?? [];
+  if (teamPlayerIds.length === 0) return 5;
+  const perf = await loadPlayerPerformance(teamPlayerIds, {
+    excludeMatchId: options?.excludeMatchId,
+  });
+
+  let sum = 0;
+  let count = 0;
+  for (const playerId of teamPlayerIds) {
+    const row = perf.get(playerId);
+    const rating = Number(row?.rating ?? NaN);
+    if (!Number.isFinite(rating)) continue;
+    sum += rating;
+    count += 1;
+  }
+  if (count <= 0) return 5;
+  return sum / count;
+}
+
+async function computeOneVsOneDeltas(
+  winnerTeamId: string,
+  loserTeamId: string,
+  options?: { excludeMatchId?: string }
+): Promise<{ winnerDelta: number; loserDelta: number }> {
+  const [winnerRating, loserRating] = await Promise.all([
+    averageTeamRating(winnerTeamId, options),
+    averageTeamRating(loserTeamId, options),
+  ]);
+
+  const winnerHigherRated = winnerRating >= loserRating;
+  const ratingDiff = Math.abs(winnerRating - loserRating);
+  if (ratingDiff <= ONE_V_ONE_RATING_DIFF_THRESHOLD) {
+    return {
+      winnerDelta: ONE_V_ONE_BASE_WIN_DELTA,
+      loserDelta: ONE_V_ONE_BASE_LOSS_DELTA,
+    };
+  }
+
+  if (winnerHigherRated) {
+    return {
+      winnerDelta: ONE_V_ONE_FAVORED_WIN_DELTA,
+      loserDelta: ONE_V_ONE_BASE_LOSS_DELTA,
+    };
+  }
+
+  return {
+    winnerDelta: ONE_V_ONE_UPSET_WIN_DELTA,
+    loserDelta: ONE_V_ONE_UPSET_LOSS_DELTA,
+  };
+}
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -208,7 +269,9 @@ export async function POST(
       .single();
 
     if (tErr) throw new Error(tErr.message);
-    const tournamentMode = normalizeMode((t as { mode?: unknown }).mode);
+    if (!t) throw new Error("tournament_not_found");
+    const tournament = t;
+    const tournamentMode = normalizeMode((tournament as { mode?: unknown }).mode);
 
     if (
       tournamentMode === "ranked" &&
@@ -218,14 +281,19 @@ export async function POST(
     ) {
       const winnerTeamId = String(updated.winner_team_id);
       const loserTeamId = winnerTeamId === m.team_a_id ? m.team_b_id : m.team_a_id;
-      await applyDeltaToTeams([winnerTeamId], RANKED_MATCH_WIN_DELTA, {
+      const isOneVsOne = isOneVsOneFormat(tournament.format);
+      const deltas = loserTeamId && isOneVsOne
+        ? await computeOneVsOneDeltas(winnerTeamId, loserTeamId, { excludeMatchId: matchId })
+        : { winnerDelta: RANKED_MATCH_WIN_DELTA, loserDelta: RANKED_MATCH_LOSS_DELTA };
+
+      await applyDeltaToTeams([winnerTeamId], deltas.winnerDelta, {
         excludeMatchId: matchId,
         reason: "match_win",
         tournamentId,
         matchId,
       });
       if (loserTeamId) {
-        await applyDeltaToTeams([loserTeamId], RANKED_MATCH_LOSS_DELTA, {
+        await applyDeltaToTeams([loserTeamId], deltas.loserDelta, {
           excludeMatchId: matchId,
           reason: "match_loss",
           tournamentId,
@@ -235,9 +303,9 @@ export async function POST(
     }
 
     if (updated.status === "finished" && updated.winner_team_id) {
-      if (t.format === "single_elim") {
+      if (usesSingleBracket(tournament.format)) {
         await autoAdvanceSingleElim(tournamentId);
-      } else if (t.format === "double_elim") {
+      } else if (isDoubleElimFormat(tournament.format)) {
         await nextStepDoubleElim(tournamentId);
       }
     }
@@ -270,7 +338,7 @@ export async function POST(
 
       if (insErr) throw new Error(insErr.message);
 
-      if (tournamentMode === "ranked" && !hadChampionBefore) {
+      if (tournamentMode === "ranked" && !hadChampionBefore && !isOneVsOneFormat(tournament.format)) {
         await applyDeltaToTeams([championId], RANKED_TOURNAMENT_WIN_BONUS, {
           reason: "tournament_win",
           tournamentId,
@@ -278,7 +346,7 @@ export async function POST(
       }
     }
 
-    if (t.format === "single_elim") {
+    if (usesSingleBracket(tournament.format)) {
       const { data: lastRoundRow, error: roundErr } = await supabaseServer
         .from("tournament_matches")
         .select("round_no")
@@ -318,7 +386,7 @@ export async function POST(
       }
     }
 
-    if (t.format === "double_elim") {
+    if (isDoubleElimFormat(tournament.format)) {
       const { data: gf2, error: gf2Err } = await supabaseServer
         .from("tournament_matches")
         .select("id,team_a_id,team_b_id,winner_team_id,status,round_no")
@@ -329,7 +397,7 @@ export async function POST(
 
       if (gf2Err) throw new Error(gf2Err.message);
 
-      if (t.gf_reset_enabled && gf2 && gf2.status === "finished" && gf2.winner_team_id && gf2.team_a_id && gf2.team_b_id) {
+      if (tournament.gf_reset_enabled && gf2 && gf2.status === "finished" && gf2.winner_team_id && gf2.team_a_id && gf2.team_b_id) {
         const championId = gf2.winner_team_id;
         const runnerUpId = championId === gf2.team_a_id ? gf2.team_b_id : gf2.team_a_id;
         await saveResults(championId, runnerUpId);
@@ -348,7 +416,7 @@ export async function POST(
           const championId = gf1.winner_team_id;
           const runnerUpId = championId === gf1.team_a_id ? gf1.team_b_id : gf1.team_a_id;
 
-          if (!t.gf_reset_enabled) {
+          if (!tournament.gf_reset_enabled) {
             await saveResults(championId, runnerUpId);
           } else {
             if (championId === gf1.team_a_id) {

@@ -3,6 +3,11 @@ import { writeAuditLog } from "@/lib/auditLog";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { assertMainAdmin } from "@/app/api/admin/_auth";
 import { normalizeMode } from "@/lib/ranked";
+import {
+  normalizeTournamentFormat,
+  ONE_V_ONE_PLAYER_LIMIT,
+  isOneVsOneFormat,
+} from "@/lib/tournamentFormat";
 
 export async function POST(req: Request) {
   const admin = await assertMainAdmin(req);
@@ -13,7 +18,7 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
 
   const name = String(body?.name ?? "").trim();
-  const format = body?.format === "double_elim" ? "double_elim" : "single_elim";
+  const format = normalizeTournamentFormat(body?.format);
   const mode = normalizeMode(body?.mode);
   const boDefault = Number(body?.boDefault ?? 1);
   const boFinals = Number(body?.boFinals ?? 3);
@@ -35,9 +40,6 @@ export async function POST(req: Request) {
   );
 
   if (!name) return NextResponse.json({ error: "missing_name" }, { status: 400 });
-  if (!["single_elim", "double_elim"].includes(format)) {
-    return NextResponse.json({ error: "invalid_format" }, { status: 400 });
-  }
   if (![1, 3, 5].includes(boDefault)) {
     return NextResponse.json({ error: "invalid_boDefault" }, { status: 400 });
   }
@@ -46,6 +48,9 @@ export async function POST(req: Request) {
   }
   if (!Array.isArray(playerIds) || playerIds.length < 2) {
     return NextResponse.json({ error: "invalid_playerIds" }, { status: 400 });
+  }
+  if (isOneVsOneFormat(format) && playerIds.length !== ONE_V_ONE_PLAYER_LIMIT) {
+    return NextResponse.json({ error: "invalid_playerIds_1v1_requires_exactly_2" }, { status: 400 });
   }
   if (localAdminPlayerIds.length === 0) {
     return NextResponse.json({ error: "missing_localAdminPlayerIds" }, { status: 400 });

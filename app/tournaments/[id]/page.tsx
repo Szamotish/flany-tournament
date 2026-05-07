@@ -81,6 +81,13 @@ function formatDateTime(iso: string | null): string {
   });
 }
 
+function formatLabel(value: unknown): string {
+  if (value === "double_elim") return "Double elimination";
+  if (value === "one_vs_one") return "1v1";
+  if (value === "single_elim") return "Single elimination";
+  return String(value ?? "nieznany");
+}
+
 export default async function TournamentPage({
   params,
 }: {
@@ -280,7 +287,7 @@ export default async function TournamentPage({
                 <section className="tour-detail-main">
                   <h1 className="tour-title">{t.name}</h1>
                   <p className="tour-muted mt-1">
-                    Tryb: {t.mode === "ranked" ? "ranked" : "normal"} - Format: {t.format} - BO{t.bo_default} - final BO{t.bo_finals}
+                    Tryb: {t.mode === "ranked" ? "ranked" : "normal"} - Format: {formatLabel(t.format)} - BO{t.bo_default} - final BO{t.bo_finals}
                   </p>
                   <p className="tour-muted mt-1">
                     Termin: {formatDateTime(t.event_at)}{t.event_location ? ` - ${t.event_location}` : ""}

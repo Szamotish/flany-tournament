@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { assertTournamentAdmin } from "@/app/api/admin/tournaments/_auth";
 import { writeAuditLog } from "@/lib/auditLog";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { isOneVsOneFormat, ONE_V_ONE_PLAYER_LIMIT } from "@/lib/tournamentFormat";
 
 function parsePlayer(value: unknown): { id: string; name: string; active: boolean } | null {
   const source = Array.isArray(value) ? value[0] : value;
@@ -37,6 +38,27 @@ async function deactivateActiveBatch(tournamentId: string) {
     .eq("tournament_id", tournamentId)
     .eq("is_active", true);
   return error;
+}
+
+async function readTournamentFormatAndPlayerCount(tournamentId: string): Promise<{
+  format: string | null;
+  playerCount: number;
+}> {
+  const [tournamentRes, countRes] = await Promise.all([
+    supabaseServer.from("tournaments").select("format").eq("id", tournamentId).maybeSingle(),
+    supabaseServer
+      .from("tournament_players")
+      .select("*", { count: "exact", head: true })
+      .eq("tournament_id", tournamentId),
+  ]);
+
+  if (tournamentRes.error) throw new Error(tournamentRes.error.message);
+  if (countRes.error) throw new Error(countRes.error.message);
+
+  return {
+    format: typeof tournamentRes.data?.format === "string" ? tournamentRes.data.format : null,
+    playerCount: countRes.count ?? 0,
+  };
 }
 
 export async function GET(
@@ -88,6 +110,11 @@ export async function POST(
   if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 });
   if (!player) return NextResponse.json({ error: "player_not_found" }, { status: 404 });
   if (!player.active) return NextResponse.json({ error: "player_inactive" }, { status: 400 });
+
+  const { format, playerCount } = await readTournamentFormatAndPlayerCount(tournamentId);
+  if (isOneVsOneFormat(format) && playerCount >= ONE_V_ONE_PLAYER_LIMIT) {
+    return NextResponse.json({ error: "tournament_1v1_player_limit_reached" }, { status: 400 });
+  }
 
   const { error: upsertErr } = await supabaseServer.from("tournament_players").upsert(
     { tournament_id: tournamentId, player_id: playerId },

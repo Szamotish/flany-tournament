@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { readAuthContext } from "@/app/api/admin/_auth";
 import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { isOneVsOneFormat, ONE_V_ONE_PLAYER_LIMIT } from "@/lib/tournamentFormat";
 
 async function hasTournamentStarted(tournamentId: string): Promise<boolean> {
   const { count } = await supabaseServer
@@ -53,6 +54,28 @@ export async function PATCH(
   if (action === "accept") {
     if (await hasTournamentStarted(inviteRes.data.tournament_id)) {
       return NextResponse.json({ error: "tournament_already_started" }, { status: 400 });
+    }
+
+    const [tournamentRes, countRes] = await Promise.all([
+      supabaseServer
+        .from("tournaments")
+        .select("format")
+        .eq("id", inviteRes.data.tournament_id)
+        .maybeSingle(),
+      supabaseServer
+        .from("tournament_players")
+        .select("*", { count: "exact", head: true })
+        .eq("tournament_id", inviteRes.data.tournament_id),
+    ]);
+
+    if (tournamentRes.error) return NextResponse.json({ error: tournamentRes.error.message }, { status: 500 });
+    if (countRes.error) return NextResponse.json({ error: countRes.error.message }, { status: 500 });
+
+    if (
+      isOneVsOneFormat(tournamentRes.data?.format) &&
+      (countRes.count ?? 0) >= ONE_V_ONE_PLAYER_LIMIT
+    ) {
+      return NextResponse.json({ error: "tournament_1v1_player_limit_reached" }, { status: 400 });
     }
 
     const memberRes = await supabaseServer.from("tournament_players").upsert(

@@ -3,6 +3,7 @@ import { readAuthContext } from "@/app/api/admin/_auth";
 import { notifyTournamentJoinRequest } from "@/lib/emailNotifications";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
+import { isOneVsOneFormat, ONE_V_ONE_PLAYER_LIMIT } from "@/lib/tournamentFormat";
 
 async function hasTournamentStarted(tournamentId: string): Promise<boolean> {
   const { count } = await supabaseServer
@@ -32,7 +33,7 @@ export async function POST(
 
   const primaryTournament = await supabaseServer
     .from("tournaments")
-    .select("id,name,join_deadline_at")
+    .select("id,name,format,join_deadline_at")
     .eq("id", tournamentId)
     .maybeSingle();
 
@@ -42,7 +43,7 @@ export async function POST(
   if (primaryTournament.error && primaryTournament.error.message.includes("join_deadline_at")) {
     const fallbackTournament = await supabaseServer
       .from("tournaments")
-      .select("id,name")
+      .select("id,name,format")
       .eq("id", tournamentId)
       .maybeSingle();
     t = fallbackTournament.data ? { ...fallbackTournament.data, join_deadline_at: null } : null;
@@ -54,6 +55,15 @@ export async function POST(
 
   if (await hasTournamentStarted(tournamentId)) {
     return NextResponse.json({ error: "tournament_already_started" }, { status: 400 });
+  }
+
+  const playerCountRes = await supabaseServer
+    .from("tournament_players")
+    .select("*", { count: "exact", head: true })
+    .eq("tournament_id", tournamentId);
+  if (playerCountRes.error) return NextResponse.json({ error: playerCountRes.error.message }, { status: 500 });
+  if (isOneVsOneFormat((t as { format?: unknown }).format) && (playerCountRes.count ?? 0) >= ONE_V_ONE_PLAYER_LIMIT) {
+    return NextResponse.json({ error: "tournament_1v1_player_limit_reached" }, { status: 400 });
   }
 
   if (t.join_deadline_at) {
