@@ -1278,75 +1278,9 @@ body {
   text-shadow: 0 1px 0 rgba(255, 242, 203, 0.42);
 }
 
-.tour-rules-pre-tablet {
-  white-space: pre-line;
-  font-size: clamp(0.84rem, 1.03vw, 1.04rem);
-  line-height: 1.52;
-  padding-inline: 0.36rem;
-  text-indent: 1.1em;
-  font-weight: 620;
-  text-shadow: 0 1px 0 rgba(250, 242, 228, 0.55);
-}
-
 .tour-rules-actions {
   justify-content: center;
   margin-top: -0.4rem;
-}
-
-.tour-rules-tablet-stage {
-  display: flex;
-  justify-content: center;
-}
-
-.tour-rules-tablet {
-  position: relative;
-  width: min(920px, 100%);
-  aspect-ratio: 4 / 3;
-  background-image: url("/tablet.png");
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: contain;
-  filter: drop-shadow(0 18px 34px rgba(30, 20, 12, 0.34));
-}
-
-.tour-rules-tablet-content {
-  position: absolute;
-  top: 12%;
-  bottom: 14%;
-  left: 50%;
-  width: 42%;
-  transform: translateX(-50%);
-  overflow: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(74, 54, 37, 0.52) transparent;
-  color: #2b1f15;
-  text-align: left;
-  background: rgba(238, 227, 207, 0.24);
-  border-radius: 0.56rem;
-  padding: 0.42rem 0.52rem;
-}
-
-.tour-rules-tablet-content::-webkit-scrollbar {
-  width: 7px;
-}
-
-.tour-rules-tablet-content::-webkit-scrollbar-thumb {
-  background: rgba(74, 54, 37, 0.48);
-  border-radius: 999px;
-}
-
-.tour-rules-tablet-content h1 {
-  margin: 0 0 1.1rem;
-  text-align: center;
-  font-size: clamp(1.35rem, 2.9vw, 2.5rem);
-  line-height: 0.95;
-  letter-spacing: 0.03em;
-  font-family: "Copperplate", "Copperplate Gothic Light", "Palatino Linotype", serif;
-  color: #5a4534;
-  text-shadow:
-    0 1px 0 rgba(243, 229, 210, 0.35),
-    0 -1px 0 rgba(73, 53, 38, 0.4),
-    0 2px 3px rgba(47, 33, 23, 0.25);
 }
 
 @media (max-width: 700px) {
@@ -1363,25 +1297,6 @@ body {
   .tour-rules-pre {
     font-size: clamp(0.86rem, 3.2vw, 1rem);
     line-height: 1.48;
-  }
-
-  .tour-rules-tablet {
-    width: min(122vw, 720px);
-    max-width: none;
-    margin-inline: -11vw;
-  }
-
-  .tour-rules-tablet-content {
-    top: 11%;
-    bottom: 12%;
-    width: 54%;
-    padding: 0.35rem 0.42rem;
-  }
-
-  .tour-rules-pre-tablet {
-    font-size: clamp(0.8rem, 2.55vw, 0.95rem);
-    line-height: 1.46;
-    text-indent: 0.8em;
   }
 }
 
