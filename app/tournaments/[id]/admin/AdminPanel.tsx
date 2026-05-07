@@ -8,7 +8,8 @@ import { authedFetch } from "@/lib/authClient";
 type TeamEntry = {
   id: string;
   name: string;
-  players: { id: string; name: string }[];
+  captainPlayerId?: string | null;
+  players: { id: string; name: string; isCaptain?: boolean }[];
 };
 
 type PlayerOption = {
@@ -415,7 +416,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
   const activeTeamPlayers = teams.flatMap((team) =>
     team.players.map((player) => ({
       id: player.id,
-      name: player.name,
+      name: player.isCaptain ? `${player.name} (K)` : player.name,
       teamName: team.name,
     }))
   );
@@ -834,8 +835,15 @@ function TeamRenameRow({
       <div className="tour-card-head">
         <div>
           <p className="tour-card-title">{team.name}</p>
+          {team.captainPlayerId ? (
+            <p className="tour-card-sub">
+              Kapitan: {team.players.find((p) => p.id === team.captainPlayerId)?.name ?? "brak"}
+            </p>
+          ) : null}
           {team.players.length > 0 && (
-            <p className="tour-card-sub">Sklad: {team.players.map((p) => p.name).join(", ")}</p>
+            <p className="tour-card-sub">
+              Sklad: {team.players.map((p) => (p.isCaptain ? `${p.name} (K)` : p.name)).join(", ")}
+            </p>
           )}
         </div>
       </div>

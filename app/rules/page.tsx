@@ -16,10 +16,10 @@ export default async function RulesPage() {
           <span className="tour-kicker">Zasady</span>
         </div>
 
-        <section className="tour-rules-stage mt-4">
-          <div className="tour-rules-scroll" aria-label="Bazowe zasady turniejow">
-            <div className="tour-rules-scroll-content">
-              <h1>Zasady</h1>
+        <section className="tour-rules-tablet-stage mt-4">
+          <div className="tour-rules-tablet" aria-label="Bazowe zasady main admina">
+            <div className="tour-rules-tablet-content">
+              <h1>PRZYKAZANIA</h1>
               <pre className="tour-rules-pre">{content}</pre>
             </div>
           </div>
@@ -28,4 +28,3 @@ export default async function RulesPage() {
     </main>
   );
 }
-

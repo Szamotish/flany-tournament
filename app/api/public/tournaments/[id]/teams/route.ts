@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabasePublic } from "@/lib/supabasePublic";
+import { pickTeamCaptainId } from "@/lib/teamCaptain";
 
 export const dynamic = "force-dynamic";
 
@@ -18,15 +19,28 @@ export async function GET(
 ) {
   const { id: tournamentId } = await params;
 
-  const { data: batch, error: bErr } = await supabasePublic
-    .from("team_batches")
-    .select("id, created_at, team_size")
-    .eq("tournament_id", tournamentId)
-    .eq("is_active", true)
-    .maybeSingle();
+  const [batchRes, tournamentRes] = await Promise.all([
+    supabasePublic
+      .from("team_batches")
+      .select("id, created_at, team_size")
+      .eq("tournament_id", tournamentId)
+      .eq("is_active", true)
+      .maybeSingle(),
+    supabasePublic
+      .from("tournaments")
+      .select("format")
+      .eq("id", tournamentId)
+      .maybeSingle(),
+  ]);
+
+  const batch = batchRes.data;
+  const bErr = batchRes.error;
 
   if (bErr) return NextResponse.json({ error: bErr.message }, { status: 500 });
+  if (tournamentRes.error) return NextResponse.json({ error: tournamentRes.error.message }, { status: 500 });
   if (!batch) return NextResponse.json({ batch: null, teams: [] });
+
+  const isOneVsOne = tournamentRes.data?.format === "one_vs_one";
 
   const { data: teams, error: tErr } = await supabasePublic
     .from("teams")
@@ -54,11 +68,19 @@ export async function GET(
     grouped[tid].push({ id: p.id, name: p.name });
   }
 
-  const result = (teams ?? []).map((t) => ({
-    id: t.id,
-    name: t.name,
-    players: (grouped[t.id] ?? []).sort((a, b) => a.name.localeCompare(b.name)),
-  }));
+  const result = (teams ?? []).map((t) => {
+    const roster = (grouped[t.id] ?? []).sort((a, b) => a.name.localeCompare(b.name));
+    const captainPlayerId = isOneVsOne ? null : pickTeamCaptainId(String(t.id), roster.map((player) => player.id));
+    return {
+      id: t.id,
+      name: t.name,
+      captainPlayerId,
+      players: roster.map((player) => ({
+        ...player,
+        isCaptain: captainPlayerId === player.id,
+      })),
+    };
+  });
 
   return NextResponse.json({ batch, teams: result });
 }

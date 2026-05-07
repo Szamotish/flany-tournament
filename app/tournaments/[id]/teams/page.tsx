@@ -2,11 +2,12 @@ import Link from "next/link";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { teamToneVars } from "@/lib/ui/teamTone";
 import { playerToneStyle } from "@/lib/ui/playerProfile";
+import { pickTeamCaptainId } from "@/lib/teamCaptain";
 
 export const dynamic = "force-dynamic";
 
 type PlayerBrief = { id: string; name: string; avatarUrl: string | null; profileColor: string | null };
-type TeamSummary = { id: string; name: string; players: PlayerBrief[] };
+type TeamSummary = { id: string; name: string; captainPlayerId: string | null; players: PlayerBrief[] };
 
 function parsePlayerRef(value: unknown): PlayerBrief | null {
   const source = Array.isArray(value) ? value[0] : value;
@@ -28,12 +29,23 @@ export default async function TournamentTeamsPage({
 }) {
   const { id: tournamentId } = await params;
 
-  const { data: batch, error: batchErr } = await supabaseServer
-    .from("team_batches")
-    .select("id")
-    .eq("tournament_id", tournamentId)
-    .eq("is_active", true)
-    .maybeSingle();
+  const [batchRes, tournamentRes] = await Promise.all([
+    supabaseServer
+      .from("team_batches")
+      .select("id")
+      .eq("tournament_id", tournamentId)
+      .eq("is_active", true)
+      .maybeSingle(),
+    supabaseServer
+      .from("tournaments")
+      .select("format")
+      .eq("id", tournamentId)
+      .maybeSingle(),
+  ]);
+
+  const batch = batchRes.data;
+  const batchErr = batchRes.error;
+  const isOneVsOne = tournamentRes.data?.format === "one_vs_one";
 
   let teams: TeamSummary[] = [];
 
@@ -68,11 +80,16 @@ export default async function TournamentTeamsPage({
       );
     }
 
-    teams = (teamRows ?? []).map((t) => ({
-      id: String(t.id),
-      name: String(t.name ?? "Druzyna"),
-      players: rosterMap.get(String(t.id)) ?? [],
-    }));
+    teams = (teamRows ?? []).map((t) => {
+      const roster = rosterMap.get(String(t.id)) ?? [];
+      const captainPlayerId = isOneVsOne ? null : pickTeamCaptainId(String(t.id), roster.map((p) => p.id));
+      return {
+        id: String(t.id),
+        name: String(t.name ?? "Druzyna"),
+        captainPlayerId,
+        players: roster,
+      };
+    });
   }
 
   return (
@@ -102,6 +119,11 @@ export default async function TournamentTeamsPage({
                 <div className="tour-card-head">
                   <div>
                     <p className="tour-card-title">{team.name}</p>
+                    {team.captainPlayerId ? (
+                      <p className="tour-card-sub">
+                        Kapitan: {team.players.find((p) => p.id === team.captainPlayerId)?.name ?? "brak"}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
 
@@ -120,6 +142,7 @@ export default async function TournamentTeamsPage({
                           </span>
                         )}
                         <span>{p.name}</span>
+                        {team.captainPlayerId === p.id ? <span className="tour-player-captain-badge">K</span> : null}
                       </Link>
                     ))}
                   </div>

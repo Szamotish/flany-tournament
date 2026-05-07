@@ -1283,6 +1283,55 @@ body {
   margin-top: -0.4rem;
 }
 
+.tour-rules-tablet-stage {
+  display: flex;
+  justify-content: center;
+}
+
+.tour-rules-tablet {
+  position: relative;
+  width: min(920px, 100%);
+  aspect-ratio: 4 / 3;
+  background-image: url("/tablet.png");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  filter: drop-shadow(0 18px 34px rgba(30, 20, 12, 0.34));
+}
+
+.tour-rules-tablet-content {
+  position: absolute;
+  inset: 13% 16% 14%;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(74, 54, 37, 0.52) transparent;
+  color: #3f3023;
+  text-align: left;
+}
+
+.tour-rules-tablet-content::-webkit-scrollbar {
+  width: 7px;
+}
+
+.tour-rules-tablet-content::-webkit-scrollbar-thumb {
+  background: rgba(74, 54, 37, 0.48);
+  border-radius: 999px;
+}
+
+.tour-rules-tablet-content h1 {
+  margin: 0 0 1.1rem;
+  text-align: center;
+  font-size: clamp(1.9rem, 4.3vw, 3.5rem);
+  line-height: 0.95;
+  letter-spacing: 0.08em;
+  font-family: "Copperplate", "Copperplate Gothic Light", "Palatino Linotype", serif;
+  color: #5a4534;
+  text-shadow:
+    0 1px 0 rgba(243, 229, 210, 0.35),
+    0 -1px 0 rgba(73, 53, 38, 0.4),
+    0 2px 3px rgba(47, 33, 23, 0.25);
+}
+
 @media (max-width: 700px) {
   .tour-rules-scroll {
     width: min(112vw, 520px);
@@ -1297,6 +1346,16 @@ body {
   .tour-rules-pre {
     font-size: clamp(0.86rem, 3.2vw, 1rem);
     line-height: 1.48;
+  }
+
+  .tour-rules-tablet {
+    width: min(122vw, 720px);
+    max-width: none;
+    margin-inline: -11vw;
+  }
+
+  .tour-rules-tablet-content {
+    inset: 12% 12% 13%;
   }
 }
 
@@ -1368,6 +1427,24 @@ body {
   align-items: center;
   gap: 0.5rem;
   min-width: 0;
+}
+
+.tour-player-captain-badge {
+  margin-left: auto;
+  border: 1px solid rgba(87, 64, 25, 0.42);
+  border-radius: 999px;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.72rem;
+  line-height: 1;
+  font-weight: 800;
+  color: rgba(59, 41, 12, 0.92);
+  background: linear-gradient(150deg, rgba(254, 241, 177, 0.92), rgba(221, 168, 79, 0.9));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 250, 224, 0.82),
+    0 1px 2px rgba(41, 24, 6, 0.22);
 }
 
 .tour-player-avatar {
