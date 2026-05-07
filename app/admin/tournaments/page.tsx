@@ -75,7 +75,7 @@ export default function AdminTournamentsPage() {
   const [q, setQ] = useState("");
   const [players, setPlayers] = useState<Player[]>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
-  const [localAdminId, setLocalAdminId] = useState("");
+  const [localAdminSelectedIds, setLocalAdminSelectedIds] = useState<string[]>([]);
   const [playerActionMenu, setPlayerActionMenu] = useState<{
     player: Player;
     x: number;
@@ -107,10 +107,11 @@ export default function AdminTournamentsPage() {
   );
   const localAdminIds = useMemo(
     () =>
-      localAdminId && localAdminOptions.some((player) => player.id === localAdminId)
-        ? [localAdminId]
-        : [],
-    [localAdminId, localAdminOptions]
+      localAdminSelectedIds.filter(
+        (id, index) =>
+          localAdminOptions.some((player) => player.id === id) && localAdminSelectedIds.indexOf(id) === index
+      ),
+    [localAdminSelectedIds, localAdminOptions]
   );
 
   async function loadPlayers(query: string) {
@@ -143,7 +144,7 @@ export default function AdminTournamentsPage() {
     setJoinDeadlineAt("");
     setIsPrivate(false);
     setSelected({});
-    setLocalAdminId("");
+    setLocalAdminSelectedIds([]);
   }
 
   async function loadTournamentForEdit(tournamentId: string) {
@@ -179,7 +180,7 @@ export default function AdminTournamentsPage() {
     }
     setSelected(nextSelected);
     const adminIds = ((json.localAdminPlayerIds ?? []) as string[]).filter(Boolean);
-    setLocalAdminId(adminIds[0] ?? "");
+    setLocalAdminSelectedIds(adminIds);
     setMsg(
       json.started === true
         ? "Wczytano turniej. Turniej ma juz mecze, wiec nie zmieniaj formatu/BO/trybu."
@@ -224,10 +225,8 @@ export default function AdminTournamentsPage() {
   }, []);
 
   useEffect(() => {
-    if (localAdminId && !localAdminOptions.some((player) => player.id === localAdminId)) {
-      setLocalAdminId("");
-    }
-  }, [localAdminId, localAdminOptions]);
+    setLocalAdminSelectedIds((prev) => prev.filter((id) => localAdminOptions.some((player) => player.id === id)));
+  }, [localAdminOptions]);
 
   useEffect(() => {
     if (format !== "one_vs_one" || selectedIds.length <= ONE_V_ONE_PLAYER_LIMIT) return;
@@ -278,7 +277,7 @@ export default function AdminTournamentsPage() {
     setJoinDeadlineAt("");
     setIsPrivate(false);
     setSelected({});
-    setLocalAdminId("");
+    setLocalAdminSelectedIds([]);
     await loadTournaments();
   }
 
@@ -334,9 +333,7 @@ export default function AdminTournamentsPage() {
       delete next[playerId];
       return next;
     });
-    if (localAdminId === playerId) {
-      setLocalAdminId("");
-    }
+    setLocalAdminSelectedIds((prev) => prev.filter((id) => id !== playerId));
 
     setMsg(json.softDeleted ? "Zawodnik zdezaktywowany." : "Zawodnik usuniety.");
     await Promise.all([loadPlayers(q), loadTournaments()]);
@@ -701,7 +698,7 @@ export default function AdminTournamentsPage() {
                   <select
                     className="tour-admin-input"
                     value={gfResetEnabled ? "with_reset" : "no_reset"}
-                    disabled={format !== "double_elim"}
+                    disabled={format === "one_vs_one"}
                     onChange={(e) => setGfResetEnabled(e.target.value === "with_reset")}
                   >
                     <option value="with_reset">Z resetem (2 mecze gdy WB przegra GF1)</option>
@@ -751,13 +748,17 @@ export default function AdminTournamentsPage() {
                 </label>
 
                 <div>
-                  <label className="tour-admin-label">Admin lokalny</label>
+                  <label className="tour-admin-label">Admini lokalni</label>
                   <select
                     className="tour-admin-input"
-                    value={localAdminId}
-                    onChange={(e) => setLocalAdminId(e.target.value)}
+                    value={localAdminIds}
+                    multiple
+                    size={Math.min(6, Math.max(3, localAdminOptions.length || 3))}
+                    onChange={(e) => {
+                      const values = Array.from(e.target.selectedOptions).map((option) => option.value);
+                      setLocalAdminSelectedIds(values);
+                    }}
                   >
-                    <option value="">Wybierz zawodnika</option>
                     {localAdminOptions.map((player) => (
                       <option key={player.id} value={player.id}>
                         {player.name}
@@ -767,9 +768,11 @@ export default function AdminTournamentsPage() {
                   <p className="tour-muted mt-1">
                     {localAdminOptions.length === 0
                       ? "Najpierw zaznacz zawodnikow z kontem."
-                      : localAdminId
-                        ? `Wybrany: ${localAdminOptions.find((player) => player.id === localAdminId)?.name ?? "brak"}`
-                        : "Wybierz lokalnego admina z listy."}
+                      : localAdminIds.length > 0
+                        ? `Wybrani (${localAdminIds.length}): ${localAdminIds
+                            .map((id) => localAdminOptions.find((player) => player.id === id)?.name ?? id)
+                            .join(", ")}`
+                        : "Mozesz zaznaczyc wiecej niz jednego admina (Ctrl/Cmd + klik)."}
                   </p>
                 </div>
               </div>
