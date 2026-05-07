@@ -701,7 +701,6 @@ export default function AdminTournamentsPage() {
                     <option value={5}>BO5</option>
                   </select>
                 </div>
-                {format === "one_vs_one" ? <p className="tour-muted">W 1v1 pole BO finalu nie jest uzywane.</p> : null}
 
                 <div className={format === "one_vs_one" ? "tour-admin-field-disabled" : ""}>
                   <label className="tour-admin-label">Grand final reset</label>
@@ -715,7 +714,6 @@ export default function AdminTournamentsPage() {
                     <option value="no_reset">Bez resetu (jeden final)</option>
                   </select>
                 </div>
-                {format === "one_vs_one" ? <p className="tour-muted">W 1v1 pole grand final reset nie jest uzywane.</p> : null}
 
                 <div>
                   <label className="tour-admin-label">Data i godzina turnieju</label>
