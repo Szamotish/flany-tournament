@@ -28,7 +28,7 @@ export type BracketTreeRound = {
 type BracketTreeProps = {
   rounds: BracketTreeRound[];
   variant?: "compact" | "detailed";
-  teamDetailsById?: Record<string, { teamName: string; players: Array<{ id: string; name: string; avatarUrl: string | null; profileColor: string | null }> }>;
+  teamDetailsById?: Record<string, { teamName: string; players: Array<{ id: string; name: string; avatarUrl: string | null; profileColor: string | null; isCaptain: boolean }> }>;
 };
 
 type TreeMetrics = {
@@ -203,6 +203,7 @@ export default function BracketTree({ rounds, variant = "compact", teamDetailsBy
                                     </span>
                                   )}
                                   <span>{player.name}</span>
+                                  {player.isCaptain ? <span className="tour-player-captain-diamond" aria-label="Kapitan" /> : null}
                                 </Link>
                               ))}
                             </div>
@@ -238,6 +239,7 @@ export default function BracketTree({ rounds, variant = "compact", teamDetailsBy
                                     </span>
                                   )}
                                   <span>{player.name}</span>
+                                  {player.isCaptain ? <span className="tour-player-captain-diamond" aria-label="Kapitan" /> : null}
                                 </Link>
                               ))}
                             </div>

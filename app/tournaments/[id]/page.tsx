@@ -5,6 +5,7 @@ import { supabaseServer } from "@/lib/supabaseServer";
 import { teamToneVars } from "@/lib/ui/teamTone";
 import { playerToneStyle } from "@/lib/ui/playerProfile";
 import { computeBeersFromFinishedMatches } from "@/lib/beers";
+import { pickTeamCaptainId } from "@/lib/teamCaptain";
 import TournamentJoinActions from "./TournamentJoinActions";
 
 export const dynamic = "force-dynamic";
@@ -242,7 +243,7 @@ export default async function TournamentPage({
     )
   );
 
-  const teamDetailsById: Record<string, { teamName: string; players: PlayerRef[] }> = {};
+  const teamDetailsById: Record<string, { teamName: string; players: Array<PlayerRef & { isCaptain: boolean }> }> = {};
   if (bracketTeamIds.length > 0) {
     const [{ data: teamRows }, { data: teamMembers }] = await Promise.all([
       supabaseServer.from("teams").select("id,name").in("id", bracketTeamIds),
@@ -266,11 +267,15 @@ export default async function TournamentPage({
       if (!teamId || !teamDetailsById[teamId]) continue;
       const parsed = parsePlayerRef((row as { players?: unknown }).players);
       if (!parsed) continue;
-      teamDetailsById[teamId].players.push(parsed);
+      teamDetailsById[teamId].players.push({ ...parsed, isCaptain: false });
     }
 
     for (const teamId of Object.keys(teamDetailsById)) {
       teamDetailsById[teamId].players.sort((a, b) => a.name.localeCompare(b.name, "pl"));
+      const captainId = pickTeamCaptainId(teamId, teamDetailsById[teamId].players.map((player) => player.id));
+      for (const player of teamDetailsById[teamId].players) {
+        player.isCaptain = captainId === player.id;
+      }
     }
   }
 
