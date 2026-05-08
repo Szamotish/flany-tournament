@@ -141,6 +141,7 @@ export async function POST(req: Request) {
       active: true,
       auth_user_id: userId,
       rank_frame_enabled: true,
+      can_rate_others: false,
     })
     .select("id,name,active")
     .single();

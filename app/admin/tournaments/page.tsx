@@ -14,6 +14,7 @@ type Player = {
   prestige_points?: number | null;
   rating_override?: number | null;
   mmr_manual_override?: boolean | null;
+  can_rate_others?: boolean | null;
   has_account?: boolean;
 };
 
@@ -56,9 +57,11 @@ function mapApiError(error: unknown): string {
   if (text.includes("missing_tournament_admins_schema")) return "Brak tabeli tournament_admins.";
   if (text.includes("missing_bans_schema")) return "Brak migracji banow w bazie.";
   if (text.includes("missing_ip_bans_schema")) return "Brak migracji IP banow w bazie.";
+  if (text.includes("missing_player_rating_permission_schema")) return "Brak migracji uprawnien oceniania (can_rate_others).";
   if (text.includes("player_has_no_account")) return "Ten zawodnik nie ma juz konta do zbanowania.";
   if (text.includes("player_has_no_email")) return "Konto zawodnika nie ma przypisanego emaila.";
   if (text.includes("invalid_ip")) return "Niepoprawny adres IP.";
+  if (text.includes("invalid_can_rate_others")) return "Niepoprawna wartosc uprawnienia oceniania.";
   return text || "Nieznany blad";
 }
 
@@ -510,6 +513,30 @@ export default function AdminTournamentsPage() {
     await loadPlayers(q);
   }
 
+  async function setPlayerCanRateOthers(playerId: string, playerName: string, canRateOthers: boolean | null | undefined) {
+    const nextValue = !(canRateOthers === true);
+    const confirmation = nextValue
+      ? `Odblokowac "${playerName}" mozliwosc oceniania innych?`
+      : `Zablokowac "${playerName}" mozliwosc oceniania innych?`;
+    if (!window.confirm(confirmation)) return;
+
+    setMsg(null);
+    const res = await authedFetch(`/api/admin/players/${playerId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ canRateOthers: nextValue }),
+    });
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg(`Blad uprawnien oceniania: ${mapApiError(json.error ?? res.statusText)}`);
+      return;
+    }
+
+    setMsg(nextValue ? "Ocenianie odblokowane." : "Ocenianie zablokowane.");
+    await loadPlayers(q);
+  }
+
   async function setPlayerPrestige(playerId: string, playerName: string, currentPrestige: number | null | undefined) {
     const raw = window.prompt(
       `Punkty PP dla "${playerName}" (0-9999):`,
@@ -925,6 +952,7 @@ export default function AdminTournamentsPage() {
                         </div>
                         <div className="tour-admin-player-meta">
                           <span className="tour-muted">{p.active ? "aktywny" : "nieaktywny"}</span>
+                          <span className="tour-muted">Ocenianie: {p.can_rate_others ? "on" : "off"}</span>
                           <span className="tour-muted">
                             MMR {Number.isFinite(Number(p.mmr ?? 0)) ? Number(p.mmr ?? 0).toFixed(1) : "0.0"}
                           </span>
@@ -1069,6 +1097,17 @@ export default function AdminTournamentsPage() {
               }}
             >
               Ustaw rating
+            </button>
+            <button
+              className="tour-player-menu-item"
+              type="button"
+              onClick={() => {
+                const p = playerActionMenu.player;
+                setPlayerActionMenu(null);
+                void setPlayerCanRateOthers(p.id, p.name, p.can_rate_others);
+              }}
+            >
+              {playerActionMenu.player.can_rate_others ? "Zablokuj ocenianie" : "Odblokuj ocenianie"}
             </button>
             <button
               className="tour-player-menu-item"

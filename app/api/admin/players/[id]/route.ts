@@ -80,17 +80,19 @@ export async function PATCH(
   const hasMmr = body && Object.prototype.hasOwnProperty.call(body, "mmr");
   const hasRatingOverride = body && Object.prototype.hasOwnProperty.call(body, "ratingOverride");
   const hasPrestigePoints = body && Object.prototype.hasOwnProperty.call(body, "prestigePoints");
+  const hasCanRateOthers = body && Object.prototype.hasOwnProperty.call(body, "canRateOthers");
   const resetMmr = body?.resetMmr === true;
 
   if (hasName && !name) return NextResponse.json({ error: "missing_name" }, { status: 400 });
   if (hasName && name.length > 40) return NextResponse.json({ error: "name_too_long" }, { status: 400 });
-  if (!hasName && !hasMmr && !hasRatingOverride && !hasPrestigePoints && !resetMmr) {
+  if (!hasName && !hasMmr && !hasRatingOverride && !hasPrestigePoints && !hasCanRateOthers && !resetMmr) {
     return NextResponse.json({ error: "missing_update_fields" }, { status: 400 });
   }
 
   let normalizedMmr: number | null = null;
   let normalizedRatingOverride: number | null = null;
   let normalizedPrestigePoints: number | null = null;
+  let normalizedCanRateOthers: boolean | null = null;
   if (hasMmr) {
     const numericMmr = Number(body?.mmr);
     if (!Number.isFinite(numericMmr)) {
@@ -112,6 +114,12 @@ export async function PATCH(
     }
     normalizedPrestigePoints = clampPrestigePoints(numericPrestige);
   }
+  if (hasCanRateOthers) {
+    if (typeof body?.canRateOthers !== "boolean") {
+      return NextResponse.json({ error: "invalid_can_rate_others" }, { status: 400 });
+    }
+    normalizedCanRateOthers = body.canRateOthers;
+  }
 
   const { data: player, error: pErr } = await supabaseServer
     .from("players")
@@ -128,6 +136,7 @@ export async function PATCH(
     prestige_points?: number;
     rating_override?: number | null;
     mmr_manual_override?: boolean;
+    can_rate_others?: boolean;
   } = {};
   if (hasName) updatePayload.name = name;
   if (resetMmr) {
@@ -145,23 +154,28 @@ export async function PATCH(
   if (hasRatingOverride) {
     updatePayload.rating_override = normalizedRatingOverride;
   }
+  if (hasCanRateOthers && normalizedCanRateOthers !== null) {
+    updatePayload.can_rate_others = normalizedCanRateOthers;
+  }
 
   const primaryUpdate = await supabaseServer
     .from("players")
     .update(updatePayload)
     .eq("id", playerId)
-    .select("id,name,active,mmr,prestige_points,rating_override,mmr_manual_override,rank_frame_enabled")
+    .select("id,name,active,mmr,prestige_points,rating_override,mmr_manual_override,rank_frame_enabled,can_rate_others")
     .single();
 
   if (
     primaryUpdate.error &&
     (primaryUpdate.error.message.includes("mmr_manual_override") ||
       primaryUpdate.error.message.includes("rating_override") ||
-      primaryUpdate.error.message.includes("rank_frame_enabled"))
+      primaryUpdate.error.message.includes("rank_frame_enabled") ||
+      primaryUpdate.error.message.includes("can_rate_others"))
   ) {
     const fallbackUpdatePayload = { ...updatePayload };
     delete fallbackUpdatePayload.mmr_manual_override;
     delete fallbackUpdatePayload.rating_override;
+    delete fallbackUpdatePayload.can_rate_others;
 
     const retry = await supabaseServer
       .from("players")
@@ -198,10 +212,12 @@ export async function PATCH(
           ? "player_rank_values_set"
           : hasRatingOverride
             ? "player_rating_override_set"
+            : hasCanRateOthers
+              ? "player_rating_permission_set"
             : "player_update",
       targetType: "player",
       targetId: playerId,
-      metadata: { hasName, hasMmr, hasRatingOverride, hasPrestigePoints, resetMmr },
+      metadata: { hasName, hasMmr, hasRatingOverride, hasPrestigePoints, hasCanRateOthers, resetMmr },
     });
     return NextResponse.json({ player: retry.data });
   }
@@ -233,14 +249,16 @@ export async function PATCH(
     actorPlayerId: admin.ctx.playerId,
     action: resetMmr
       ? "player_mmr_reset"
-      : hasMmr || hasPrestigePoints
-        ? "player_rank_values_set"
-        : hasRatingOverride
-          ? "player_rating_override_set"
-          : "player_update",
+    : hasMmr || hasPrestigePoints
+      ? "player_rank_values_set"
+      : hasRatingOverride
+        ? "player_rating_override_set"
+        : hasCanRateOthers
+          ? "player_rating_permission_set"
+        : "player_update",
     targetType: "player",
     targetId: playerId,
-    metadata: { hasName, hasMmr, hasRatingOverride, hasPrestigePoints, resetMmr },
+    metadata: { hasName, hasMmr, hasRatingOverride, hasPrestigePoints, hasCanRateOthers, resetMmr },
   });
 
   return NextResponse.json({ player: primaryUpdate.data });

@@ -24,7 +24,7 @@ export async function POST(req: Request) {
 
   const { data, error } = await supabaseServer
     .from("players")
-    .insert({ name, active: true })
+    .insert({ name, active: true, can_rate_others: false })
     .select("id,name,active")
     .single();
 

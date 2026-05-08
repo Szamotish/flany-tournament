@@ -15,6 +15,7 @@ type PlayerSearchRow = {
   prestige_points?: number | null;
   rating_override?: number | null;
   mmr_manual_override?: boolean | null;
+  can_rate_others?: boolean | null;
   auth_user_id?: string | null;
 };
 
@@ -34,8 +35,8 @@ export async function GET(req: Request) {
   const canSeeAccountState = auth.ok && (auth.ctx.isMainAdmin || auth.ctx.playerActive);
   const client = canSeeAccountState ? supabaseServer : supabasePublic;
   const selectColumns = canSeeAccountState
-    ? "id,name,active,created_at,mmr,prestige_points,rating_override,mmr_manual_override,auth_user_id"
-    : "id,name,active,created_at,mmr,prestige_points,rating_override,mmr_manual_override";
+    ? "id,name,active,created_at,mmr,prestige_points,rating_override,mmr_manual_override,can_rate_others,auth_user_id"
+    : "id,name,active,created_at,mmr,prestige_points,rating_override,mmr_manual_override,can_rate_others";
 
   let query = client
     .from("players")
@@ -53,7 +54,8 @@ export async function GET(req: Request) {
   if (
     primary.error &&
     (primary.error.message.includes("mmr_manual_override") ||
-      primary.error.message.includes("auth_user_id"))
+      primary.error.message.includes("auth_user_id") ||
+      primary.error.message.includes("can_rate_others"))
   ) {
     let fallbackQuery = client
       .from("players")
@@ -73,6 +75,7 @@ export async function GET(req: Request) {
       ...row,
       mmr_manual_override: false,
       rating_override: null,
+      can_rate_others: false,
       has_account: false,
     }));
 
@@ -90,6 +93,7 @@ export async function GET(req: Request) {
     prestige_points: row.prestige_points,
     rating_override: row.rating_override,
     mmr_manual_override: row.mmr_manual_override,
+    can_rate_others: row.can_rate_others === true,
     has_account:
       canSeeAccountState &&
       Object.prototype.hasOwnProperty.call(row, "auth_user_id") &&
