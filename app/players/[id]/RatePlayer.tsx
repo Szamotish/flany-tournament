@@ -85,6 +85,10 @@ export default function RatePlayer({ playerId, className }: RatePlayerProps) {
           setMsg("Twoje konto nie jest jeszcze podlaczone do zawodnika.");
         } else if (json.error === "cannot_rate_self") {
           setMsg("Nie mozesz ocenic samego siebie.");
+        } else if (json.error === "rating_locked_by_admin") {
+          setMsg("Main admin musi odblokowac Ci ocenianie graczy.");
+        } else if (json.error === "missing_player_rating_permission_schema") {
+          setMsg("Brakuje migracji uprawnien oceniania w bazie (can_rate_others).");
         } else if (json.error === "missing_ratings_player_schema") {
           setMsg("Brakuje migracji rankingu w bazie (rater_player_id).");
         } else if (json.error === "invalid_or_expired_token") {

@@ -17,6 +17,27 @@ export async function POST(req: Request) {
   if (auth.ctx.playerActive !== true) {
     return NextResponse.json({ error: "player_inactive" }, { status: 403 });
   }
+
+  const permission = await supabaseServer
+    .from("players")
+    .select("can_rate_others")
+    .eq("id", auth.ctx.playerId)
+    .maybeSingle();
+
+  if (permission.error) {
+    if (permission.error.message.includes("can_rate_others")) {
+      return NextResponse.json({ error: "missing_player_rating_permission_schema" }, { status: 500 });
+    }
+    return NextResponse.json({ error: permission.error.message }, { status: 500 });
+  }
+
+  if ((permission.data as { can_rate_others?: boolean | null } | null)?.can_rate_others !== true) {
+    return NextResponse.json(
+      { error: "rating_locked_by_admin", message: "Main admin musi odblokowac Ci ocenianie graczy." },
+      { status: 403 }
+    );
+  }
+
   const userLimit = rateLimit({ key: `ratings:user:${auth.ctx.userId}`, limit: 30, windowMs: 60 * 60 * 1000 });
   if (!userLimit.ok) return rateLimitResponse(userLimit);
 

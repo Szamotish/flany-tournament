@@ -29,6 +29,31 @@ export async function GET(req: Request) {
     });
   }
 
+  const permission = await supabaseServer
+    .from("players")
+    .select("can_rate_others")
+    .eq("id", auth.ctx.playerId)
+    .maybeSingle();
+
+  if (permission.error) {
+    if (permission.error.message.includes("can_rate_others")) {
+      return NextResponse.json({ error: "missing_player_rating_permission_schema" }, { status: 500 });
+    }
+    return NextResponse.json({ error: permission.error.message }, { status: 500 });
+  }
+
+  if ((permission.data as { can_rate_others?: boolean | null } | null)?.can_rate_others !== true) {
+    return NextResponse.json({
+      value: null,
+      updatedAt: null,
+      canRate: false,
+      cooldownState: "cooldown",
+      hoursLeft: null,
+      message: "Main admin musi odblokowac Ci ocenianie graczy.",
+      isSelf: false,
+    });
+  }
+
   const { data, error } = await supabaseServer
     .from("ratings")
     .select("value, updated_at")
