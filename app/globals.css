@@ -1656,6 +1656,18 @@ body {
   transition: opacity 120ms ease;
 }
 
+.tour-bracket-team-tooltip.is-floating {
+  position: fixed;
+  left: 0;
+  right: auto;
+  top: 0;
+  width: auto;
+  max-height: none;
+  overflow: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .tour-bracket-team-wrap:hover .tour-bracket-team-tooltip,
 .tour-bracket-team-wrap:focus-within .tour-bracket-team-tooltip {
   opacity: 1;

@@ -1,4 +1,8 @@
+ "use client";
+
 import Link from "next/link";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { teamToneVars } from "@/lib/ui/teamTone";
 import { playerToneStyle } from "@/lib/ui/playerProfile";
 
@@ -38,6 +42,25 @@ type TreeMetrics = {
   roundWidth: number;
   colGap: number;
   cardHeight: number;
+};
+
+type TeamTooltipPlayer = {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  profileColor: string | null;
+  isCaptain: boolean;
+};
+
+type TeamTooltipData = {
+  teamName: string;
+  players: TeamTooltipPlayer[];
+};
+
+type HoveredTooltip = {
+  teamId: string;
+  data: TeamTooltipData;
+  anchor: DOMRect;
 };
 
 function sourceIndexes(currIdx: number, currLen: number, prevLen: number): number[] {
@@ -107,8 +130,91 @@ function buildMetrics(rounds: BracketTreeRound[], variant: "compact" | "detailed
 export default function BracketTree({ rounds, variant = "compact", teamDetailsById = {} }: BracketTreeProps) {
   const metrics = buildMetrics(rounds, variant);
   const { centersByRound, sourceMap, treeHeight, roundWidth, colGap, cardHeight } = metrics;
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [hoveredTooltip, setHoveredTooltip] = useState<HoveredTooltip | null>(null);
 
   const totalWidth = Math.max(1, rounds.length) * roundWidth + Math.max(0, rounds.length - 1) * colGap;
+
+  const cancelCloseTooltip = useCallback(() => {
+    if (!closeTimerRef.current) return;
+    clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = null;
+  }, []);
+
+  const scheduleCloseTooltip = useCallback(() => {
+    cancelCloseTooltip();
+    closeTimerRef.current = setTimeout(() => {
+      setHoveredTooltip(null);
+    }, 120);
+  }, [cancelCloseTooltip]);
+
+  const openTooltip = useCallback(
+    (teamId: string | null, anchorEl: HTMLElement) => {
+      if (!teamId) return;
+      const data = teamDetailsById[teamId];
+      if (!data) return;
+      cancelCloseTooltip();
+      setHoveredTooltip({
+        teamId,
+        data,
+        anchor: anchorEl.getBoundingClientRect(),
+      });
+    },
+    [cancelCloseTooltip, teamDetailsById],
+  );
+
+  const tooltipStyle = useMemo(() => {
+    if (!hoveredTooltip) return null;
+    const minWidth = 220;
+    const maxWidth = 320;
+    const preferredWidth = Math.max(minWidth, Math.min(maxWidth, hoveredTooltip.anchor.width + 36));
+    const viewportPadding = 10;
+    const maxLeft = window.innerWidth - preferredWidth - viewportPadding;
+    const left = Math.max(viewportPadding, Math.min(hoveredTooltip.anchor.left, maxLeft));
+    const top = hoveredTooltip.anchor.bottom + 8;
+    return {
+      position: "fixed" as const,
+      left: `${left}px`,
+      top: `${top}px`,
+      width: `${preferredWidth}px`,
+      zIndex: 3000,
+    };
+  }, [hoveredTooltip]);
+
+  const renderTeamTooltip = (tooltipId: string, tooltipData: TeamTooltipData) =>
+    createPortal(
+      <div
+        className="tour-bracket-team-tooltip is-floating"
+        role="tooltip"
+        onMouseEnter={cancelCloseTooltip}
+        onMouseLeave={scheduleCloseTooltip}
+        onFocus={cancelCloseTooltip}
+        onBlur={scheduleCloseTooltip}
+        style={tooltipStyle ?? undefined}
+      >
+        <p className="tour-bracket-team-tooltip-title">{tooltipData.teamName}</p>
+        <div className="tour-bracket-team-tooltip-list">
+          {tooltipData.players.map((player) => (
+            <Link
+              key={`${tooltipId}-${player.id}`}
+              className="tour-player-chip tour-player-chip-avatar player-tone-card"
+              style={playerToneStyle(player.profileColor)}
+              href={`/players/${player.id}`}
+            >
+              {player.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={player.avatarUrl} alt="" className="tour-player-avatar" />
+              ) : (
+                <span className="tour-player-avatar tour-player-avatar-fallback">{player.name.slice(0, 1).toUpperCase()}</span>
+              )}
+              <span>{player.name}</span>
+              {player.isCaptain ? <span className="tour-player-captain-diamond" aria-label="Kapitan" /> : null}
+            </Link>
+          ))}
+        </div>
+      </div>,
+      document.body,
+    );
 
   return (
     <div className="bracket-tree-scroll">
@@ -178,73 +284,29 @@ export default function BracketTree({ rounds, variant = "compact", teamDetailsBy
                         <div
                           className={`tour-bracket-team tour-bracket-team-${m.teamAState}`}
                           style={teamToneVars(m.teamAId)}
+                          onMouseEnter={(event) => openTooltip(m.teamAId, event.currentTarget)}
+                          onMouseLeave={scheduleCloseTooltip}
+                          onFocus={(event) => openTooltip(m.teamAId, event.currentTarget)}
+                          onBlur={scheduleCloseTooltip}
                         >
                           <span className="tour-bracket-dot" />
                           <span className="tour-bracket-name">{m.teamAName}</span>
                           {variant === "detailed" && <span className="tour-score-box">{m.teamAScore ?? "-"}</span>}
                         </div>
-                        {m.teamAId && teamDetailsById[m.teamAId] ? (
-                          <div className="tour-bracket-team-tooltip" role="tooltip">
-                            <p className="tour-bracket-team-tooltip-title">{teamDetailsById[m.teamAId].teamName}</p>
-                            <div className="tour-bracket-team-tooltip-list">
-                              {teamDetailsById[m.teamAId].players.map((player) => (
-                                <Link
-                                  key={`${m.id}-a-${player.id}`}
-                                  className="tour-player-chip tour-player-chip-avatar player-tone-card"
-                                  style={playerToneStyle(player.profileColor)}
-                                  href={`/players/${player.id}`}
-                                >
-                                  {player.avatarUrl ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={player.avatarUrl} alt="" className="tour-player-avatar" />
-                                  ) : (
-                                    <span className="tour-player-avatar tour-player-avatar-fallback">
-                                      {player.name.slice(0, 1).toUpperCase()}
-                                    </span>
-                                  )}
-                                  <span>{player.name}</span>
-                                  {player.isCaptain ? <span className="tour-player-captain-diamond" aria-label="Kapitan" /> : null}
-                                </Link>
-                              ))}
-                            </div>
-                          </div>
-                        ) : null}
                       </div>
                       <div className="tour-bracket-team-wrap">
                         <div
                           className={`tour-bracket-team tour-bracket-team-${m.teamBState}`}
                           style={teamToneVars(m.teamBId)}
+                          onMouseEnter={(event) => openTooltip(m.teamBId, event.currentTarget)}
+                          onMouseLeave={scheduleCloseTooltip}
+                          onFocus={(event) => openTooltip(m.teamBId, event.currentTarget)}
+                          onBlur={scheduleCloseTooltip}
                         >
                           <span className="tour-bracket-dot" />
                           <span className="tour-bracket-name">{m.teamBName}</span>
                           {variant === "detailed" && <span className="tour-score-box">{m.teamBScore ?? "-"}</span>}
                         </div>
-                        {m.teamBId && teamDetailsById[m.teamBId] ? (
-                          <div className="tour-bracket-team-tooltip" role="tooltip">
-                            <p className="tour-bracket-team-tooltip-title">{teamDetailsById[m.teamBId].teamName}</p>
-                            <div className="tour-bracket-team-tooltip-list">
-                              {teamDetailsById[m.teamBId].players.map((player) => (
-                                <Link
-                                  key={`${m.id}-b-${player.id}`}
-                                  className="tour-player-chip tour-player-chip-avatar player-tone-card"
-                                  style={playerToneStyle(player.profileColor)}
-                                  href={`/players/${player.id}`}
-                                >
-                                  {player.avatarUrl ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={player.avatarUrl} alt="" className="tour-player-avatar" />
-                                  ) : (
-                                    <span className="tour-player-avatar tour-player-avatar-fallback">
-                                      {player.name.slice(0, 1).toUpperCase()}
-                                    </span>
-                                  )}
-                                  <span>{player.name}</span>
-                                  {player.isCaptain ? <span className="tour-player-captain-diamond" aria-label="Kapitan" /> : null}
-                                </Link>
-                              ))}
-                            </div>
-                          </div>
-                        ) : null}
                       </div>
                     </div>
 
@@ -256,6 +318,7 @@ export default function BracketTree({ rounds, variant = "compact", teamDetailsBy
           );
         })}
       </div>
+      {hoveredTooltip && tooltipStyle ? renderTeamTooltip(hoveredTooltip.teamId, hoveredTooltip.data) : null}
     </div>
   );
 }
