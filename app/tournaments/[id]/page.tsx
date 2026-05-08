@@ -44,10 +44,6 @@ function parsePlayerRef(value: unknown): PlayerRef | null {
   };
 }
 
-function isPlayerRef(value: unknown): value is PlayerRef {
-  return Boolean(parsePlayerRef(value));
-}
-
 function bracketLabel(bracket: Bracket): string {
   if (bracket === "winners") return "Winners";
   if (bracket === "losers") return "Losers";
@@ -183,8 +179,8 @@ export default async function TournamentPage({
   const tournamentBeers = computeBeersFromFinishedMatches(finishedTeamMatches, teamSizeMap);
 
   const players = (tp ?? [])
-    .map((x) => x.players as unknown)
-    .filter(isPlayerRef)
+    .map((x) => parsePlayerRef((x as { players?: unknown }).players))
+    .filter((p): p is PlayerRef => Boolean(p))
     .sort((a, b) => a.name.localeCompare(b.name, "pl"));
 
   const matches: MatchView[] = (matchRows ?? []).map((m) => {
@@ -237,6 +233,46 @@ export default async function TournamentPage({
   }
 
   const bracketOrder: Bracket[] = t?.format === "double_elim" ? ["winners", "losers", "grand_final"] : ["single"];
+
+  const bracketTeamIds = Array.from(
+    new Set(
+      matches
+        .flatMap((m) => [m.teamAId, m.teamBId])
+        .filter((teamId): teamId is string => Boolean(teamId))
+    )
+  );
+
+  const teamDetailsById: Record<string, { teamName: string; players: PlayerRef[] }> = {};
+  if (bracketTeamIds.length > 0) {
+    const [{ data: teamRows }, { data: teamMembers }] = await Promise.all([
+      supabaseServer.from("teams").select("id,name").in("id", bracketTeamIds),
+      supabaseServer
+        .from("team_members")
+        .select("team_id, players(id,name,avatar_url,profile_color)")
+        .in("team_id", bracketTeamIds),
+    ]);
+
+    for (const teamRow of teamRows ?? []) {
+      const teamId = String(teamRow.id ?? "");
+      if (!teamId) continue;
+      teamDetailsById[teamId] = {
+        teamName: String(teamRow.name ?? "Druzyna"),
+        players: [],
+      };
+    }
+
+    for (const row of teamMembers ?? []) {
+      const teamId = String(row.team_id ?? "");
+      if (!teamId || !teamDetailsById[teamId]) continue;
+      const parsed = parsePlayerRef((row as { players?: unknown }).players);
+      if (!parsed) continue;
+      teamDetailsById[teamId].players.push(parsed);
+    }
+
+    for (const teamId of Object.keys(teamDetailsById)) {
+      teamDetailsById[teamId].players.sort((a, b) => a.name.localeCompare(b.name, "pl"));
+    }
+  }
 
   let champion: ChampionData = null;
   if (winnerRow?.team_id) {
@@ -380,7 +416,7 @@ export default async function TournamentPage({
                           </div>
 
                           <div className="mt-3">
-                            <BracketTree rounds={treeRounds} variant="compact" />
+                            <BracketTree rounds={treeRounds} variant="compact" teamDetailsById={teamDetailsById} />
                           </div>
                         </article>
                       );

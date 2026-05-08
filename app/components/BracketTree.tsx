@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { teamToneVars } from "@/lib/ui/teamTone";
+import { playerToneStyle } from "@/lib/ui/playerProfile";
 
 export type BracketTreeTeamState = "empty" | "pending" | "winner" | "loser";
 
@@ -26,6 +28,7 @@ export type BracketTreeRound = {
 type BracketTreeProps = {
   rounds: BracketTreeRound[];
   variant?: "compact" | "detailed";
+  teamDetailsById?: Record<string, { teamName: string; players: Array<{ id: string; name: string; avatarUrl: string | null; profileColor: string | null }> }>;
 };
 
 type TreeMetrics = {
@@ -101,7 +104,7 @@ function buildMetrics(rounds: BracketTreeRound[], variant: "compact" | "detailed
   return { centersByRound, sourceMap, treeHeight, roundWidth, colGap, cardHeight };
 }
 
-export default function BracketTree({ rounds, variant = "compact" }: BracketTreeProps) {
+export default function BracketTree({ rounds, variant = "compact", teamDetailsById = {} }: BracketTreeProps) {
   const metrics = buildMetrics(rounds, variant);
   const { centersByRound, sourceMap, treeHeight, roundWidth, colGap, cardHeight } = metrics;
 
@@ -171,21 +174,75 @@ export default function BracketTree({ rounds, variant = "compact" }: BracketTree
                     )}
 
                     <div className={variant === "detailed" ? "tour-tree-team-rows mt-2" : "tour-tree-team-rows"}>
-                      <div
-                        className={`tour-bracket-team tour-bracket-team-${m.teamAState}`}
-                        style={teamToneVars(m.teamAId)}
-                      >
-                        <span className="tour-bracket-dot" />
-                        <span className="tour-bracket-name">{m.teamAName}</span>
-                        {variant === "detailed" && <span className="tour-score-box">{m.teamAScore ?? "-"}</span>}
+                      <div className="tour-bracket-team-wrap">
+                        <div
+                          className={`tour-bracket-team tour-bracket-team-${m.teamAState}`}
+                          style={teamToneVars(m.teamAId)}
+                        >
+                          <span className="tour-bracket-dot" />
+                          <span className="tour-bracket-name">{m.teamAName}</span>
+                          {variant === "detailed" && <span className="tour-score-box">{m.teamAScore ?? "-"}</span>}
+                        </div>
+                        {m.teamAId && teamDetailsById[m.teamAId] ? (
+                          <div className="tour-bracket-team-tooltip" role="tooltip">
+                            <p className="tour-bracket-team-tooltip-title">{teamDetailsById[m.teamAId].teamName}</p>
+                            <div className="tour-bracket-team-tooltip-list">
+                              {teamDetailsById[m.teamAId].players.map((player) => (
+                                <Link
+                                  key={`${m.id}-a-${player.id}`}
+                                  className="tour-player-chip tour-player-chip-avatar player-tone-card"
+                                  style={playerToneStyle(player.profileColor)}
+                                  href={`/players/${player.id}`}
+                                >
+                                  {player.avatarUrl ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={player.avatarUrl} alt="" className="tour-player-avatar" />
+                                  ) : (
+                                    <span className="tour-player-avatar tour-player-avatar-fallback">
+                                      {player.name.slice(0, 1).toUpperCase()}
+                                    </span>
+                                  )}
+                                  <span>{player.name}</span>
+                                </Link>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
-                      <div
-                        className={`tour-bracket-team tour-bracket-team-${m.teamBState}`}
-                        style={teamToneVars(m.teamBId)}
-                      >
-                        <span className="tour-bracket-dot" />
-                        <span className="tour-bracket-name">{m.teamBName}</span>
-                        {variant === "detailed" && <span className="tour-score-box">{m.teamBScore ?? "-"}</span>}
+                      <div className="tour-bracket-team-wrap">
+                        <div
+                          className={`tour-bracket-team tour-bracket-team-${m.teamBState}`}
+                          style={teamToneVars(m.teamBId)}
+                        >
+                          <span className="tour-bracket-dot" />
+                          <span className="tour-bracket-name">{m.teamBName}</span>
+                          {variant === "detailed" && <span className="tour-score-box">{m.teamBScore ?? "-"}</span>}
+                        </div>
+                        {m.teamBId && teamDetailsById[m.teamBId] ? (
+                          <div className="tour-bracket-team-tooltip" role="tooltip">
+                            <p className="tour-bracket-team-tooltip-title">{teamDetailsById[m.teamBId].teamName}</p>
+                            <div className="tour-bracket-team-tooltip-list">
+                              {teamDetailsById[m.teamBId].players.map((player) => (
+                                <Link
+                                  key={`${m.id}-b-${player.id}`}
+                                  className="tour-player-chip tour-player-chip-avatar player-tone-card"
+                                  style={playerToneStyle(player.profileColor)}
+                                  href={`/players/${player.id}`}
+                                >
+                                  {player.avatarUrl ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={player.avatarUrl} alt="" className="tour-player-avatar" />
+                                  ) : (
+                                    <span className="tour-player-avatar tour-player-avatar-fallback">
+                                      {player.name.slice(0, 1).toUpperCase()}
+                                    </span>
+                                  )}
+                                  <span>{player.name}</span>
+                                </Link>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
 

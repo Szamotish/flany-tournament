@@ -1370,6 +1370,13 @@ body {
   min-width: 0;
 }
 
+.tour-player-chip-avatar > span:not(.tour-player-avatar):not(.tour-player-avatar-fallback):not(.tour-player-captain-badge) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tour-player-captain-badge {
   margin-left: auto;
   border: 1px solid rgba(87, 64, 25, 0.42);
@@ -1609,6 +1616,62 @@ body {
 .tour-tree-team-rows {
   display: grid;
   gap: 0.34rem;
+}
+
+.tour-bracket-team-wrap {
+  position: relative;
+}
+
+.tour-bracket-team-tooltip {
+  position: absolute;
+  left: calc(100% + 0.55rem);
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(320px, 58vw);
+  max-height: 250px;
+  overflow: auto;
+  z-index: 15;
+  border: 1px solid rgba(80, 48, 8, 0.26);
+  border-radius: 0.82rem;
+  padding: 0.5rem;
+  background: rgba(247, 251, 241, 0.96);
+  box-shadow: 0 12px 26px rgba(30, 18, 6, 0.22);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.tour-bracket-team-wrap:hover .tour-bracket-team-tooltip,
+.tour-bracket-team-wrap:focus-within .tour-bracket-team-tooltip {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.tour-bracket-team-tooltip-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 740;
+  color: rgba(43, 30, 11, 0.92);
+}
+
+.tour-bracket-team-tooltip-list {
+  display: grid;
+  gap: 0.32rem;
+}
+
+.tour-bracket-team-tooltip .tour-player-chip {
+  padding: 0.34rem 0.46rem;
+  border-radius: 0.62rem;
+}
+
+@media (max-width: 980px) {
+  .tour-bracket-team-tooltip {
+    left: auto;
+    right: 0;
+    top: calc(100% + 0.42rem);
+    transform: none;
+    width: min(82vw, 320px);
+  }
 }
 
 .tour-tree-match {
