@@ -1441,11 +1441,18 @@ body {
 }
 
 .tour-preview-bracket-group {
+  position: relative;
   border: 1px solid rgba(80, 48, 8, 0.22);
   border-radius: 0.95rem;
   padding: 0.8rem;
   background: rgba(255, 255, 255, 0.58);
   overflow: visible;
+  z-index: 1;
+}
+
+.tour-preview-bracket-group:hover,
+.tour-preview-bracket-group:focus-within {
+  z-index: 30;
 }
 
 .tour-preview-bracket-title {
@@ -1636,8 +1643,8 @@ body {
   top: calc(100% + 0.42rem);
   transform: none;
   width: auto;
-  max-height: 220px;
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
   z-index: 50;
   border: 1px solid rgba(80, 48, 8, 0.26);
   border-radius: 0.82rem;
