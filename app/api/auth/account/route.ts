@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { readAuthContext } from "@/app/api/admin/_auth";
 import { writeAuditLog } from "@/lib/auditLog";
 import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
+import { removeRatingsGivenByPlayer } from "@/lib/ratingsCleanup";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 export async function DELETE(req: Request) {
@@ -15,6 +16,15 @@ export async function DELETE(req: Request) {
   if (!userLimit.ok) return rateLimitResponse(userLimit);
 
   if (auth.ctx.playerId) {
+    try {
+      await removeRatingsGivenByPlayer(auth.ctx.playerId);
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : "ratings_cleanup_failed" },
+        { status: 500 }
+      );
+    }
+
     const deactivatedName = `deleted-${auth.ctx.playerId.slice(0, 8)}`;
     const playerUpdatePrimary = await supabaseServer
       .from("players")

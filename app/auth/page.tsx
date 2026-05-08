@@ -183,6 +183,10 @@ function AuthPageInner() {
       resetTurnstileToken();
       if (signupJson.error === "pseudonym_taken") {
         setMsg("Ten pseudonim jest juz zajety.");
+      } else if (signupJson.error === "banned_ip") {
+        setMsg("Ten adres IP zostal zablokowany i nie moze utworzyc konta.");
+      } else if (signupJson.error === "banned_email") {
+        setMsg("Ten adres email zostal zablokowany i nie moze utworzyc konta.");
       } else if (signupJson.error === "invalid_pseudonym") {
         setMsg("Pseudonim musi miec min. 2 znaki.");
       } else if (signupJson.error === "password_too_short") {

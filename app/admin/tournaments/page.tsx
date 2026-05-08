@@ -54,6 +54,11 @@ function mapApiError(error: unknown): string {
   if (text.includes("missing_bearer_token")) return "Brak sesji. Zaloguj sie.";
   if (text.includes("missing_auth_schema")) return "Brak migracji auth w bazie (auth_user_id / is_main_admin).";
   if (text.includes("missing_tournament_admins_schema")) return "Brak tabeli tournament_admins.";
+  if (text.includes("missing_bans_schema")) return "Brak migracji banow w bazie.";
+  if (text.includes("missing_ip_bans_schema")) return "Brak migracji IP banow w bazie.";
+  if (text.includes("player_has_no_account")) return "Ten zawodnik nie ma juz konta do zbanowania.";
+  if (text.includes("player_has_no_email")) return "Konto zawodnika nie ma przypisanego emaila.";
+  if (text.includes("invalid_ip")) return "Niepoprawny adres IP.";
   return text || "Nieznany blad";
 }
 
@@ -346,6 +351,79 @@ export default function AdminTournamentsPage() {
     setLocalAdminSelectedIds((prev) => prev.filter((id) => id !== playerId));
 
     setMsg(json.softDeleted ? "Zawodnik zdezaktywowany." : "Zawodnik usuniety.");
+    await Promise.all([loadPlayers(q), loadTournaments()]);
+  }
+
+  async function banPlayer(playerId: string, playerName: string, hasAccount: boolean | undefined) {
+    if (!hasAccount) {
+      setMsg("Ten zawodnik nie ma aktywnego konta do zbanowania.");
+      return;
+    }
+
+    const reasonInput = window.prompt(`Powod bana dla "${playerName}" (opcjonalnie):`, "");
+    if (reasonInput === null) return;
+
+    if (!window.confirm(`Zbanowac "${playerName}" (email) i usunac konto?`)) return;
+
+    setMsg(null);
+    const res = await authedFetch(`/api/admin/players/${playerId}/ban`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ reason: reasonInput.trim() }),
+    });
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg(`Blad bana: ${mapApiError(json.error ?? res.statusText)}`);
+      return;
+    }
+
+    setSelected((prev) => {
+      const next = { ...prev };
+      delete next[playerId];
+      return next;
+    });
+    setLocalAdminSelectedIds((prev) => prev.filter((id) => id !== playerId));
+
+    setMsg("Zawodnik zbanowany, konto usuniete, email zablokowany.");
+    await Promise.all([loadPlayers(q), loadTournaments()]);
+  }
+
+  async function banPlayerIp(playerId: string, playerName: string, hasAccount: boolean | undefined) {
+    if (!hasAccount) {
+      setMsg("Ten zawodnik nie ma aktywnego konta do zbanowania.");
+      return;
+    }
+
+    const ipAddress = window.prompt(`IP do zbanowania dla "${playerName}" (np. 1.2.3.4):`, "")?.trim() ?? "";
+    if (!ipAddress) return;
+
+    const reasonInput = window.prompt(`Powod IP bana dla "${playerName}" (opcjonalnie):`, "");
+    if (reasonInput === null) return;
+
+    if (!window.confirm(`Nalozyc IP ban (${ipAddress}) na "${playerName}" i usunac konto?`)) return;
+
+    setMsg(null);
+    const res = await authedFetch(`/api/admin/players/${playerId}/ban-ip`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ipAddress, reason: reasonInput.trim() }),
+    });
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg(`Blad IP bana: ${mapApiError(json.error ?? res.statusText)}`);
+      return;
+    }
+
+    setSelected((prev) => {
+      const next = { ...prev };
+      delete next[playerId];
+      return next;
+    });
+    setLocalAdminSelectedIds((prev) => prev.filter((id) => id !== playerId));
+
+    setMsg("IP ban i ban emaila zapisane. Konto usuniete.");
     await Promise.all([loadPlayers(q), loadTournaments()]);
   }
 
@@ -1013,6 +1091,32 @@ export default function AdminTournamentsPage() {
               }}
             >
               Reset MMR / PP
+            </button>
+            <button
+              className="tour-player-menu-item tour-player-menu-item-danger"
+              type="button"
+              disabled={!playerActionMenu.player.has_account}
+              title={!playerActionMenu.player.has_account ? "Zawodnik nie ma aktywnego konta" : "Zbanuj email i usun konto"}
+              onClick={() => {
+                const p = playerActionMenu.player;
+                setPlayerActionMenu(null);
+                void banPlayer(p.id, p.name, p.has_account);
+              }}
+            >
+              Ban
+            </button>
+            <button
+              className="tour-player-menu-item tour-player-menu-item-danger"
+              type="button"
+              disabled={!playerActionMenu.player.has_account}
+              title={!playerActionMenu.player.has_account ? "Zawodnik nie ma aktywnego konta" : "Zbanuj IP i usun konto"}
+              onClick={() => {
+                const p = playerActionMenu.player;
+                setPlayerActionMenu(null);
+                void banPlayerIp(p.id, p.name, p.has_account);
+              }}
+            >
+              IP ban
             </button>
             <button
               className="tour-player-menu-item tour-player-menu-item-danger"

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { findActiveEmailBan, findActiveIpBan } from "@/lib/bans";
 import { supabasePublic } from "@/lib/supabasePublic";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
@@ -50,6 +51,36 @@ export async function POST(req: Request) {
   if (!EMAIL_RE.test(email)) {
     return NextResponse.json({ error: "invalid_email" }, { status: 400 });
   }
+
+  try {
+    const activeIpBan = await findActiveIpBan(ip);
+    if (activeIpBan) {
+      return NextResponse.json(
+        {
+          error: "banned_ip",
+          reason: activeIpBan.reason,
+          expiresAt: activeIpBan.expires_at,
+        },
+        { status: 403 }
+      );
+    }
+
+    const activeBan = await findActiveEmailBan(email);
+    if (activeBan) {
+      return NextResponse.json(
+        {
+          error: "banned_email",
+          reason: activeBan.reason,
+          expiresAt: activeBan.expires_at,
+        },
+        { status: 403 }
+      );
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "ban_check_failed";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+
   if (password.length < 8) {
     return NextResponse.json({ error: "password_too_short" }, { status: 400 });
   }

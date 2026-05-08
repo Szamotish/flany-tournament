@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { assertMainAdmin } from "@/app/api/admin/_auth";
 import { writeAuditLog } from "@/lib/auditLog";
 import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
+import { removeRatingsGivenByPlayer } from "@/lib/ratingsCleanup";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { BASE_MMR_CAP } from "@/lib/ranked";
 
@@ -277,6 +278,14 @@ export async function DELETE(
     .eq("player_id", playerId);
   if (taErr && !taErr.message.includes("tournament_admins")) {
     return NextResponse.json({ error: taErr.message }, { status: 500 });
+  }
+  try {
+    await removeRatingsGivenByPlayer(playerId);
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "ratings_cleanup_failed" },
+      { status: 500 }
+    );
   }
 
   const deactivatedName = `deleted-${playerId.slice(0, 8)}-${Date.now().toString(36)}`;
