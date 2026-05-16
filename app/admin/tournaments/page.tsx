@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { MouseEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { authedFetch } from "@/lib/authClient";
+import { BEER_LIST } from "@/lib/beers";
 import { ONE_V_ONE_PLAYER_LIMIT } from "@/lib/tournamentFormat";
 
 type Player = {
@@ -58,6 +59,7 @@ function mapApiError(error: unknown): string {
   if (text.includes("missing_bans_schema")) return "Brak migracji banow w bazie.";
   if (text.includes("missing_ip_bans_schema")) return "Brak migracji IP banow w bazie.";
   if (text.includes("missing_player_rating_permission_schema")) return "Brak migracji uprawnien oceniania (can_rate_others).";
+  if (text.includes("invalid_beer_of_day")) return "Niepoprawne piwo dnia.";
   if (text.includes("player_has_no_account")) return "Ten zawodnik nie ma juz konta do zbanowania.";
   if (text.includes("player_has_no_email")) return "Konto zawodnika nie ma przypisanego emaila.";
   if (text.includes("invalid_ip")) return "Niepoprawny adres IP.";
@@ -95,6 +97,8 @@ export default function AdminTournamentsPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [backgroundChoice, setBackgroundChoice] = useState<AppBackgroundVariant>("finn_bmo");
   const [savingBackground, setSavingBackground] = useState(false);
+  const [beerOfDayChoice, setBeerOfDayChoice] = useState<string | null>(null);
+  const [savingBeerOfDay, setSavingBeerOfDay] = useState(false);
 
   const selectedIds = useMemo(
     () => Object.entries(selected).filter(([, v]) => v).map(([id]) => id),
@@ -210,17 +214,19 @@ export default function AdminTournamentsPage() {
     let cancelled = false;
 
     async function bootstrap() {
-      const [authRes, playersRes, tournamentsRes, backgroundRes] = await Promise.all([
+      const [authRes, playersRes, tournamentsRes, backgroundRes, beerOfDayRes] = await Promise.all([
         authedFetch("/api/auth/me", { cache: "no-store" }),
         authedFetch("/api/public/players/search?q=", { cache: "no-store" }),
         authedFetch("/api/public/tournaments", { cache: "no-store" }),
         fetch("/api/public/background", { cache: "no-store" }),
+        fetch("/api/public/beer-of-day", { cache: "no-store" }),
       ]);
 
       const authJson = await authRes.json().catch(() => ({}));
       const playersJson = await playersRes.json().catch(() => ({}));
       const tournamentsJson = await tournamentsRes.json().catch(() => ({}));
       const backgroundJson = await backgroundRes.json().catch(() => ({}));
+      const beerOfDayJson = await beerOfDayRes.json().catch(() => ({}));
 
       if (cancelled) return;
       setIsMainAdmin(authJson.authenticated === true && authJson.isMainAdmin === true);
@@ -232,6 +238,14 @@ export default function AdminTournamentsPage() {
         (backgroundJson.background === "finn_bmo" || backgroundJson.background === "finn_beer")
       ) {
         setBackgroundChoice(backgroundJson.background);
+      }
+      if (
+        beerOfDayRes.ok &&
+        (typeof beerOfDayJson.beerOfDay === "string"
+          ? BEER_LIST.some((beer) => beer.name === beerOfDayJson.beerOfDay)
+          : beerOfDayJson.beerOfDay === null)
+      ) {
+        setBeerOfDayChoice(typeof beerOfDayJson.beerOfDay === "string" ? beerOfDayJson.beerOfDay : null);
       }
     }
 
@@ -639,6 +653,28 @@ export default function AdminTournamentsPage() {
     }
   }
 
+  async function saveBeerOfDayChoice() {
+    setMsg(null);
+    setSavingBeerOfDay(true);
+    try {
+      const res = await authedFetch("/api/admin/beer-of-day", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ beerOfDay: beerOfDayChoice }),
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg(`Blad piwa dnia: ${mapApiError(json.error ?? res.statusText)}`);
+        return;
+      }
+
+      setMsg("Piwo dnia zapisane.");
+    } finally {
+      setSavingBeerOfDay(false);
+    }
+  }
+
   if (isMainAdmin === null) {
     return (
       <main className="tour-root">
@@ -688,13 +724,13 @@ export default function AdminTournamentsPage() {
 
         <section className="tour-admin-panel mt-4">
           <div className="tour-card-head">
-            <p className="tour-card-title">Tlo aplikacji</p>
+            <p className="tour-card-title">Ustawienia glowne</p>
             <Link className="tour-action-btn" href="/admin/rules">
               Zasady
             </Link>
           </div>
-          <div className="tour-admin-grid mt-3">
-            <div>
+          <div className="tour-admin-settings-row mt-3">
+            <div className="tour-admin-settings-card">
               <label className="tour-admin-label">Wariant tla</label>
               <select
                 className="tour-admin-input"
@@ -707,11 +743,44 @@ export default function AdminTournamentsPage() {
                 <option value="finn_bmo">BMO</option>
                 <option value="finn_beer">Finn z piwem</option>
               </select>
+              <div className="tour-admin-actions mt-2">
+                <button className="tour-action-btn" type="button" disabled={savingBackground} onClick={saveBackgroundChoice}>
+                  {savingBackground ? "Zapisywanie..." : "Zapisz tlo"}
+                </button>
+              </div>
             </div>
-            <div className="tour-admin-actions">
-              <button className="tour-action-btn" type="button" disabled={savingBackground} onClick={saveBackgroundChoice}>
-                {savingBackground ? "Zapisywanie..." : "Zapisz tlo"}
-              </button>
+            <div className="tour-admin-settings-card">
+              <label className="tour-admin-label">Piwo dnia</label>
+              <details className="tour-admin-beer-dropdown">
+                <summary className="tour-admin-input tour-admin-beer-summary">
+                  {beerOfDayChoice ?? "Automatyczne (wg dnia)"}
+                </summary>
+                <div className="tour-admin-beer-dropdown-list">
+                  <label className="tour-admin-checklist-item">
+                    <input
+                      type="checkbox"
+                      checked={beerOfDayChoice === null}
+                      onChange={() => setBeerOfDayChoice(null)}
+                    />
+                    <span>Automatyczne (wg dnia)</span>
+                  </label>
+                  {BEER_LIST.map((beer) => (
+                    <label key={beer.name} className="tour-admin-checklist-item">
+                      <input
+                        type="checkbox"
+                        checked={beerOfDayChoice === beer.name}
+                        onChange={() => setBeerOfDayChoice(beer.name)}
+                      />
+                      <span>{beer.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </details>
+              <div className="tour-admin-actions mt-2">
+                <button className="tour-action-btn" type="button" disabled={savingBeerOfDay} onClick={saveBeerOfDayChoice}>
+                  {savingBeerOfDay ? "Zapisywanie..." : "Zapisz piwo dnia"}
+                </button>
+              </div>
             </div>
           </div>
         </section>

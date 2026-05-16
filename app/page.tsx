@@ -1,6 +1,7 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { beerOfTheDay, computeBeersFromFinishedMatches } from "@/lib/beers";
+import { readConfiguredBeerOfDay } from "@/lib/appBackground";
 import BeerCan3D from "@/app/components/BeerCan3D";
 import NearbyLiquorCompassCard from "@/app/components/NearbyLiquorCompassCard";
 
@@ -97,7 +98,8 @@ async function fetchSarbskWeather(): Promise<WeatherData> {
 
 export default async function HomePage() {
   const warsawDay = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Warsaw" });
-  const beer = beerOfTheDay(warsawDay);
+  const configuredBeer = await readConfiguredBeerOfDay();
+  const beer = configuredBeer ? { name: configuredBeer } : beerOfTheDay(warsawDay);
   const degree = "\u00B0C";
 
   const [playersCountRes, tournamentsCountRes, finishedMatchesRes, weather] = await Promise.all([
@@ -222,4 +224,6 @@ export default async function HomePage() {
     </main>
   );
 }
+
+
 
