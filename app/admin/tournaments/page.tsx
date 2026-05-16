@@ -60,6 +60,8 @@ function mapApiError(error: unknown): string {
   if (text.includes("missing_ip_bans_schema")) return "Brak migracji IP banow w bazie.";
   if (text.includes("missing_player_rating_permission_schema")) return "Brak migracji uprawnien oceniania (can_rate_others).";
   if (text.includes("invalid_beer_of_day")) return "Niepoprawne piwo dnia.";
+  if (text.includes("beer_of_day_write_failed")) return "Nie udalo sie zapisac piwa dnia (blad zapisu ustawien).";
+  if (text.includes("beer_of_day_read_failed")) return "Nie udalo sie odczytac piwa dnia.";
   if (text.includes("player_has_no_account")) return "Ten zawodnik nie ma juz konta do zbanowania.";
   if (text.includes("player_has_no_email")) return "Konto zawodnika nie ma przypisanego emaila.";
   if (text.includes("invalid_ip")) return "Niepoprawny adres IP.";
@@ -663,13 +665,18 @@ export default function AdminTournamentsPage() {
         body: JSON.stringify({ beerOfDay: beerOfDayChoice }),
       });
 
-      const json = await res.json().catch(() => ({}));
+      const rawText = await res.text();
+      const json = rawText ? JSON.parse(rawText) as { error?: unknown; detail?: unknown } : {};
       if (!res.ok) {
-        setMsg(`Blad piwa dnia: ${mapApiError(json.error ?? res.statusText)}`);
+        const errorBase = mapApiError(json.error ?? res.statusText ?? `status_${res.status}`);
+        const detail = typeof json.detail === "string" && json.detail.trim() ? ` (${json.detail})` : "";
+        setMsg(`Blad piwa dnia: ${errorBase}${detail}`);
         return;
       }
 
       setMsg("Piwo dnia zapisane.");
+    } catch (error) {
+      setMsg(`Blad piwa dnia: ${mapApiError(error instanceof Error ? error.message : String(error ?? ""))}`);
     } finally {
       setSavingBeerOfDay(false);
     }
