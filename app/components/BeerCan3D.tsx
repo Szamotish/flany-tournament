@@ -36,22 +36,24 @@ type ModelViewerWithSceneGraph = {
 const MODEL_SRC = "/models/Puszka_Tomek.glb";
 const ModelViewer = "model-viewer" as unknown as React.ElementType;
 
-const READY_LABEL_DIR = "/models/etykiety%20przerobione";
-const LEGACY_WRAP_DIR = "/models/etykiety";
+const READY_LABEL_DIR = "/models/etykiety clean";
 const LABEL_FILE_BY_KEY: Record<string, string> = {
   tatra: "tatra.png",
   zywiec: "zywiec.png",
   warka: "warka.png",
   lech: "lech.png",
   lomza: "lomza.png",
+  omza: "lomza.png",
   tyskie: "tyskie.png",
   perla: "perla.png",
+  pera: "perla.png",
   okocim: "okocim.png",
   harnas: "harnas.png",
   kasztelan: "kasztelan.png",
   ksiazece: "ksiazece.png",
   krolewskie: "krolewskie.png",
   namyslow: "namyslow.png",
+  namysow: "namyslow.png",
   desperados: "desperados.png",
   heineken: "heineken.png",
   carlsberg: "carlsberg.png",
@@ -67,7 +69,7 @@ const LABEL_FILE_BY_KEY: Record<string, string> = {
   budlight: "budlight.png",
   becks: "becks.png",
   paulaner: "paulaner.png",
-  superbock: "superbock.png",
+  superbock: "super bock.png",
   perlenbacher: "perlenbacher.png",
   argus: "argus.png",
   kustosz: "kustosz.png",
@@ -75,19 +77,16 @@ const LABEL_FILE_BY_KEY: Record<string, string> = {
   romper: "romper.png",
   brok: "brok.png",
 };
-const LEGACY_WRAP_FILE_BY_KEY: Record<string, string> = {
-  kozel: "kozel.png",
-};
-const LABEL_DRAW_SCALE_BY_KEY: Record<string, number> = {
-  kozel: 0.72,
-  perlenbacher: 0.72,
-};
-const LABEL_CROP_ANCHOR_Y_BY_KEY: Record<string, number> = {
-  perlenbacher: 0.22,
-};
+const LABEL_DRAW_SCALE_BY_KEY: Record<string, number> = {};
+const LABEL_CROP_ANCHOR_Y_BY_KEY: Record<string, number> = {};
+
+function buildLabelPath(dir: string, file: string): string {
+  return `${dir}/${encodeURIComponent(file)}`;
+}
 
 function normalizeBeerKey(value: string): string {
   return value
+    .replace(/[łŁ]/g, "l")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[\u2019'`\u00B4]/g, "")
@@ -97,22 +96,11 @@ function normalizeBeerKey(value: string): string {
 
 function resolveLabelPath(beerName: string): string | null {
   const direct = LABEL_FILE_BY_KEY[normalizeBeerKey(beerName)];
-  if (direct) return `${READY_LABEL_DIR}/${direct}`;
+  if (direct) return buildLabelPath(READY_LABEL_DIR, direct);
 
   const normalized = normalizeBeerKey(beerName);
   for (const [key, file] of Object.entries(LABEL_FILE_BY_KEY)) {
-    if (normalized.includes(key)) return `${READY_LABEL_DIR}/${file}`;
-  }
-  return null;
-}
-
-function resolveLegacyWrapPath(beerName: string): string | null {
-  const direct = LEGACY_WRAP_FILE_BY_KEY[normalizeBeerKey(beerName)];
-  if (direct) return `${LEGACY_WRAP_DIR}/${direct}`;
-
-  const normalized = normalizeBeerKey(beerName);
-  for (const [key, file] of Object.entries(LEGACY_WRAP_FILE_BY_KEY)) {
-    if (normalized.includes(key)) return `${LEGACY_WRAP_DIR}/${file}`;
+    if (normalized.includes(key)) return buildLabelPath(READY_LABEL_DIR, file);
   }
   return null;
 }
@@ -176,7 +164,7 @@ async function createCanWrapTexture(beerName: string): Promise<string> {
     ctx.fillRect(x, 0, 4, height);
   }
 
-  const labelPath = resolveLabelPath(beerName) ?? resolveLegacyWrapPath(beerName);
+  const labelPath = resolveLabelPath(beerName);
   let labelImage: HTMLImageElement | null = null;
 
   if (labelPath) {
@@ -323,5 +311,3 @@ export default function BeerCan3D({ beer }: BeerCan3DProps) {
     </div>
   );
 }
-
-
