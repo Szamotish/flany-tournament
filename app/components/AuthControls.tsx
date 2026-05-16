@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { authedFetch } from "@/lib/authClient";
+import { BUG_REPORT_TOPICS } from "@/lib/bugReports";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 
 type AuthState = {
@@ -48,6 +49,42 @@ type NotificationsPayload = {
     tournaments?: { id?: string; name?: string } | null;
     players?: { id?: string; name?: string } | null;
   }>;
+  bugReports: Array<{
+    id: string;
+    reporter_player_id?: string | null;
+    reporter_name_snapshot?: string;
+    topic: string;
+    description: string;
+    status: string;
+    created_at: string;
+    updated_at?: string | null;
+    last_reply_at?: string | null;
+    reporter?: { id?: string; name?: string; avatar_url?: string | null } | null;
+    replies: Array<{
+      id: string;
+      report_id: string;
+      sender_player_id?: string | null;
+      sender_role: "main_admin" | "player";
+      message: string;
+      created_at: string;
+      sender?: { id?: string; name?: string; avatar_url?: string | null } | null;
+    }>;
+  }>;
+  bugInboxReplies: Array<{
+    report: {
+      id: string;
+      topic: string;
+      description: string;
+      created_at: string;
+    };
+    reply: {
+      id: string;
+      message: string;
+      created_at: string;
+      sender_role: "main_admin" | "player";
+      sender?: { id?: string; name?: string; avatar_url?: string | null } | null;
+    };
+  }>;
 };
 
 async function readAuthState(): Promise<AuthState> {
@@ -89,10 +126,18 @@ export default function AuthControls() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showBugReport, setShowBugReport] = useState(false);
   const [notificationsTab, setNotificationsTab] = useState<"inbox" | "sent">("inbox");
   const [notifications, setNotifications] = useState<NotificationsPayload | null>(null);
   const [notifMsg, setNotifMsg] = useState<string | null>(null);
   const [settingsMsg, setSettingsMsg] = useState<string | null>(null);
+  const [bugReportMsg, setBugReportMsg] = useState<string | null>(null);
+  const [bugReportTopic, setBugReportTopic] = useState<string>(BUG_REPORT_TOPICS[0]);
+  const [bugReportDescription, setBugReportDescription] = useState("");
+  const [bugReportSending, setBugReportSending] = useState(false);
+  const [bugReplyOpenForReportId, setBugReplyOpenForReportId] = useState<string | null>(null);
+  const [bugReplyText, setBugReplyText] = useState("");
+  const [bugReplySending, setBugReplySending] = useState(false);
   const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -108,8 +153,11 @@ export default function AuthControls() {
     if (!notifications) return 0;
     const invites = notifications.incomingInvites.filter((x) => x.status === "pending").length;
     const requests = notifications.adminJoinRequests.filter((x) => x.status === "pending").length;
-    return invites + requests;
-  }, [notifications]);
+    const bugReports = auth.isMainAdmin
+      ? (notifications.bugReports ?? []).filter((x) => x.status === "open").length
+      : (notifications.bugInboxReplies ?? []).length;
+    return invites + requests + bugReports;
+  }, [notifications, auth.isMainAdmin]);
 
   useEffect(() => {
     let mounted = true;
@@ -196,7 +244,17 @@ export default function AuthControls() {
     const settingsJson = await settingsRes.json().catch(() => ({}));
 
     if (notificationsRes.ok) {
-      setNotifications(notificationsJson as NotificationsPayload);
+      const payload = notificationsJson as Partial<NotificationsPayload>;
+      setNotifications({
+        incomingInvites: Array.isArray(payload.incomingInvites) ? payload.incomingInvites : [],
+        sentJoinRequests: Array.isArray(payload.sentJoinRequests) ? payload.sentJoinRequests : [],
+        sentInvites: Array.isArray(payload.sentInvites) ? payload.sentInvites : [],
+        adminJoinRequests: Array.isArray(payload.adminJoinRequests) ? payload.adminJoinRequests : [],
+        bugReports: Array.isArray(payload.bugReports) ? payload.bugReports : [],
+        bugInboxReplies: Array.isArray(payload.bugInboxReplies) ? payload.bugInboxReplies : [],
+      });
+      setBugReplyOpenForReportId(null);
+      setBugReplyText("");
     } else {
       setNotifMsg(`Blad powiadomien: ${notificationsJson.error ?? notificationsRes.statusText}`);
     }
@@ -214,6 +272,71 @@ export default function AuthControls() {
     const settingsJson = await settingsRes.json().catch(() => ({}));
     if (settingsRes.ok && typeof settingsJson.emailNotificationsEnabled === "boolean") {
       setEmailNotificationsEnabled(settingsJson.emailNotificationsEnabled);
+    }
+  }
+
+  function openBugReportModal() {
+    setMenuOpen(false);
+    setShowBugReport(true);
+    setBugReportMsg(null);
+    if (!BUG_REPORT_TOPICS.includes(bugReportTopic as (typeof BUG_REPORT_TOPICS)[number])) {
+      setBugReportTopic(BUG_REPORT_TOPICS[0]);
+    }
+  }
+
+  async function submitBugReport() {
+    const topic = bugReportTopic.trim();
+    const description = bugReportDescription.trim();
+    if (!topic || !description) {
+      setBugReportMsg("Uzupelnij temat i opis problemu.");
+      return;
+    }
+
+    setBugReportMsg(null);
+    setBugReportSending(true);
+    try {
+      const res = await authedFetch("/api/public/bug-reports", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ topic, description }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setBugReportMsg(`Blad zgloszenia: ${json.error ?? res.statusText}`);
+        return;
+      }
+      setBugReportDescription("");
+      setBugReportMsg("Zgloszenie wyslane.");
+    } finally {
+      setBugReportSending(false);
+    }
+  }
+
+  async function replyToBugReport(reportId: string) {
+    const message = bugReplyText.trim();
+    if (!message) {
+      setNotifMsg("Wpisz tresc odpowiedzi.");
+      return;
+    }
+
+    setBugReplySending(true);
+    setNotifMsg(null);
+    try {
+      const res = await authedFetch(`/api/admin/bug-reports/${encodeURIComponent(reportId)}/reply`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ message }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setNotifMsg(`Blad odpowiedzi: ${json.error ?? res.statusText}`);
+        return;
+      }
+      setBugReplyOpenForReportId(null);
+      setBugReplyText("");
+      await openNotificationsModal();
+    } finally {
+      setBugReplySending(false);
     }
   }
 
@@ -337,6 +460,9 @@ export default function AuthControls() {
             <button className="auth-menu-item" type="button" onClick={() => void openSettingsModal()}>
               Ustawienia
             </button>
+            <button className="auth-menu-item" type="button" onClick={openBugReportModal}>
+              Zglos blad
+            </button>
             <Link className="auth-menu-item" href="/rules" onClick={() => setMenuOpen(false)}>
               Zasady
             </Link>
@@ -459,6 +585,105 @@ export default function AuthControls() {
                       ))}
                     </div>
                   )}
+
+                  {auth.isMainAdmin ? (
+                    <>
+                      <p className="auth-modal-subtitle mt-3">Zgloszenia bledow od graczy</p>
+                      {(notifications?.bugReports ?? []).length === 0 ? (
+                        <p className="tour-muted">Brak zgloszen bledow.</p>
+                      ) : (
+                        <div className="auth-notif-list">
+                          {(notifications?.bugReports ?? []).map((report) => (
+                            <div key={report.id} className="auth-notif-row auth-notif-row-stack">
+                              <div>
+                                <p>
+                                  <strong>{report.reporter?.name ?? report.reporter_name_snapshot ?? "Zawodnik"}</strong> - {report.topic}
+                                </p>
+                                <p className="tour-muted">{formatDateTime(report.created_at)} - status: {report.status}</p>
+                                <p className="tour-muted">{report.description}</p>
+                                {report.replies.length > 0 ? (
+                                  <div className="auth-notif-replies mt-2">
+                                    {report.replies.map((reply) => (
+                                      <p key={reply.id} className="tour-muted">
+                                        <strong>{reply.sender_role === "main_admin" ? "Admin" : reply.sender?.name ?? "Gracz"}:</strong>{" "}
+                                        {reply.message} ({formatDateTime(reply.created_at)})
+                                      </p>
+                                    ))}
+                                  </div>
+                                ) : null}
+                              </div>
+                              <div className="auth-notif-actions">
+                                {bugReplyOpenForReportId === report.id ? (
+                                  <div className="auth-notif-reply-box">
+                                    <textarea
+                                      className="auth-settings-input auth-settings-textarea"
+                                      value={bugReplyText}
+                                      onChange={(e) => setBugReplyText(e.target.value)}
+                                      placeholder="Wpisz odpowiedz dla gracza..."
+                                      rows={3}
+                                      maxLength={3000}
+                                    />
+                                    <div className="auth-notif-actions">
+                                      <button
+                                        type="button"
+                                        className="tour-action-btn"
+                                        disabled={bugReplySending}
+                                        onClick={() => void replyToBugReport(report.id)}
+                                      >
+                                        {bugReplySending ? "Wysylanie..." : "Wyslij odpowiedz"}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="tour-action-btn"
+                                        onClick={() => {
+                                          setBugReplyOpenForReportId(null);
+                                          setBugReplyText("");
+                                        }}
+                                      >
+                                        Anuluj
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="tour-action-btn"
+                                    onClick={() => {
+                                      setBugReplyOpenForReportId(report.id);
+                                      setBugReplyText("");
+                                    }}
+                                  >
+                                    Odpowiedz
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <p className="auth-modal-subtitle mt-3">Odpowiedzi admina na Twoje zgloszenia</p>
+                      {(notifications?.bugInboxReplies ?? []).length === 0 ? (
+                        <p className="tour-muted">Brak odpowiedzi od admina.</p>
+                      ) : (
+                        <div className="auth-notif-list">
+                          {(notifications?.bugInboxReplies ?? []).map((item) => (
+                            <div key={item.reply.id} className="auth-notif-row auth-notif-row-stack">
+                              <div>
+                                <p>
+                                  <strong>{item.report.topic}</strong>
+                                </p>
+                                <p className="tour-muted">{item.reply.message}</p>
+                                <p className="tour-muted">{formatDateTime(item.reply.created_at)}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </>
               ) : (
                 <>
@@ -501,6 +726,39 @@ export default function AuthControls() {
                       ))}
                     </div>
                   )}
+
+                  {!auth.isMainAdmin ? (
+                    <>
+                      <p className="auth-modal-subtitle mt-3">Moje zgloszenia bledow</p>
+                      {(notifications?.bugReports ?? []).length === 0 ? (
+                        <p className="tour-muted">Brak wyslanych zgloszen.</p>
+                      ) : (
+                        <div className="auth-notif-list">
+                          {(notifications?.bugReports ?? []).map((report) => (
+                            <div key={report.id} className="auth-notif-row auth-notif-row-stack">
+                              <div>
+                                <p>
+                                  <strong>{report.topic}</strong>
+                                </p>
+                                <p className="tour-muted">{formatDateTime(report.created_at)} - status: {report.status}</p>
+                                <p className="tour-muted">{report.description}</p>
+                                {report.replies.length > 0 ? (
+                                  <div className="auth-notif-replies mt-2">
+                                    {report.replies.map((reply) => (
+                                      <p key={reply.id} className="tour-muted">
+                                        <strong>{reply.sender_role === "main_admin" ? "Admin" : reply.sender?.name ?? "Gracz"}:</strong>{" "}
+                                        {reply.message} ({formatDateTime(reply.created_at)})
+                                      </p>
+                                    ))}
+                                  </div>
+                                ) : null}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : null}
                 </>
               )}
 
@@ -565,6 +823,60 @@ export default function AuthControls() {
               </div>
 
               {settingsMsg ? <p className="tour-muted">{settingsMsg}</p> : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showBugReport ? (
+        <div className="auth-modal-backdrop" onClick={() => setShowBugReport(false)}>
+          <div className="auth-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="auth-modal-head">
+              <p className="auth-modal-title">Zglos blad</p>
+              <button className="auth-modal-close" onClick={() => setShowBugReport(false)} type="button">
+                Zamknij
+              </button>
+            </div>
+
+            <div className="auth-modal-body">
+              <div className="auth-settings-box">
+                <p className="auth-modal-subtitle">Temat problemu</p>
+                <details className="tour-admin-beer-dropdown">
+                  <summary className="auth-settings-input tour-admin-beer-summary">{bugReportTopic}</summary>
+                  <div className="tour-admin-beer-dropdown-list">
+                    {BUG_REPORT_TOPICS.map((topic) => (
+                      <label key={topic} className="tour-admin-checklist-item">
+                        <input
+                          type="checkbox"
+                          checked={bugReportTopic === topic}
+                          onChange={() => setBugReportTopic(topic)}
+                        />
+                        <span>{topic}</span>
+                      </label>
+                    ))}
+                  </div>
+                </details>
+
+                <p className="auth-modal-subtitle">Opis problemu</p>
+                <textarea
+                  className="auth-settings-input auth-settings-textarea"
+                  value={bugReportDescription}
+                  onChange={(e) => setBugReportDescription(e.target.value)}
+                  placeholder="Opisz krok po kroku co sie dzieje i jak odtworzyc blad."
+                  rows={6}
+                  maxLength={5000}
+                />
+                <button
+                  className="tour-action-btn"
+                  type="button"
+                  disabled={bugReportSending}
+                  onClick={() => void submitBugReport()}
+                >
+                  {bugReportSending ? "Wysylanie..." : "Wyslij"}
+                </button>
+              </div>
+
+              {bugReportMsg ? <p className="tour-muted">{bugReportMsg}</p> : null}
             </div>
           </div>
         </div>

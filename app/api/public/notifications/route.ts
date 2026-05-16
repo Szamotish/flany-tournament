@@ -15,6 +15,27 @@ type PlayerMeta = {
   avatar_url: string | null;
 };
 
+type BugReportRow = {
+  id: string;
+  reporter_player_id: string | null;
+  reporter_name_snapshot: string;
+  topic: string;
+  description: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  last_reply_at: string | null;
+};
+
+type BugReplyRow = {
+  id: string;
+  report_id: string;
+  sender_player_id: string | null;
+  sender_role: "main_admin" | "player";
+  message: string;
+  created_at: string;
+};
+
 export async function GET(req: Request) {
   const auth = await readAuthContext(req);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -81,6 +102,47 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: adminJoinRequestsRes.error.message }, { status: 500 });
   }
 
+  const bugReportsRes = auth.ctx.isMainAdmin
+    ? await supabaseServer
+        .from("bug_reports")
+        .select("id,reporter_player_id,reporter_name_snapshot,topic,description,status,created_at,updated_at,last_reply_at")
+        .order("created_at", { ascending: false })
+        .limit(160)
+    : await supabaseServer
+        .from("bug_reports")
+        .select("id,reporter_player_id,reporter_name_snapshot,topic,description,status,created_at,updated_at,last_reply_at")
+        .eq("reporter_player_id", playerId)
+        .order("created_at", { ascending: false })
+        .limit(160);
+
+  if (bugReportsRes.error) {
+    if (bugReportsRes.error.message.includes("bug_reports")) {
+      return NextResponse.json({ error: "missing_bug_reports_schema" }, { status: 500 });
+    }
+    return NextResponse.json({ error: bugReportsRes.error.message }, { status: 500 });
+  }
+
+  const bugReportIds = Array.from(
+    new Set((bugReportsRes.data ?? []).map((row) => String(row.id ?? "")).filter(Boolean))
+  );
+
+  const bugRepliesRes =
+    bugReportIds.length > 0
+      ? await supabaseServer
+          .from("bug_report_replies")
+          .select("id,report_id,sender_player_id,sender_role,message,created_at")
+          .in("report_id", bugReportIds)
+          .order("created_at", { ascending: true })
+          .limit(1200)
+      : { data: [], error: null };
+
+  if (bugRepliesRes.error) {
+    if (bugRepliesRes.error.message.includes("bug_report_replies")) {
+      return NextResponse.json({ error: "missing_bug_reports_schema" }, { status: 500 });
+    }
+    return NextResponse.json({ error: bugRepliesRes.error.message }, { status: 500 });
+  }
+
   const allTournamentIds = Array.from(
     new Set(
       [
@@ -104,6 +166,8 @@ export async function GET(req: Request) {
           String(row.invited_by_player_id ?? ""),
         ]),
         ...(adminJoinRequestsRes.data ?? []).map((row) => String(row.player_id ?? "")),
+        ...(bugReportsRes.data ?? []).map((row) => String(row.reporter_player_id ?? "")),
+        ...(bugRepliesRes.data ?? []).map((row) => String(row.sender_player_id ?? "")),
       ].filter(Boolean)
     )
   );
@@ -168,10 +232,47 @@ export async function GET(req: Request) {
     players: playerMap.get(String(row.player_id ?? "")) ?? null,
   }));
 
+  const bugRepliesByReport = new Map<string, Array<BugReplyRow & { sender: PlayerMeta | null }>>();
+  for (const row of (bugRepliesRes.data ?? []) as BugReplyRow[]) {
+    const reportId = String(row.report_id ?? "");
+    if (!reportId) continue;
+    const existing = bugRepliesByReport.get(reportId) ?? [];
+    existing.push({
+      ...row,
+      sender: row.sender_player_id ? playerMap.get(String(row.sender_player_id)) ?? null : null,
+    });
+    bugRepliesByReport.set(reportId, existing);
+  }
+
+  const bugReportItems = (bugReportsRes.data ?? []).map((row) => {
+    const bugRow = row as BugReportRow;
+    const reporter = bugRow.reporter_player_id
+      ? playerMap.get(String(bugRow.reporter_player_id)) ?? null
+      : null;
+    return {
+      ...bugRow,
+      reporter: reporter ?? {
+        id: "",
+        name: bugRow.reporter_name_snapshot || "Zawodnik",
+        avatar_url: null,
+      },
+      replies: bugRepliesByReport.get(String(bugRow.id)) ?? [],
+    };
+  });
+
+  const bugInboxReplies = auth.ctx.isMainAdmin
+    ? []
+    : bugReportItems
+        .flatMap((report) => report.replies.map((reply) => ({ report, reply })))
+        .filter((item) => item.reply.sender_role === "main_admin")
+        .sort((a, b) => b.reply.created_at.localeCompare(a.reply.created_at));
+
   return NextResponse.json({
     incomingInvites: incomingInviteItems,
     sentJoinRequests: sentJoinItems,
     sentInvites: sentInviteItems,
     adminJoinRequests: adminRequestItems,
+    bugReports: bugReportItems,
+    bugInboxReplies,
   });
 }

@@ -3743,10 +3743,26 @@ body {
   gap: 10px;
 }
 
+.auth-notif-row-stack {
+  display: grid;
+  align-items: start;
+}
+
 .auth-notif-actions {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+.auth-notif-replies {
+  display: grid;
+  gap: 0.24rem;
+}
+
+.auth-notif-reply-box {
+  width: min(360px, 100%);
+  display: grid;
+  gap: 0.45rem;
 }
 
 .auth-settings-row {
@@ -3775,4 +3791,9 @@ body {
   color: #2d2114;
   padding: 0.46rem 0.6rem;
   font-size: 0.92rem;
+}
+
+.auth-settings-textarea {
+  resize: vertical;
+  min-height: 88px;
 }
