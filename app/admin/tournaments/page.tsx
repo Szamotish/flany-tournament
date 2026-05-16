@@ -59,7 +59,10 @@ function mapApiError(error: unknown): string {
   if (text.includes("missing_bans_schema")) return "Brak migracji banow w bazie.";
   if (text.includes("missing_ip_bans_schema")) return "Brak migracji IP banow w bazie.";
   if (text.includes("missing_player_rating_permission_schema")) return "Brak migracji uprawnien oceniania (can_rate_others).";
+  if (text.includes("missing_app_settings_schema")) return "Brak migracji ustawien aplikacji (app_settings).";
   if (text.includes("invalid_beer_of_day")) return "Niepoprawne piwo dnia.";
+  if (text.includes("background_write_failed")) return "Nie udalo sie zapisac tla aplikacji.";
+  if (text.includes("background_read_failed")) return "Nie udalo sie odczytac tla aplikacji.";
   if (text.includes("beer_of_day_write_failed")) return "Nie udalo sie zapisac piwa dnia (blad zapisu ustawien).";
   if (text.includes("beer_of_day_read_failed")) return "Nie udalo sie odczytac piwa dnia.";
   if (text.includes("player_has_no_account")) return "Ten zawodnik nie ma juz konta do zbanowania.";
