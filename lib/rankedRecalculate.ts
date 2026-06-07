@@ -381,8 +381,15 @@ export async function recalculateRankedMmr(): Promise<{
     };
   });
 
-  for (const rows of chunk(updates, 500)) {
-    const { error } = await supabaseServer.from("players").upsert(rows, { onConflict: "id" });
+  for (const row of updates) {
+    const { error } = await supabaseServer
+      .from("players")
+      .update({
+        mmr: row.mmr,
+        prestige_points: row.prestige_points,
+      })
+      .eq("id", row.id);
+
     if (error) throw new Error(`ranked_players_update_failed: ${error.message}`);
   }
 

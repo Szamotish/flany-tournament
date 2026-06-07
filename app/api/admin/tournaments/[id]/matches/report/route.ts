@@ -88,11 +88,17 @@ async function applyDeltaToPlayers(
 
   if (updates.length === 0) return;
 
-  const { error: updateErr } = await supabaseServer.from("players").upsert(updates, {
-    onConflict: "id",
-  });
+  for (const row of updates) {
+    const { error: updateErr } = await supabaseServer
+      .from("players")
+      .update({
+        mmr: row.mmr,
+        prestige_points: row.prestige_points,
+      })
+      .eq("id", row.id);
 
-  if (updateErr) throw new Error(`ranked_players_update_failed: ${updateErr.message}`);
+    if (updateErr) throw new Error(`ranked_players_update_failed: ${updateErr.message}`);
+  }
 
   const historyRows = updates.map((row) => ({
     player_id: row.id,
