@@ -24,7 +24,7 @@ type PlayerBrief = { id: string; name: string };
 type HistoryEntry = {
   tournamentId: string;
   tournamentName: string;
-  tournamentCreatedAt: string | null;
+  tournamentPlayedAt: string | null;
   teamId: string;
   teamName: string;
   placement: number;
@@ -223,21 +223,48 @@ export default async function PlayerPage({
     if (!resultsErr) {
       const tournamentIds = Array.from(new Set((results ?? []).map((r) => String(r.tournament_id))));
 
-      const tournamentsMap = new Map<string, { name: string; created_at: string | null }>();
+      const tournamentsMap = new Map<string, { name: string; created_at: string | null; started_at: string | null }>();
+      const firstMatchAtByTournament = new Map<string, string>();
       const teamsMap = new Map<string, string>();
       const rosterMap = new Map<string, PlayerBrief[]>();
 
       if (tournamentIds.length > 0) {
-        const { data: tournaments } = await supabaseServer
+        const primaryTournaments = await supabaseServer
           .from("tournaments")
-          .select("id,name,created_at")
+          .select("id,name,created_at,started_at")
           .in("id", tournamentIds);
+
+        let tournaments = primaryTournaments.data as
+          | Array<{ id: string; name: string | null; created_at: string | null; started_at?: string | null }>
+          | null;
+
+        if (primaryTournaments.error && primaryTournaments.error.message.includes("started_at")) {
+          const fallbackTournaments = await supabaseServer
+            .from("tournaments")
+            .select("id,name,created_at")
+            .in("id", tournamentIds);
+          tournaments = (fallbackTournaments.data ?? []).map((row) => ({ ...row, started_at: null }));
+        }
 
         for (const t of tournaments ?? []) {
           tournamentsMap.set(String(t.id), {
             name: String(t.name ?? "(unknown)"),
             created_at: t.created_at ? String(t.created_at) : null,
+            started_at: t.started_at ? String(t.started_at) : null,
           });
+        }
+
+        const { data: matchStarts } = await supabaseServer
+          .from("tournament_matches")
+          .select("tournament_id,created_at")
+          .in("tournament_id", tournamentIds)
+          .order("created_at", { ascending: true });
+
+        for (const row of matchStarts ?? []) {
+          const tournamentId = String(row.tournament_id ?? "");
+          const createdAt = typeof row.created_at === "string" ? row.created_at : null;
+          if (!tournamentId || !createdAt || firstMatchAtByTournament.has(tournamentId)) continue;
+          firstMatchAtByTournament.set(tournamentId, createdAt);
         }
       }
 
@@ -279,7 +306,7 @@ export default async function PlayerPage({
         return {
           tournamentId,
           tournamentName: t?.name ?? "(unknown)",
-          tournamentCreatedAt: t?.created_at ?? null,
+          tournamentPlayedAt: t?.started_at ?? firstMatchAtByTournament.get(tournamentId) ?? t?.created_at ?? null,
           teamId,
           teamName: teamsMap.get(teamId) ?? "Druzyna",
           placement: Number(r.placement ?? 0),
@@ -288,8 +315,8 @@ export default async function PlayerPage({
       });
 
       history.sort((a, b) => {
-        const da = a.tournamentCreatedAt ? new Date(a.tournamentCreatedAt).getTime() : 0;
-        const db = b.tournamentCreatedAt ? new Date(b.tournamentCreatedAt).getTime() : 0;
+        const da = a.tournamentPlayedAt ? new Date(a.tournamentPlayedAt).getTime() : 0;
+        const db = b.tournamentPlayedAt ? new Date(b.tournamentPlayedAt).getTime() : 0;
         if (db !== da) return db - da;
         return a.placement - b.placement;
       });
@@ -509,7 +536,7 @@ export default async function PlayerPage({
               {history.map((h, idx) => (
                 <details key={`${h.tournamentId}-${h.teamId}-${idx}`} className="history-row">
                   <summary>
-                    <span className="history-date">{formatShortDate(h.tournamentCreatedAt)}</span>
+                    <span className="history-date">{formatShortDate(h.tournamentPlayedAt)}</span>
                     <span className="history-place">{formatPlacement(h.placement)}</span>
                     <span className="history-team">{h.teamName}</span>
                     <span className="history-menu">&gt;</span>

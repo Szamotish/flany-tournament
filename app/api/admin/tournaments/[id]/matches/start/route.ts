@@ -3,6 +3,7 @@ import { supabaseServer } from "@/lib/supabaseServer";
 import { assertTournamentAdmin } from "@/app/api/admin/tournaments/_auth";
 import { buildDoubleElimBracket } from "@/lib/matches/buildDoubleElim";
 import { nextStepDoubleElim } from "@/lib/matches/nextStepDouble";
+import { markTournamentStarted } from "@/lib/tournaments/markStarted";
 
 type TeamRow = {
   id: string;
@@ -71,6 +72,7 @@ export async function POST(
     try {
       const built = await buildDoubleElimBracket(tournamentId, { clearExisting: false });
       const stepped = await nextStepDoubleElim(tournamentId);
+      await markTournamentStarted(tournamentId);
       return NextResponse.json({ ...built, autoStep: stepped });
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
@@ -108,6 +110,13 @@ export async function POST(
     .select("id, round_no, match_no, team_a_id, team_b_id, status, winner_team_id");
 
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 });
+
+  try {
+    await markTournamentStarted(tournamentId);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 
   return NextResponse.json({ created });
 }

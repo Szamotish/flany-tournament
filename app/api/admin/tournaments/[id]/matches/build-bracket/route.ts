@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { assertTournamentAdmin } from "@/app/api/admin/tournaments/_auth";
 import { buildDoubleElimBracket } from "@/lib/matches/buildDoubleElim";
+import { markTournamentStarted } from "@/lib/tournaments/markStarted";
 
 export async function POST(
   req: Request,
@@ -13,6 +14,7 @@ export async function POST(
 
   try {
     const result = await buildDoubleElimBracket(tournamentId, { clearExisting: true });
+    await markTournamentStarted(tournamentId);
     return NextResponse.json(result);
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
