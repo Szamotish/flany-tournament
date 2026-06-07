@@ -136,7 +136,7 @@ export async function loadPlayerPerformance(
   if (teamIds.length > 0) {
     let matchesQuery = supabaseServer
       .from("tournament_matches")
-      .select("team_a_id,team_b_id")
+      .select("team_a_id,team_b_id,tournament_id")
       .eq("status", "finished")
       .or(`team_a_id.in.(${teamIds.join(",")}),team_b_id.in.(${teamIds.join(",")})`);
 
@@ -147,7 +147,26 @@ export async function loadPlayerPerformance(
     const { data: matches, error: matchesErr } = await matchesQuery;
     if (matchesErr) throw new Error(`player_performance_matches_failed: ${matchesErr.message}`);
 
+    const rankedTournamentIds = new Set<string>();
+    const tournamentIds = Array.from(
+      new Set((matches ?? []).map((row) => String(row.tournament_id ?? "")).filter(Boolean))
+    );
+    if (tournamentIds.length > 0) {
+      const { data: tournaments, error: tournamentsErr } = await supabaseServer
+        .from("tournaments")
+        .select("id,mode")
+        .in("id", tournamentIds);
+
+      if (tournamentsErr) throw new Error(`player_performance_tournaments_failed: ${tournamentsErr.message}`);
+
+      for (const row of tournaments ?? []) {
+        if (row.mode === "ranked" && typeof row.id === "string") rankedTournamentIds.add(row.id);
+      }
+    }
+
     for (const row of matches ?? []) {
+      const tournamentId = String(row.tournament_id ?? "");
+      if (!rankedTournamentIds.has(tournamentId)) continue;
       if (typeof row.team_a_id === "string" && row.team_a_id) playedTeamIds.add(row.team_a_id);
       if (typeof row.team_b_id === "string" && row.team_b_id) playedTeamIds.add(row.team_b_id);
     }

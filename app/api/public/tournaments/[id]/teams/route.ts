@@ -60,13 +60,45 @@ export async function GET(
   if (mErr) return NextResponse.json({ error: mErr.message }, { status: 500 });
 
   const grouped: Record<string, { id: string; name: string }[]> = {};
+  const activePlayerIds = new Set<string>();
   for (const m of members ?? []) {
     const tid = m.team_id as string;
     const p = parsePlayerBrief((m as { players?: unknown }).players);
     if (!p) continue;
+    activePlayerIds.add(p.id);
     grouped[tid] = grouped[tid] ?? [];
     grouped[tid].push({ id: p.id, name: p.name });
   }
+
+  let tournamentPlayers: Array<{ participation_status?: string | null; players?: unknown }> = [];
+  const tournamentPlayersPrimary = await supabasePublic
+    .from("tournament_players")
+    .select("participation_status, players(id,name)")
+    .eq("tournament_id", tournamentId);
+
+  if (tournamentPlayersPrimary.error && tournamentPlayersPrimary.error.message.includes("participation_status")) {
+    const fallback = await supabasePublic
+      .from("tournament_players")
+      .select("players(id,name)")
+      .eq("tournament_id", tournamentId);
+    if (fallback.error) return NextResponse.json({ error: fallback.error.message }, { status: 500 });
+    tournamentPlayers = (fallback.data ?? []).map((row) => ({ ...row, participation_status: "participant" }));
+  } else if (tournamentPlayersPrimary.error) {
+    return NextResponse.json({ error: tournamentPlayersPrimary.error.message }, { status: 500 });
+  } else {
+    tournamentPlayers = tournamentPlayersPrimary.data ?? [];
+  }
+
+  const spectators = tournamentPlayers
+    .map((row) => {
+      const player = parsePlayerBrief((row as { players?: unknown }).players);
+      if (!player) return null;
+      const explicitSpectator = row.participation_status === "spectator";
+      if (!explicitSpectator && activePlayerIds.has(player.id)) return null;
+      return { ...player, participationStatus: "spectator" };
+    })
+    .filter((player): player is { id: string; name: string; participationStatus: string } => Boolean(player))
+    .sort((a, b) => a.name.localeCompare(b.name, "pl"));
 
   const result = (teams ?? []).map((t) => {
     const roster = (grouped[t.id] ?? []).sort((a, b) => a.name.localeCompare(b.name));
@@ -82,5 +114,5 @@ export async function GET(
     };
   });
 
-  return NextResponse.json({ batch, teams: result });
+  return NextResponse.json({ batch, teams: result, spectators });
 }

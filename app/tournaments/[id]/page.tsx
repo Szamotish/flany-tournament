@@ -10,7 +10,13 @@ import TournamentJoinActions from "./TournamentJoinActions";
 
 export const dynamic = "force-dynamic";
 
-type PlayerRef = { id: string; name: string; avatarUrl: string | null; profileColor: string | null };
+type PlayerRef = {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  profileColor: string | null;
+  participationStatus?: "participant" | "spectator";
+};
 type Bracket = "single" | "winners" | "losers" | "grand_final";
 
 type MatchView = {
@@ -106,7 +112,7 @@ export default async function TournamentPage({
       .maybeSingle(),
     supabaseServer
       .from("tournament_players")
-      .select("player_id, players(id,name,avatar_url,profile_color)")
+      .select("player_id,participation_status, players(id,name,avatar_url,profile_color)")
       .eq("tournament_id", id),
     supabaseServer
       .from("tournament_matches")
@@ -179,9 +185,30 @@ export default async function TournamentPage({
 
   const tournamentBeers = computeBeersFromFinishedMatches(finishedTeamMatches, teamSizeMap);
 
-  const players = (tp ?? [])
-    .map((x) => parsePlayerRef((x as { players?: unknown }).players))
-    .filter((p): p is PlayerRef => Boolean(p))
+  let tournamentPlayerRows = tp as Array<{ participation_status?: string | null; players?: unknown }> | null;
+  let tournamentPlayersError = tpErr;
+  if (tpErr && tpErr.message.includes("participation_status")) {
+    const fallbackPlayers = await supabaseServer
+      .from("tournament_players")
+      .select("player_id, players(id,name,avatar_url,profile_color)")
+      .eq("tournament_id", id);
+    tournamentPlayerRows = (fallbackPlayers.data ?? []).map((row) => ({
+      ...row,
+      participation_status: "participant",
+    })) as typeof tournamentPlayerRows;
+    tournamentPlayersError = fallbackPlayers.error;
+  }
+
+  const players = (tournamentPlayerRows ?? [])
+    .map((x) => {
+      const player = parsePlayerRef((x as { players?: unknown }).players);
+      if (!player) return null;
+      return {
+        ...player,
+        participationStatus: x.participation_status === "spectator" ? "spectator" as const : "participant" as const,
+      };
+    })
+    .filter((p): p is PlayerRef & { participationStatus: "participant" | "spectator" } => p !== null)
     .sort((a, b) => a.name.localeCompare(b.name, "pl"));
 
   const matches: MatchView[] = (matchRows ?? []).map((m) => {
@@ -355,8 +382,8 @@ export default async function TournamentPage({
                 <section className="tour-players mt-4">
                   <h2 className="tour-section-title">Zawodnicy</h2>
 
-                  {tpErr ? (
-                    <p className="mt-2 text-sm text-red-600">Blad: {tpErr.message}</p>
+                  {tournamentPlayersError ? (
+                    <p className="mt-2 text-sm text-red-600">Blad: {tournamentPlayersError.message}</p>
                   ) : players.length === 0 ? (
                     <p className="mt-2 tour-muted">Brak zawodnikow w turnieju.</p>
                   ) : (
@@ -377,6 +404,9 @@ export default async function TournamentPage({
                             </span>
                           )}
                           <span>{p.name}</span>
+                          {p.participationStatus === "spectator" ? (
+                            <span className="tour-player-status-badge">Ogladajacy</span>
+                          ) : null}
                         </Link>
                       ))}
                     </div>

@@ -11,6 +11,12 @@ type TournamentPlayer = {
   id: string;
   name: string;
   active: boolean;
+  participationStatus: "participant" | "spectator";
+};
+
+type TournamentPlayerListRow = {
+  participation_status?: string | null;
+  players?: unknown;
 };
 
 type StrengthPlayer = {
@@ -19,7 +25,7 @@ type StrengthPlayer = {
   strength: number;
 };
 
-function parseTournamentPlayer(value: unknown): TournamentPlayer | null {
+function parseTournamentPlayer(value: unknown, participationStatus: unknown): TournamentPlayer | null {
   const source = Array.isArray(value) ? value[0] : value;
   if (!source || typeof source !== "object") return null;
   const player = source as { id?: unknown; name?: unknown; active?: unknown };
@@ -30,7 +36,12 @@ function parseTournamentPlayer(value: unknown): TournamentPlayer | null {
   ) {
     return null;
   }
-  return { id: player.id, name: player.name, active: player.active };
+  return {
+    id: player.id,
+    name: player.name,
+    active: player.active,
+    participationStatus: participationStatus === "spectator" ? "spectator" : "participant",
+  };
 }
 
 function shufflePlayers<T>(items: T[]): T[] {
@@ -118,16 +129,34 @@ export async function POST(
     return NextResponse.json({ error: "invalid_teamSize" }, { status: 400 });
   }
 
-  const { data: tp, error: tpErr } = await supabaseServer
+  let tp: TournamentPlayerListRow[] | null = null;
+  let tpErr: { message: string } | null = null;
+
+  const primaryPlayers = await supabaseServer
     .from("tournament_players")
-    .select("player_id, players(id,name,active)")
+    .select("player_id,participation_status, players(id,name,active)")
     .eq("tournament_id", tournamentId);
+
+  tp = primaryPlayers.data as TournamentPlayerListRow[] | null;
+  tpErr = primaryPlayers.error;
+
+  if (primaryPlayers.error && primaryPlayers.error.message.includes("participation_status")) {
+    const fallbackPlayers = await supabaseServer
+      .from("tournament_players")
+      .select("player_id, players(id,name,active)")
+      .eq("tournament_id", tournamentId);
+    tp = (fallbackPlayers.data ?? []).map((row) => ({
+      ...row,
+      participation_status: "participant",
+    })) as TournamentPlayerListRow[];
+    tpErr = fallbackPlayers.error;
+  }
 
   if (tpErr) return NextResponse.json({ error: tpErr.message }, { status: 500 });
 
   const players = (tp ?? [])
-    .map((x) => parseTournamentPlayer((x as { players?: unknown }).players))
-    .filter((p): p is TournamentPlayer => Boolean(p && p.active));
+    .map((x) => parseTournamentPlayer((x as { players?: unknown }).players, x.participation_status))
+    .filter((p): p is TournamentPlayer => Boolean(p && p.active && p.participationStatus !== "spectator"));
 
   if (players.length < 2) {
     return NextResponse.json({ error: "not_enough_players" }, { status: 400 });

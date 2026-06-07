@@ -18,6 +18,12 @@ function parsePlayer(value: unknown): { id: string; name: string; active: boolea
   return { id: player.id, name: player.name, active: player.active };
 }
 
+type TournamentPlayerListRow = {
+  player_id?: string | null;
+  participation_status?: string | null;
+  players?: unknown;
+};
+
 async function ensureNotStarted(tournamentId: string) {
   const { count, error } = await supabaseServer
     .from("tournament_matches")
@@ -70,16 +76,38 @@ export async function GET(
   const auth = await assertTournamentAdmin(req, tournamentId);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 });
 
-  const { data, error } = await supabaseServer
+  let data: TournamentPlayerListRow[] | null = null;
+  let error: { message: string } | null = null;
+
+  const primary = await supabaseServer
     .from("tournament_players")
-    .select("player_id, players(id,name,active)")
+    .select("player_id,participation_status, players(id,name,active)")
     .eq("tournament_id", tournamentId);
+
+  data = primary.data as TournamentPlayerListRow[] | null;
+  error = primary.error;
+
+  if (primary.error && primary.error.message.includes("participation_status")) {
+    const fallback = await supabaseServer
+      .from("tournament_players")
+      .select("player_id, players(id,name,active)")
+      .eq("tournament_id", tournamentId);
+    data = (fallback.data ?? []).map((row) => ({ ...row, participation_status: "participant" })) as TournamentPlayerListRow[];
+    error = fallback.error;
+  }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const players = (data ?? [])
-    .map((row) => parsePlayer((row as { players?: unknown }).players))
-    .filter((p): p is { id: string; name: string; active: boolean } => Boolean(p))
+    .map((row) => {
+      const player = parsePlayer((row as { players?: unknown }).players);
+      if (!player) return null;
+      return {
+        ...player,
+        participationStatus: row.participation_status === "spectator" ? "spectator" : "participant",
+      };
+    })
+    .filter((p): p is { id: string; name: string; active: boolean; participationStatus: string } => Boolean(p))
     .sort((a, b) => a.name.localeCompare(b.name, "pl"));
 
   return NextResponse.json({ players });
@@ -117,10 +145,20 @@ export async function POST(
   }
 
   const { error: upsertErr } = await supabaseServer.from("tournament_players").upsert(
-    { tournament_id: tournamentId, player_id: playerId },
+    { tournament_id: tournamentId, player_id: playerId, participation_status: "participant" },
     { onConflict: "tournament_id,player_id", ignoreDuplicates: true }
   );
-  if (upsertErr) return NextResponse.json({ error: upsertErr.message }, { status: 500 });
+  if (upsertErr) {
+    if (upsertErr.message.includes("participation_status")) {
+      const legacy = await supabaseServer.from("tournament_players").upsert(
+        { tournament_id: tournamentId, player_id: playerId },
+        { onConflict: "tournament_id,player_id", ignoreDuplicates: true }
+      );
+      if (legacy.error) return NextResponse.json({ error: legacy.error.message }, { status: 500 });
+    } else {
+      return NextResponse.json({ error: upsertErr.message }, { status: 500 });
+    }
+  }
 
   const nowIso = new Date().toISOString();
   const acceptRequest = await supabaseServer

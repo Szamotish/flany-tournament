@@ -48,6 +48,7 @@ export default async function TournamentTeamsPage({
   const isOneVsOne = tournamentRes.data?.format === "one_vs_one";
 
   let teams: TeamSummary[] = [];
+  let spectators: PlayerBrief[] = [];
 
   if (batch?.id) {
     const { data: teamRows } = await supabaseServer
@@ -72,6 +73,32 @@ export default async function TournamentTeamsPage({
       current.push(p);
       rosterMap.set(teamId, current);
     }
+
+    const activePlayerIds = new Set(Array.from(rosterMap.values()).flat().map((player) => player.id));
+    const spectatorsPrimary = await supabaseServer
+      .from("tournament_players")
+      .select("participation_status, players(id,name,avatar_url,profile_color)")
+      .eq("tournament_id", tournamentId);
+
+    let spectatorRows = spectatorsPrimary.data as Array<{ participation_status?: string | null; players?: unknown }> | null;
+    if (spectatorsPrimary.error && spectatorsPrimary.error.message.includes("participation_status")) {
+      const fallback = await supabaseServer
+        .from("tournament_players")
+        .select("players(id,name,avatar_url,profile_color)")
+        .eq("tournament_id", tournamentId);
+      spectatorRows = (fallback.data ?? []).map((row) => ({ ...row, participation_status: "participant" })) as typeof spectatorRows;
+    }
+
+    spectators = (spectatorRows ?? [])
+      .map((row) => {
+        const player = parsePlayerRef((row as { players?: unknown }).players);
+        if (!player) return null;
+        const explicitSpectator = row.participation_status === "spectator";
+        if (!explicitSpectator && activePlayerIds.has(player.id)) return null;
+        return player;
+      })
+      .filter((player): player is PlayerBrief => Boolean(player))
+      .sort((a, b) => a.name.localeCompare(b.name, "pl"));
 
     for (const [teamId, roster] of rosterMap.entries()) {
       rosterMap.set(
@@ -149,6 +176,31 @@ export default async function TournamentTeamsPage({
                 )}
               </article>
             ))}
+            {spectators.length > 0 ? (
+              <article className="tour-card">
+                <div className="tour-card-head">
+                  <div>
+                    <p className="tour-card-title">Ogladajacy</p>
+                    <p className="tour-card-sub">W turnieju, poza skladami meczowymi</p>
+                  </div>
+                </div>
+                <div className="tour-players-grid mt-3">
+                  {spectators.map((p) => (
+                    <Link key={p.id} className="tour-player-chip tour-player-chip-avatar player-tone-card" style={playerToneStyle(p.profileColor)} href={`/players/${p.id}`}>
+                      {p.avatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={p.avatarUrl} alt="" className="tour-player-avatar" />
+                      ) : (
+                        <span className="tour-player-avatar tour-player-avatar-fallback">
+                          {p.name.slice(0, 1).toUpperCase()}
+                        </span>
+                      )}
+                      <span>{p.name}</span>
+                    </Link>
+                  ))}
+                </div>
+              </article>
+            ) : null}
           </section>
         )}
       </div>

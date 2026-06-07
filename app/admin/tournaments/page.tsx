@@ -65,6 +65,8 @@ function mapApiError(error: unknown): string {
   if (text.includes("background_read_failed")) return "Nie udalo sie odczytac tla aplikacji.";
   if (text.includes("beer_of_day_write_failed")) return "Nie udalo sie zapisac piwa dnia (blad zapisu ustawien).";
   if (text.includes("beer_of_day_read_failed")) return "Nie udalo sie odczytac piwa dnia.";
+  if (text.includes("ranked_recalculate_failed")) return "Nie udalo sie przeliczyc MMR ranked.";
+  if (text.includes("ranked_")) return text;
   if (text.includes("player_has_no_account")) return "Ten zawodnik nie ma juz konta do zbanowania.";
   if (text.includes("player_has_no_email")) return "Konto zawodnika nie ma przypisanego emaila.";
   if (text.includes("invalid_ip")) return "Niepoprawny adres IP.";
@@ -104,6 +106,7 @@ export default function AdminTournamentsPage() {
   const [savingBackground, setSavingBackground] = useState(false);
   const [beerOfDayChoice, setBeerOfDayChoice] = useState<string | null>(null);
   const [savingBeerOfDay, setSavingBeerOfDay] = useState(false);
+  const [recalculatingRanked, setRecalculatingRanked] = useState(false);
 
   const selectedIds = useMemo(
     () => Object.entries(selected).filter(([, v]) => v).map(([id]) => id),
@@ -685,6 +688,37 @@ export default function AdminTournamentsPage() {
     }
   }
 
+  async function recalculateRankedMmr() {
+    if (
+      !window.confirm(
+        "Przeliczyc MMR ranked od nowa na podstawie zakonczonych meczow ranked? To odbuduje historie MMR dla wynikow ranked."
+      )
+    ) {
+      return;
+    }
+
+    setMsg(null);
+    setRecalculatingRanked(true);
+    try {
+      const res = await authedFetch("/api/admin/ranked/recalculate", {
+        method: "POST",
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg(`Blad przeliczania MMR: ${mapApiError(json.error ?? res.statusText)}`);
+        return;
+      }
+
+      setMsg(
+        `MMR przeliczony. Gracze: ${json.playersUpdated ?? 0}, wpisy historii: ${json.historyRows ?? 0}, eventy: ${json.eventsApplied ?? 0}.`
+      );
+      await loadPlayers(q);
+    } finally {
+      setRecalculatingRanked(false);
+    }
+  }
+
   if (isMainAdmin === null) {
     return (
       <main className="tour-root">
@@ -789,6 +823,17 @@ export default function AdminTournamentsPage() {
               <div className="tour-admin-actions mt-2">
                 <button className="tour-action-btn" type="button" disabled={savingBeerOfDay} onClick={saveBeerOfDayChoice}>
                   {savingBeerOfDay ? "Zapisywanie..." : "Zapisz piwo dnia"}
+                </button>
+              </div>
+            </div>
+            <div className="tour-admin-settings-card">
+              <label className="tour-admin-label">Ranking MMR</label>
+              <p className="tour-muted">
+                Odbuduj MMR i historie MMR z zakonczonych turniejow ranked, gdy wyniki byly zapisane bez naliczenia punktow.
+              </p>
+              <div className="tour-admin-actions mt-2">
+                <button className="tour-action-btn" type="button" disabled={recalculatingRanked} onClick={recalculateRankedMmr}>
+                  {recalculatingRanked ? "Przeliczanie..." : "Przelicz MMR ranked"}
                 </button>
               </div>
             </div>

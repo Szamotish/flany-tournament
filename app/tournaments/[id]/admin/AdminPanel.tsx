@@ -17,6 +17,13 @@ type PlayerOption = {
   name: string;
   active: boolean;
   has_account?: boolean;
+  participationStatus?: "participant" | "spectator";
+};
+
+type SpectatorEntry = {
+  id: string;
+  name: string;
+  participationStatus?: "spectator";
 };
 
 type JoinRequestRow = {
@@ -47,6 +54,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
   const [generationMode, setGenerationMode] = useState<"balanced" | "full_random">("balanced");
   const [msg, setMsg] = useState<string | null>(null);
   const [teams, setTeams] = useState<TeamEntry[]>([]);
+  const [spectators, setSpectators] = useState<SpectatorEntry[]>([]);
   const [loadingTeams, setLoadingTeams] = useState(false);
   const [tournamentPlayers, setTournamentPlayers] = useState<PlayerOption[]>([]);
   const [availablePlayers, setAvailablePlayers] = useState<PlayerOption[]>([]);
@@ -60,6 +68,8 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
   const [metaBusy, setMetaBusy] = useState(false);
   const [swapPlayerAId, setSwapPlayerAId] = useState("");
   const [swapPlayerBId, setSwapPlayerBId] = useState("");
+  const [movePlayerId, setMovePlayerId] = useState("");
+  const [moveTargetTeamId, setMoveTargetTeamId] = useState("");
   const [tournamentFormat, setTournamentFormat] = useState<TournamentFormat>("single_elim");
 
   const isOneVsOne = tournamentFormat === "one_vs_one";
@@ -186,6 +196,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
         return;
       }
       setTeams(json.teams ?? []);
+      setSpectators(json.spectators ?? []);
     } finally {
       if (!silent) setLoadingTeams(false);
     }
@@ -331,6 +342,51 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
     setMsg("Usunieto zawodnika z turnieju. Wygeneruj druzyny ponownie.");
     await refreshPlayerLists();
     setTeams([]);
+    setSpectators([]);
+  }
+
+  async function makeSpectator(playerId: string, playerName: string) {
+    if (!window.confirm(`Ustawic ${playerName} jako ogladajacego w tym turnieju?`)) return;
+
+    setMsg(null);
+    const res = await authedFetch(`/api/admin/tournaments/${tournamentId}/teams/members`, {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ playerId }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg(`Blad ustawiania ogladajacego: ${json.error ?? res.statusText}`);
+      return;
+    }
+
+    setMsg("Zawodnik ustawiony jako ogladajacy.");
+    await Promise.all([loadTeams(), refreshPlayerLists(true)]);
+    setMovePlayerId("");
+  }
+
+  async function movePlayerToTeam() {
+    if (!movePlayerId || !moveTargetTeamId) {
+      setMsg("Wybierz zawodnika i docelowa druzyne.");
+      return;
+    }
+
+    setMsg(null);
+    const res = await authedFetch(`/api/admin/tournaments/${tournamentId}/teams/members`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ playerId: movePlayerId, targetTeamId: moveTargetTeamId }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg(`Blad przenoszenia zawodnika: ${json.error ?? res.statusText}`);
+      return;
+    }
+
+    setMsg("Zawodnik przeniesiony do druzyny.");
+    await Promise.all([loadTeams(), refreshPlayerLists(true)]);
+    setMovePlayerId("");
+    setMoveTargetTeamId("");
   }
 
   async function saveMeta() {
@@ -420,6 +476,10 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
       teamName: team.name,
     }))
   );
+  const movablePlayers = [
+    ...activeTeamPlayers.map((player) => ({ ...player, statusLabel: player.teamName })),
+    ...spectators.map((player) => ({ id: player.id, name: player.name, teamName: "Ogladajacy", statusLabel: "Ogladajacy" })),
+  ];
 
   if (!accessChecked) {
     return (
@@ -635,6 +695,9 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
                     <div key={p.id} className="tour-admin-player-row">
                       <div className="tour-admin-player-main">
                         <span>{p.name}</span>
+                        {p.participationStatus === "spectator" ? (
+                          <span className="tour-muted">Ogladajacy</span>
+                        ) : null}
                       </div>
                       <button
                         className="tour-action-btn"
@@ -754,6 +817,68 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
 
         <section className="tour-admin-panel mt-4">
           <div className="tour-admin-grid">
+            <div className="tour-card" style={{ padding: "0.75rem" }}>
+              <div className="tour-card-head">
+                <p className="tour-card-title">Przenoszenie i ogladajacy</p>
+              </div>
+              <p className="tour-muted mt-1">
+                Ogladajacy zostaje w turnieju, ale nie jest w skladzie zadnej druzyny.
+              </p>
+              <div className="tour-admin-grid-2 mt-2">
+                <div>
+                  <label className="tour-admin-label">Zawodnik</label>
+                  <select
+                    className="tour-admin-input"
+                    value={movePlayerId}
+                    onChange={(e) => setMovePlayerId(e.target.value)}
+                  >
+                    <option value="">Wybierz</option>
+                    {movablePlayers.map((row) => (
+                      <option key={`move-${row.id}`} value={row.id}>
+                        {row.name} ({row.statusLabel})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="tour-admin-label">Docelowa druzyna</label>
+                  <select
+                    className="tour-admin-input"
+                    value={moveTargetTeamId}
+                    onChange={(e) => setMoveTargetTeamId(e.target.value)}
+                  >
+                    <option value="">Wybierz</option>
+                    {teams.map((team) => (
+                      <option key={team.id} value={team.id}>
+                        {team.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="tour-admin-actions mt-2">
+                <button className="tour-action-btn" type="button" onClick={() => void movePlayerToTeam()}>
+                  Przenies do druzyny
+                </button>
+                <button
+                  className="tour-action-btn"
+                  type="button"
+                  disabled={!movePlayerId}
+                  onClick={() => {
+                    const selected = movablePlayers.find((player) => player.id === movePlayerId);
+                    if (selected) void makeSpectator(selected.id, selected.name.replace(" (K)", ""));
+                  }}
+                >
+                  Ustaw jako ogladajacego
+                </button>
+              </div>
+              {spectators.length > 0 ? (
+                <p className="tour-card-sub mt-2">
+                  Ogladajacy: {spectators.map((player) => player.name).join(", ")}
+                </p>
+              ) : null}
+            </div>
+
             <div className="tour-card" style={{ padding: "0.75rem" }}>
               <div className="tour-card-head">
                 <p className="tour-card-title">Swap zawodnikow miedzy druzynami</p>
