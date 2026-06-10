@@ -582,8 +582,8 @@ export default async function PlayerPage({
                       <Link className="underline" href={`/tournaments/${h.tournamentId}`}>
                         {h.tournamentName}
                       </Link>
-                      <span> - {h.tournamentTypeLabel}</span>
                     </p>
+                    <p className="mt-1">Typ: {h.tournamentTypeLabel}</p>
                     <p className="mt-1">Druzyna: {h.teamName}</p>
                     {h.teamRoster.length > 0 && (
                       <p className="mt-1">Sklad: {h.teamRoster.map((p) => p.name).join(", ")}</p>
