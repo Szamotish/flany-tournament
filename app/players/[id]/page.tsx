@@ -24,6 +24,7 @@ type PlayerBrief = { id: string; name: string };
 type HistoryEntry = {
   tournamentId: string;
   tournamentName: string;
+  tournamentTypeLabel: string;
   tournamentPlayedAt: string | null;
   teamId: string;
   teamName: string;
@@ -62,6 +63,11 @@ function formatPlacement(place: number): string {
   if (mod10 === 2) return `${n}nd`;
   if (mod10 === 3) return `${n}rd`;
   return `${n}th`;
+}
+
+function formatTournamentHistoryType(format: unknown, mode: unknown): string {
+  const modeLabel = mode === "ranked" ? "ranked" : "normal";
+  return format === "one_vs_one" ? `1v1 ${modeLabel}` : modeLabel;
 }
 
 function parsePlayerBrief(value: unknown): PlayerBrief | null {
@@ -223,7 +229,16 @@ export default async function PlayerPage({
     if (!resultsErr) {
       const tournamentIds = Array.from(new Set((results ?? []).map((r) => String(r.tournament_id))));
 
-      const tournamentsMap = new Map<string, { name: string; created_at: string | null; started_at: string | null }>();
+      const tournamentsMap = new Map<
+        string,
+        {
+          name: string;
+          created_at: string | null;
+          started_at: string | null;
+          format: string | null;
+          mode: string | null;
+        }
+      >();
       const firstMatchAtByTournament = new Map<string, string>();
       const teamsMap = new Map<string, string>();
       const rosterMap = new Map<string, PlayerBrief[]>();
@@ -231,19 +246,36 @@ export default async function PlayerPage({
       if (tournamentIds.length > 0) {
         const primaryTournaments = await supabaseServer
           .from("tournaments")
-          .select("id,name,created_at,started_at")
+          .select("id,name,created_at,started_at,format,mode")
           .in("id", tournamentIds);
 
         let tournaments = primaryTournaments.data as
-          | Array<{ id: string; name: string | null; created_at: string | null; started_at?: string | null }>
+          | Array<{
+              id: string;
+              name: string | null;
+              created_at: string | null;
+              started_at?: string | null;
+              format?: string | null;
+              mode?: string | null;
+            }>
           | null;
 
-        if (primaryTournaments.error && primaryTournaments.error.message.includes("started_at")) {
+        if (
+          primaryTournaments.error &&
+          (primaryTournaments.error.message.includes("started_at") ||
+            primaryTournaments.error.message.includes("format") ||
+            primaryTournaments.error.message.includes("mode"))
+        ) {
           const fallbackTournaments = await supabaseServer
             .from("tournaments")
             .select("id,name,created_at")
             .in("id", tournamentIds);
-          tournaments = (fallbackTournaments.data ?? []).map((row) => ({ ...row, started_at: null }));
+          tournaments = (fallbackTournaments.data ?? []).map((row) => ({
+            ...row,
+            started_at: null,
+            format: null,
+            mode: null,
+          }));
         }
 
         for (const t of tournaments ?? []) {
@@ -251,6 +283,8 @@ export default async function PlayerPage({
             name: String(t.name ?? "(unknown)"),
             created_at: t.created_at ? String(t.created_at) : null,
             started_at: t.started_at ? String(t.started_at) : null,
+            format: typeof t.format === "string" ? t.format : null,
+            mode: typeof t.mode === "string" ? t.mode : null,
           });
         }
 
@@ -306,6 +340,7 @@ export default async function PlayerPage({
         return {
           tournamentId,
           tournamentName: t?.name ?? "(unknown)",
+          tournamentTypeLabel: formatTournamentHistoryType(t?.format, t?.mode),
           tournamentPlayedAt: t?.started_at ?? firstMatchAtByTournament.get(tournamentId) ?? t?.created_at ?? null,
           teamId,
           teamName: teamsMap.get(teamId) ?? "Druzyna",
@@ -549,6 +584,7 @@ export default async function PlayerPage({
                         {h.tournamentName}
                       </Link>
                     </p>
+                    <p className="mt-1">Typ: {h.tournamentTypeLabel}</p>
                     <p className="mt-1">Druzyna: {h.teamName}</p>
                     {h.teamRoster.length > 0 && (
                       <p className="mt-1">Sklad: {h.teamRoster.map((p) => p.name).join(", ")}</p>
