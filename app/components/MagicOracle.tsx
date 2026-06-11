@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { answerOracle } from "@/lib/oracle";
 
 type MagicOracleProps = {
@@ -16,19 +16,15 @@ export default function MagicOracle({ playerNames, beerNames, beerOfDay }: Magic
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
-  const [shakeCount, setShakeCount] = useState(0);
+  const [, setShakeCount] = useState(0);
   const [isShaking, setIsShaking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const lastXRef = useRef<number | null>(null);
   const directionRef = useRef<1 | -1 | 0>(0);
-
-  const shakeProgress = useMemo(() => Math.min(100, Math.round((shakeCount / SHAKE_TARGET) * 100)), [shakeCount]);
 
   function resetSession() {
     setAnswer(null);
     setShakeCount(0);
     setIsShaking(false);
-    setError(null);
     lastXRef.current = null;
     directionRef.current = 0;
   }
@@ -41,11 +37,9 @@ export default function MagicOracle({ playerNames, beerNames, beerOfDay }: Magic
   function revealAnswer() {
     const cleanQuestion = question.trim();
     if (!cleanQuestion) {
-      setError("Najpierw wpisz pytanie.");
       return;
     }
 
-    setError(null);
     setIsShaking(true);
     window.setTimeout(() => {
       setAnswer(answerOracle(cleanQuestion, { playerNames, beerNames, beerOfDay }));
@@ -56,7 +50,6 @@ export default function MagicOracle({ playerNames, beerNames, beerOfDay }: Magic
   function registerMove(clientX: number) {
     if (answer || isShaking) return;
     if (!question.trim()) {
-      setError("Najpierw wpisz pytanie.");
       return;
     }
 
@@ -84,11 +77,6 @@ export default function MagicOracle({ playerNames, beerNames, beerOfDay }: Magic
   return (
     <>
       <article className="glass-card landing-oracle">
-        <div>
-          <p className="panel-top-label">Wyrocznia</p>
-          <h2 className="oracle-card-title">Zapytaj kule</h2>
-          <p className="landing-link-sub">Wpisz pytanie, potrzasnij i zaakceptuj wyrok.</p>
-        </div>
         <button className="oracle-card-button" type="button" onClick={() => setOpen(true)} aria-label="Otworz magiczna kule" />
       </article>
 
@@ -96,16 +84,6 @@ export default function MagicOracle({ playerNames, beerNames, beerOfDay }: Magic
         <div className="oracle-overlay" role="dialog" aria-modal="true" aria-label="Magiczna kula">
           <button className="oracle-backdrop" type="button" aria-label="Zamknij" onClick={closeOracle} />
           <section className="oracle-modal">
-            <div className="oracle-modal-head">
-              <div>
-                <p className="panel-top-label">Magic 8-ball</p>
-                <h2>Wyrocznia flanek</h2>
-              </div>
-              <button className="oracle-close" type="button" onClick={closeOracle} aria-label="Zamknij">
-                x
-              </button>
-            </div>
-
             <button
               className={`oracle-ball ${isShaking ? "is-shaking" : ""} ${answer ? "has-answer" : ""}`}
               type="button"
@@ -131,9 +109,6 @@ export default function MagicOracle({ playerNames, beerNames, beerOfDay }: Magic
             </button>
 
             <div className="oracle-form">
-              <label className="tour-admin-label" htmlFor="oracle-question">
-                Pytanie do kuli
-              </label>
               <input
                 id="oracle-question"
                 className="tour-admin-input oracle-input"
@@ -143,23 +118,11 @@ export default function MagicOracle({ playerNames, beerNames, beerOfDay }: Magic
                   setQuestion(event.target.value);
                   resetSession();
                 }}
-                placeholder="np. czy dzisiaj gramy we flany?"
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") revealAnswer();
+                }}
+                placeholder="Pytanie do kuli"
               />
-              <div className="oracle-progress" aria-label={`Postep potrzasania ${shakeProgress}%`}>
-                <span style={{ width: `${shakeProgress}%` }} />
-              </div>
-              <p className="tour-muted">
-                Potrzasnij kula myszka albo palcem. Jak nie chce wspolpracowac, uzyj przycisku.
-              </p>
-              {error ? <p className="oracle-error">{error}</p> : null}
-              <div className="tour-actions">
-                <button className="tour-action-btn" type="button" onClick={revealAnswer} disabled={isShaking}>
-                  {isShaking ? "Kula mysli..." : "Potrzasnij"}
-                </button>
-                <button className="tour-action-btn" type="button" onClick={resetSession}>
-                  Reset
-                </button>
-              </div>
             </div>
           </section>
         </div>
