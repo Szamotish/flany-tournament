@@ -18,14 +18,18 @@ export default function MagicOracle({ playerNames, beerNames, beerOfDay }: Magic
   const [answer, setAnswer] = useState<string | null>(null);
   const [, setShakeCount] = useState(0);
   const [isShaking, setIsShaking] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0, rotation: 0 });
   const lastXRef = useRef<number | null>(null);
+  const lastYRef = useRef<number | null>(null);
   const directionRef = useRef<1 | -1 | 0>(0);
 
   function resetSession() {
     setAnswer(null);
     setShakeCount(0);
     setIsShaking(false);
+    setDragOffset({ x: 0, y: 0, rotation: 0 });
     lastXRef.current = null;
+    lastYRef.current = null;
     directionRef.current = 0;
   }
 
@@ -47,18 +51,36 @@ export default function MagicOracle({ playerNames, beerNames, beerOfDay }: Magic
     }, 620);
   }
 
-  function registerMove(clientX: number) {
+  function clearDrag() {
+    lastXRef.current = null;
+    lastYRef.current = null;
+    directionRef.current = 0;
+    setDragOffset({ x: 0, y: 0, rotation: 0 });
+  }
+
+  function registerMove(clientX: number, clientY: number) {
     if (answer || isShaking) return;
     if (!question.trim()) {
       return;
     }
 
     const lastX = lastXRef.current;
+    const lastY = lastYRef.current;
     lastXRef.current = clientX;
-    if (lastX === null) return;
+    lastYRef.current = clientY;
+    if (lastX === null || lastY === null) return;
 
     const diff = clientX - lastX;
-    if (Math.abs(diff) < 12) return;
+    const diffY = clientY - lastY;
+    if (Math.abs(diff) >= 2 || Math.abs(diffY) >= 2) {
+      setDragOffset({
+        x: Math.max(-34, Math.min(34, diff * 2.4)),
+        y: Math.max(-18, Math.min(18, diffY * 1.8)),
+        rotation: Math.max(-13, Math.min(13, diff * 0.42)),
+      });
+    }
+
+    if (Math.abs(diff) < 10) return;
 
     const direction = diff > 0 ? 1 : -1;
     if (directionRef.current !== 0 && directionRef.current !== direction) {
@@ -86,21 +108,19 @@ export default function MagicOracle({ playerNames, beerNames, beerOfDay }: Magic
           <section className="oracle-modal">
             <button
               className={`oracle-ball ${isShaking ? "is-shaking" : ""} ${answer ? "has-answer" : ""}`}
+              style={{
+                transform: `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0) rotate(${dragOffset.rotation}deg)`,
+              }}
               type="button"
               onPointerDown={(event) => {
                 lastXRef.current = event.clientX;
+                lastYRef.current = event.clientY;
                 directionRef.current = 0;
                 event.currentTarget.setPointerCapture(event.pointerId);
               }}
-              onPointerMove={(event) => registerMove(event.clientX)}
-              onPointerUp={() => {
-                lastXRef.current = null;
-                directionRef.current = 0;
-              }}
-              onPointerCancel={() => {
-                lastXRef.current = null;
-                directionRef.current = 0;
-              }}
+              onPointerMove={(event) => registerMove(event.clientX, event.clientY)}
+              onPointerUp={clearDrag}
+              onPointerCancel={clearDrag}
               aria-label="Potrzasnij kula"
             >
               <span className="oracle-ball-window">
