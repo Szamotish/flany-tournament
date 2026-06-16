@@ -7,6 +7,11 @@ import {
   RANKED_TOURNAMENT_WIN_BONUS,
 } from "@/lib/ranked";
 import { isOneVsOneFormat } from "@/lib/tournamentFormat";
+import {
+  ensureRankedBaselines,
+  inferRankedBaselinesFromHistory,
+  loadRankedBaselines,
+} from "@/lib/rankedBaseline";
 
 const ONE_V_ONE_BASE_WIN_DELTA = 0.1;
 const ONE_V_ONE_BASE_LOSS_DELTA = -0.1;
@@ -235,6 +240,17 @@ export async function recalculateRankedMmr(): Promise<{
   }
 
   const ratingByPlayer = new Map<string, number>();
+  const savedBaselines = await loadRankedBaselines(playerIds);
+  const inferredBaselines = await inferRankedBaselinesFromHistory(
+    playerIds.filter((playerId) => !savedBaselines.has(playerId))
+  );
+  const baselineCandidates: Array<{
+    playerId: string;
+    mmr: number;
+    prestigePoints: number;
+    source: string;
+  }> = [];
+
   const stateByPlayer = new Map<string, { mmr: number; prestigePoints: number }>();
   for (const row of playerRows) {
     const overrideRaw = row.rating_override;
@@ -245,10 +261,24 @@ export async function recalculateRankedMmr(): Promise<{
         : trimmedMean(ratingsByPlayer.get(row.id) ?? [])
     );
     ratingByPlayer.set(row.id, rating);
-    stateByPlayer.set(row.id, {
+    const fallbackBaseline = {
+      playerId: row.id,
       mmr: row.mmr_manual_override === true ? clampRating(Number(row.mmr ?? 0)) : rating,
-      prestigePoints: Math.max(0, Math.floor(Number(row.prestige_points ?? 0))),
+      prestigePoints: row.mmr_manual_override === true ? Math.max(0, Math.floor(Number(row.prestige_points ?? 0))) : 0,
+      source: row.mmr_manual_override === true ? "manual_override" : "current_rating_fallback",
+    };
+    const baseline = savedBaselines.get(row.id) ?? inferredBaselines.get(row.id) ?? fallbackBaseline;
+    if (!savedBaselines.has(row.id)) {
+      baselineCandidates.push(baseline);
+    }
+    stateByPlayer.set(row.id, {
+      mmr: baseline.mmr,
+      prestigePoints: baseline.prestigePoints,
     });
+  }
+
+  if (baselineCandidates.length > 0) {
+    await ensureRankedBaselines(baselineCandidates);
   }
 
   const events: RankedEvent[] = [];
@@ -329,6 +359,7 @@ export async function recalculateRankedMmr(): Promise<{
     player_id: string;
     tournament_id: string;
     match_id: string | null;
+    created_at: string;
     reason: RankedEvent["reason"];
     delta: number;
     mmr: number;
@@ -348,6 +379,7 @@ export async function recalculateRankedMmr(): Promise<{
         player_id: playerId,
         tournament_id: event.tournamentId,
         match_id: event.matchId,
+        created_at: event.sortAt,
         reason: event.reason,
         delta: event.delta,
         mmr: next.mmr,

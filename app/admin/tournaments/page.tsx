@@ -1148,15 +1148,26 @@ export default function AdminTournamentsPage() {
                         {t.is_private ? <p className="tour-card-sub">Prywatny</p> : null}
                       </div>
                       <div className="tour-admin-actions">
-                        <Link className="tour-action-btn" href={`/tournaments/${t.id}`} onClick={(e) => e.stopPropagation()}>
+                        <Link
+                          className="tour-action-btn"
+                          href={`/tournaments/${t.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => e.stopPropagation()}
+                        >
                           Podglad
                         </Link>
-                        <Link className="tour-action-btn" href={`/tournaments/${t.id}/rules`} onClick={(e) => e.stopPropagation()}>
+                        <Link
+                          className="tour-action-btn"
+                          href={`/tournaments/${t.id}/rules`}
+                          onClick={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => e.stopPropagation()}
+                        >
                           Zasady
                         </Link>
                         <button
                           className="tour-action-btn tour-action-danger"
                           type="button"
+                          onPointerDown={(e) => e.stopPropagation()}
                           onClick={(e) => {
                             e.stopPropagation();
                             void deleteTournament(t.id, t.name);

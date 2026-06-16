@@ -48,6 +48,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
   const [accessChecked, setAccessChecked] = useState(false);
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
   const [teamSize, setTeamSize] = useState(5);
+  const [splitInHalf, setSplitInHalf] = useState(false);
   const [allowUneven, setAllowUneven] = useState(true);
   const [iterations, setIterations] = useState(500);
   const [mode, setMode] = useState<"reset" | "overwrite">("reset");
@@ -95,6 +96,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
   useEffect(() => {
     if (!isOneVsOne) return;
     setTeamSize(1);
+    setSplitInHalf(false);
     setAllowUneven(false);
   }, [isOneVsOne]);
 
@@ -151,8 +153,9 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
 
   async function generate() {
     setMsg(null);
+    const effectiveSplitInHalf = !isOneVsOne && splitInHalf;
     const effectiveTeamSize = isOneVsOne ? 1 : teamSize;
-    const effectiveAllowUneven = isOneVsOne ? false : allowUneven;
+    const effectiveAllowUneven = isOneVsOne ? false : effectiveSplitInHalf ? true : allowUneven;
 
     const res = await authedFetch(`/api/admin/tournaments/${tournamentId}/teams/generate`, {
       method: "POST",
@@ -162,6 +165,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
       body: JSON.stringify({
         teamSize: effectiveTeamSize,
         allowUneven: effectiveAllowUneven,
+        splitInHalf: effectiveSplitInHalf,
         iterations,
         mode,
         generationMode,
@@ -544,9 +548,12 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
                   max={20}
                   value={isOneVsOne ? 1 : teamSize}
                   onChange={(e) => setTeamSize(Number(e.target.value))}
-                  disabled={isOneVsOne}
+                  disabled={isOneVsOne || splitInHalf}
                 />
                 {isOneVsOne ? <p className="tour-muted mt-1">Dla formatu 1v1 rozmiar druzyny jest wymuszony na 1.</p> : null}
+                {!isOneVsOne && splitInHalf ? (
+                  <p className="tour-muted mt-1">System zrobi dokladnie 2 druzyny i podzieli zawodnikow po polowie.</p>
+                ) : null}
               </div>
 
               <div>
@@ -578,9 +585,19 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
                 type="checkbox"
                 checked={isOneVsOne ? false : allowUneven}
                 onChange={(e) => setAllowUneven(e.target.checked)}
-                disabled={isOneVsOne}
+                disabled={isOneVsOne || splitInHalf}
               />
               <span>Dopusc nierowne druzyny (roznica maksymalnie 1)</span>
+            </label>
+
+            <label className="tour-admin-check">
+              <input
+                type="checkbox"
+                checked={!isOneVsOne && splitInHalf}
+                onChange={(e) => setSplitInHalf(e.target.checked)}
+                disabled={isOneVsOne}
+              />
+              <span>Podzial na pol poprosze (2 druzyny)</span>
             </label>
 
             <div>

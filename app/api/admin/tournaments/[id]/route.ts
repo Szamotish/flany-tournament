@@ -25,6 +25,17 @@ async function tournamentStarted(tournamentId: string) {
   return { ok: true as const, started: (count ?? 0) > 0 };
 }
 
+function isMissingOptionalRelation(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return normalized.includes("does not exist") || normalized.includes("schema cache") || normalized.includes("could not find");
+}
+
+async function deleteOptionalRows(table: string, tournamentId: string): Promise<string | null> {
+  const { error } = await supabaseServer.from(table).delete().eq("tournament_id", tournamentId);
+  if (!error || isMissingOptionalRelation(error.message)) return null;
+  return error.message;
+}
+
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -253,6 +264,30 @@ export async function DELETE(
       .in("batch_id", batchIds);
     if (teamsErr) return NextResponse.json({ error: teamsErr.message }, { status: 500 });
     teamIds = (teams ?? []).map((t) => String(t.id));
+  }
+
+  const historyUnlink = await supabaseServer
+    .from("player_mmr_history")
+    .update({ tournament_id: null, match_id: null })
+    .eq("tournament_id", tournamentId);
+  if (historyUnlink.error && !isMissingOptionalRelation(historyUnlink.error.message)) {
+    const historyDelete = await supabaseServer
+      .from("player_mmr_history")
+      .delete()
+      .eq("tournament_id", tournamentId);
+    if (historyDelete.error && !isMissingOptionalRelation(historyDelete.error.message)) {
+      return NextResponse.json({ error: historyDelete.error.message }, { status: 500 });
+    }
+  }
+
+  for (const table of [
+    "tournament_round_schedules",
+    "tournament_rules",
+    "tournament_join_requests",
+    "tournament_invites",
+  ]) {
+    const optionalErr = await deleteOptionalRows(table, tournamentId);
+    if (optionalErr) return NextResponse.json({ error: optionalErr }, { status: 500 });
   }
 
   const { error: resultsErr } = await supabaseServer

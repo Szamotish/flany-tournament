@@ -14,6 +14,7 @@ import {
   RANKED_TOURNAMENT_WIN_BONUS,
 } from "@/lib/ranked";
 import { loadPlayerPerformance } from "@/lib/playerPerformance";
+import { ensureRankedBaselines } from "@/lib/rankedBaseline";
 import { isDoubleElimFormat, isOneVsOneFormat, usesSingleBracket } from "@/lib/tournamentFormat";
 
 const ONE_V_ONE_BASE_WIN_DELTA = 0.1;
@@ -64,6 +65,18 @@ async function applyDeltaToPlayers(
   const perfByPlayer = await loadPlayerPerformance(uniquePlayerIds, {
     excludeMatchId: options?.excludeMatchId,
   });
+
+  await ensureRankedBaselines(
+    uniquePlayerIds.map((playerId) => {
+      const perf = perfByPlayer.get(playerId);
+      return {
+        playerId,
+        mmr: Number(perf?.effectiveMmr ?? 0),
+        prestigePoints: Number(perf?.prestigePoints ?? 0),
+        source: "first_ranked_match",
+      };
+    })
+  );
 
   const updates = uniquePlayerIds.map((playerId) => {
     const perf = perfByPlayer.get(playerId);

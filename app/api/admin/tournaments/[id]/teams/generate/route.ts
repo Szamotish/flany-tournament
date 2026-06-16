@@ -105,6 +105,7 @@ export async function POST(
 
   const body = await req.json().catch(() => null);
   const teamSize = Number(body?.teamSize ?? 5);
+  const splitInHalf = body?.splitInHalf === true;
   const allowUneven = body?.allowUneven !== false;
   const iterations = Number(body?.iterations ?? 500);
   const mode = (body?.mode === "overwrite" ? "overwrite" : "reset") as
@@ -125,7 +126,7 @@ export async function POST(
   if (tournamentRes.error) return NextResponse.json({ error: tournamentRes.error.message }, { status: 500 });
 
   const isOneVsOne = isOneVsOneFormat(tournamentRes.data?.format);
-  if (!Number.isInteger(teamSize) || teamSize < (isOneVsOne ? 1 : 2) || teamSize > 20) {
+  if (!splitInHalf && (!Number.isInteger(teamSize) || teamSize < (isOneVsOne ? 1 : 2) || teamSize > 20)) {
     return NextResponse.json({ error: "invalid_teamSize" }, { status: 400 });
   }
 
@@ -165,8 +166,9 @@ export async function POST(
     return NextResponse.json({ error: "invalid_player_count_for_1v1" }, { status: 400 });
   }
 
-  const effectiveTeamSize = isOneVsOne ? 1 : teamSize;
-  const effectiveAllowUneven = isOneVsOne ? false : allowUneven;
+  const effectiveSplitInHalf = !isOneVsOne && splitInHalf;
+  const effectiveTeamSize = isOneVsOne ? 1 : effectiveSplitInHalf ? Math.ceil(players.length / 2) : teamSize;
+  const effectiveAllowUneven = isOneVsOne ? false : effectiveSplitInHalf ? true : allowUneven;
 
   const ids = players.map((p) => p.id);
   const perfByPlayer = await loadPlayerPerformance(ids);
@@ -275,8 +277,9 @@ export async function POST(
       iterations,
       generationMode,
       forcedOneVsOne: isOneVsOne,
+      splitInHalf: effectiveSplitInHalf,
     },
   });
 
-  return NextResponse.json({ batchId, score, generationMode });
+  return NextResponse.json({ batchId, score, generationMode, splitInHalf: effectiveSplitInHalf });
 }

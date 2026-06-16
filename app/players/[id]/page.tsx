@@ -51,7 +51,11 @@ const CHART_PAD_Y = 8;
 
 function formatShortDate(iso: string | null): string {
   if (!iso) return "--.--";
-  return new Date(iso).toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit" });
+  return new Date(iso).toLocaleDateString("pl-PL", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Europe/Warsaw",
+  });
 }
 
 function formatPlacement(place: number): string {
@@ -94,11 +98,16 @@ function formatChartTooltipDateTime(iso: string | null): string {
   if (!iso) return "--.-- --:--";
   const parsed = new Date(iso);
   if (Number.isNaN(parsed.getTime())) return "--.-- --:--";
-  const day = String(parsed.getDate()).padStart(2, "0");
-  const month = String(parsed.getMonth() + 1).padStart(2, "0");
-  const hours = String(parsed.getHours()).padStart(2, "0");
-  const minutes = String(parsed.getMinutes()).padStart(2, "0");
-  return `${day}.${month} ${hours}:${minutes}`;
+  return new Intl.DateTimeFormat("pl-PL", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Europe/Warsaw",
+  })
+    .format(parsed)
+    .replace(",", "");
 }
 
 function buildSparkPoints(points: MmrPoint[]): SparkPoint[] {
