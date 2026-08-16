@@ -9,6 +9,7 @@ import TrophyIcon from "@/app/components/TrophyIcon";
 import BackNavButton from "@/app/components/BackNavButton";
 import { PRESTIGE_POINTS_PER_MMR } from "@/lib/ranked";
 import { loadPlayerPerformance } from "@/lib/playerPerformance";
+import { rankingCompare, type RankingComparable } from "@/lib/ranking";
 import { playerToneStyle } from "@/lib/ui/playerProfile";
 import {
   FRAME_BY_RANK,
@@ -42,6 +43,16 @@ type SparkPoint = {
   y: number;
   mmr: number;
   createdAt: string | null;
+};
+
+type RankingPlayerRow = {
+  id: string;
+  name: string;
+  active: boolean | null;
+  mmr: number | null;
+  prestige_points: number | null;
+  rating_override?: number | null;
+  mmr_manual_override?: boolean | null;
 };
 
 const CHART_WIDTH = 220;
@@ -384,6 +395,84 @@ export default async function PlayerPage({
   const favoriteBeer = typeof player.favorite_beer === "string" ? player.favorite_beer : null;
   const profileStyle = playerToneStyle(profileColor);
   const profileRankFrameUrl = FRAME_BY_RANK[currentRank] ?? null;
+  let playerRankingPlace: number | null = null;
+
+  if (currentRank !== "unranked") {
+    const rankingSelect = "id,name,active,mmr,prestige_points,rating_override,mmr_manual_override";
+    const rankingLegacySelect = "id,name,active,mmr,prestige_points";
+    const rankingPrimary = await supabaseServer.from("players").select(rankingSelect).eq("active", true);
+
+    let rankingRows = (rankingPrimary.data ?? []) as RankingPlayerRow[];
+    if (
+      rankingPrimary.error &&
+      (rankingPrimary.error.message.includes("rating_override") ||
+        rankingPrimary.error.message.includes("mmr_manual_override"))
+    ) {
+      const fallback = await supabaseServer.from("players").select(rankingLegacySelect).eq("active", true);
+      rankingRows = ((fallback.data ?? []) as RankingPlayerRow[]).map((row) => ({
+        ...row,
+        rating_override: null,
+        mmr_manual_override: false,
+      }));
+    }
+
+    const rankingIds = rankingRows.map((row) => row.id).filter(Boolean);
+    const rankingRatingByPlayer = new Map<string, number | null>();
+
+    if (rankingIds.length > 0) {
+      const { data: rankingRatings } = await supabaseServer
+        .from("ratings")
+        .select("rated_player_id,value")
+        .in("rated_player_id", rankingIds);
+
+      const grouped = new Map<string, number[]>();
+      for (const row of rankingRatings ?? []) {
+        const ratedPlayerId = typeof row.rated_player_id === "string" ? row.rated_player_id : "";
+        const value = Number(row.value);
+        if (!ratedPlayerId || !Number.isFinite(value)) continue;
+        grouped.set(ratedPlayerId, [...(grouped.get(ratedPlayerId) ?? []), value]);
+      }
+
+      for (const row of rankingRows) {
+        const overrideRaw = row.rating_override;
+        const override = Number(overrideRaw);
+        rankingRatingByPlayer.set(
+          row.id,
+          overrideRaw !== null && overrideRaw !== undefined && Number.isFinite(override)
+            ? override
+            : trimmedMean(grouped.get(row.id) ?? [])
+        );
+      }
+    }
+
+    const rankingPerfByPlayer = rankingIds.length > 0 ? await loadPlayerPerformance(rankingIds).catch(() => new Map()) : new Map();
+    const ranking = rankingRows
+      .map((row): RankingComparable & { id: string } => {
+        const rankingPerf = rankingPerfByPlayer.get(row.id);
+        const effectiveMmr = Number(rankingPerf?.effectiveMmr ?? row.mmr ?? 0);
+        const prestigePoints = Math.max(0, Math.floor(Number(row.prestige_points ?? 0)));
+        const canShowRankingRank = canShowRankFromMmr(
+          rankingPerf?.hasFinishedMatch ?? false,
+          rankingPerf?.mmrManualOverride ?? row.mmr_manual_override === true
+        );
+        const rank = displayRankFromProgress(canShowRankingRank, effectiveMmr, prestigePoints);
+
+        return {
+          id: row.id,
+          name: row.name,
+          rating: rankingRatingByPlayer.get(row.id) ?? null,
+          effectiveMmr,
+          prestigePoints,
+          rank,
+          isRanked: rank !== "unranked",
+        };
+      })
+      .sort(rankingCompare)
+      .filter((row) => row.isRanked);
+
+    const index = ranking.findIndex((row) => row.id === playerId);
+    playerRankingPlace = index >= 0 ? index + 1 : null;
+  }
   const historyRes = await supabaseServer
     .from("player_mmr_history")
     .select("mmr,created_at")
@@ -427,6 +516,11 @@ export default async function PlayerPage({
             <div className="profile-hero-name-block">
               <div className="profile-name-row">
                 <h1 className="profile-name">{player.name}</h1>
+                {playerRankingPlace ? (
+                  <Link className="profile-ranking-badge" href="/ranking" title="Miejsce w rankingu ligi">
+                    #{playerRankingPlace}
+                  </Link>
+                ) : null}
                 {favoriteBeer ? (
                   <span className="profile-favorite-beer" title={`Ulubione piwo: ${favoriteBeer}`}>
                     <BeerCan3D beer={{ name: favoriteBeer }} />

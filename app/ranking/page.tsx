@@ -2,6 +2,7 @@ import Link from "next/link";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { trimmedMean } from "@/lib/rating";
 import { loadPlayerPerformance } from "@/lib/playerPerformance";
+import { rankingCompare, type RankingComparable } from "@/lib/ranking";
 import { playerToneStyle } from "@/lib/ui/playerProfile";
 import {
   FRAME_BY_RANK,
@@ -33,20 +34,7 @@ type RankingPlayer = PlayerRow & {
   rank: DisplayRank;
   rankText: string;
   isRanked: boolean;
-};
-
-const RANK_WEIGHT: Record<DisplayRank, number> = {
-  challenger: 9,
-  grandmaster: 8,
-  master: 7,
-  diamond: 6,
-  emerald: 5,
-  platinum: 4,
-  gold: 3,
-  silver: 2,
-  bronze: 1,
-  unranked: 0,
-};
+} & RankingComparable;
 
 function formatMmr(value: number): string {
   if (!Number.isFinite(value)) return "0.0";
@@ -56,25 +44,6 @@ function formatMmr(value: number): string {
 function formatRating(value: number | null): string {
   if (value === null || !Number.isFinite(value)) return "--";
   return value.toFixed(1);
-}
-
-function rankingCompare(a: RankingPlayer, b: RankingPlayer): number {
-  if (a.isRanked !== b.isRanked) return a.isRanked ? -1 : 1;
-  if (!a.isRanked && !b.isRanked) return a.name.localeCompare(b.name, "pl");
-
-  const rankDiff = RANK_WEIGHT[b.rank] - RANK_WEIGHT[a.rank];
-  if (rankDiff !== 0) return rankDiff;
-
-  const ppDiff = b.prestigePoints - a.prestigePoints;
-  if (ppDiff !== 0) return ppDiff;
-
-  const mmrDiff = b.effectiveMmr - a.effectiveMmr;
-  if (mmrDiff !== 0) return mmrDiff;
-
-  const ratingDiff = Number(b.rating ?? -1) - Number(a.rating ?? -1);
-  if (ratingDiff !== 0) return ratingDiff;
-
-  return a.name.localeCompare(b.name, "pl");
 }
 
 export default async function RankingPage() {
