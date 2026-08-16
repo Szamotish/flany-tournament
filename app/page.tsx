@@ -165,6 +165,11 @@ export default async function HomePage() {
                 <span className="landing-link-title">Zawodnicy</span>
                 <span className="landing-link-sub">Profile zawodnikow, oceny i historia</span>
               </Link>
+
+              <Link href="/ranking" className="landing-link-card">
+                <span className="landing-link-title">Ranking</span>
+                <span className="landing-link-sub">Tabela rang, MMR i punktow PP</span>
+              </Link>
             </div>
           </article>
 

@@ -371,9 +371,9 @@ export default async function PlayerPage({
   const perfByPlayer = await loadPlayerPerformance([playerId]);
   const perf = perfByPlayer.get(playerId);
 
-  const rankedTier = prestigeTier(Number(player.prestige_points ?? 0));
   const rankedMmr = Number(perf?.effectiveMmr ?? player.mmr ?? 0);
   const rankedPrestigePoints = Math.max(0, Number(player.prestige_points ?? 0));
+  const rankedTier = prestigeTier(rankedPrestigePoints);
   const hasFinishedMatch = perf?.hasFinishedMatch ?? false;
   const mmrManualOverride = perf?.mmrManualOverride ?? (player.mmr_manual_override === true);
   const canShowRank = canShowRankFromMmr(hasFinishedMatch, mmrManualOverride);
@@ -525,7 +525,7 @@ export default async function PlayerPage({
                       borderColor: prestigeColor(rankedTier),
                     }}
                   >
-                    {rankedTier > 0 ? `Prestige +${rankedTier}` : "Prestige 0"}
+                    PP {Math.floor(rankedPrestigePoints)}
                   </span>
                   <span className="profile-rating-chip">Ranga: {currentRankLabel}</span>
                 </div>

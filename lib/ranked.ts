@@ -1,7 +1,7 @@
 export type TournamentMode = "normal" | "ranked";
 
 export const BASE_MMR_CAP = 10;
-export const PRESTIGE_POINTS_PER_MMR = 100;
+export const PRESTIGE_POINTS_PER_MMR = 10;
 export const PRESTIGE_LOSS_MULTIPLIER = 3;
 
 export const RANKED_MATCH_WIN_DELTA = 0.1;
