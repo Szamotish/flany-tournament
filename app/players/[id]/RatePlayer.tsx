@@ -76,7 +76,7 @@ export default function RatePlayer({ playerId, className }: RatePlayerProps) {
     const json = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      if (res.status === 429) {
+      if (res.status === 429 || json.error === "rating_requalification_required") {
         setMsg(json.message ?? "Cooldown aktywny");
         setCanRate(false);
         setCooldownState(Number(json.hoursLeft ?? 999) <= 24 ? "soon" : "cooldown");

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { readAuthContext } from "@/app/api/admin/_auth";
-import { ratingCooldownFromUpdatedAt } from "@/lib/ratingCooldown";
+import { ratingEligibilityForPair } from "@/lib/ratingEligibility";
 
 export async function GET(req: Request) {
   const auth = await readAuthContext(req);
@@ -68,15 +68,18 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const cooldown = ratingCooldownFromUpdatedAt(data?.updated_at ?? null);
+  const eligibility = await ratingEligibilityForPair(auth.ctx.playerId, ratedId, data?.updated_at ?? null);
 
   return NextResponse.json({
     value: data?.value ?? null,
     updatedAt: data?.updated_at ?? null,
-    canRate: cooldown.canRate,
-    cooldownState: cooldown.state,
-    hoursLeft: cooldown.hoursLeft,
-    message: cooldown.message,
+    canRate: eligibility.canRate,
+    cooldownState: eligibility.state,
+    hoursLeft: eligibility.hoursLeft,
+    message: eligibility.message,
+    eligibilityReason: eligibility.reason,
+    lastSharedMatchAt: eligibility.lastSharedMatchAt,
+    windowExpiresAt: eligibility.windowExpiresAt,
     isSelf: false,
   });
 }

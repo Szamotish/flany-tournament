@@ -2,6 +2,7 @@ import { supabaseServer } from "@/lib/supabaseServer";
 import { trimmedMean } from "@/lib/rating";
 import {
   applyRankedDelta,
+  PRESTIGE_POINTS_PER_MMR,
   RANKED_MATCH_LOSS_DELTA,
   RANKED_MATCH_WIN_DELTA,
   RANKED_TOURNAMENT_WIN_BONUS,
@@ -18,7 +19,7 @@ const ONE_V_ONE_BASE_LOSS_DELTA = -0.1;
 const ONE_V_ONE_UPSET_WIN_DELTA = 0.2;
 const ONE_V_ONE_UPSET_LOSS_DELTA = -0.2;
 const ONE_V_ONE_FAVORED_WIN_DELTA = 0;
-const ONE_V_ONE_RATING_DIFF_THRESHOLD = 2.5;
+const ONE_V_ONE_RANKED_SCORE_DIFF_THRESHOLD = 2.5;
 
 type PlayerRow = {
   id: string;
@@ -46,15 +47,27 @@ type MatchRow = {
   match_no?: number | null;
 };
 
-type RankedEvent = {
+type RankedMatchEvent = {
   sortAt: string;
-  sortKind: 0 | 1;
+  sortKind: 0;
   tournamentId: string;
-  matchId: string | null;
+  matchId: string;
+  winnerTeamId: string;
+  loserTeamId: string;
+  oneVsOne: boolean;
+};
+
+type RankedBonusEvent = {
+  sortAt: string;
+  sortKind: 1;
+  tournamentId: string;
+  matchId: null;
   teamId: string;
   delta: number;
-  reason: "match_win" | "match_loss" | "tournament_win";
+  reason: "tournament_win";
 };
+
+type RankedEvent = RankedMatchEvent | RankedBonusEvent;
 
 function roundToOne(value: number): number {
   return Math.round((value + Number.EPSILON) * 10) / 10;
@@ -79,16 +92,25 @@ function eventDate(match: MatchRow, tournament: TournamentRow | undefined): stri
   return match.updated_at ?? match.created_at ?? tournament?.created_at ?? new Date(0).toISOString();
 }
 
-function averageTeamRating(teamId: string, teamPlayersByTeam: Map<string, string[]>, ratingByPlayer: Map<string, number>): number {
+function rankedScore(state: { mmr: number; prestigePoints: number } | undefined): number {
+  if (!state) return 5;
+  return Number(state.mmr) + Number(state.prestigePoints) / PRESTIGE_POINTS_PER_MMR;
+}
+
+function averageTeamRankedScore(
+  teamId: string,
+  teamPlayersByTeam: Map<string, string[]>,
+  stateByPlayer: Map<string, { mmr: number; prestigePoints: number }>
+): number {
   const players = teamPlayersByTeam.get(teamId) ?? [];
   if (players.length === 0) return 5;
 
   let sum = 0;
   let count = 0;
   for (const playerId of players) {
-    const rating = ratingByPlayer.get(playerId);
-    if (!Number.isFinite(rating)) continue;
-    sum += Number(rating);
+    const score = rankedScore(stateByPlayer.get(playerId));
+    if (!Number.isFinite(score)) continue;
+    sum += score;
     count += 1;
   }
 
@@ -99,18 +121,18 @@ function oneVsOneDeltas(
   winnerTeamId: string,
   loserTeamId: string,
   teamPlayersByTeam: Map<string, string[]>,
-  ratingByPlayer: Map<string, number>
+  stateByPlayer: Map<string, { mmr: number; prestigePoints: number }>
 ): { winnerDelta: number; loserDelta: number } {
-  const winnerRating = averageTeamRating(winnerTeamId, teamPlayersByTeam, ratingByPlayer);
-  const loserRating = averageTeamRating(loserTeamId, teamPlayersByTeam, ratingByPlayer);
-  const winnerHigherRated = winnerRating >= loserRating;
-  const ratingDiff = Math.abs(winnerRating - loserRating);
+  const winnerRankedScore = averageTeamRankedScore(winnerTeamId, teamPlayersByTeam, stateByPlayer);
+  const loserRankedScore = averageTeamRankedScore(loserTeamId, teamPlayersByTeam, stateByPlayer);
+  const winnerHigherRanked = winnerRankedScore >= loserRankedScore;
+  const rankedScoreDiff = Math.abs(winnerRankedScore - loserRankedScore);
 
-  if (ratingDiff <= ONE_V_ONE_RATING_DIFF_THRESHOLD) {
+  if (rankedScoreDiff <= ONE_V_ONE_RANKED_SCORE_DIFF_THRESHOLD) {
     return { winnerDelta: ONE_V_ONE_BASE_WIN_DELTA, loserDelta: ONE_V_ONE_BASE_LOSS_DELTA };
   }
 
-  if (winnerHigherRated) {
+  if (winnerHigherRanked) {
     return { winnerDelta: ONE_V_ONE_FAVORED_WIN_DELTA, loserDelta: ONE_V_ONE_BASE_LOSS_DELTA };
   }
 
@@ -239,7 +261,6 @@ export async function recalculateRankedMmr(): Promise<{
     }
   }
 
-  const ratingByPlayer = new Map<string, number>();
   const savedBaselines = await loadRankedBaselines(playerIds);
   const inferredBaselines = await inferRankedBaselinesFromHistory(
     playerIds.filter((playerId) => !savedBaselines.has(playerId))
@@ -260,7 +281,6 @@ export async function recalculateRankedMmr(): Promise<{
         ? override
         : trimmedMean(ratingsByPlayer.get(row.id) ?? [])
     );
-    ratingByPlayer.set(row.id, rating);
     const fallbackBaseline = {
       playerId: row.id,
       mmr: row.mmr_manual_override === true ? clampRating(Number(row.mmr ?? 0)) : rating,
@@ -290,28 +310,15 @@ export async function recalculateRankedMmr(): Promise<{
     const tournament = tournamentById.get(match.tournament_id);
     if (!tournament || !teamPlayersByTeam.has(winnerTeamId) || !teamPlayersByTeam.has(loserTeamId)) continue;
 
-    const deltas = isOneVsOneFormat(tournament.format)
-      ? oneVsOneDeltas(winnerTeamId, loserTeamId, teamPlayersByTeam, ratingByPlayer)
-      : { winnerDelta: RANKED_MATCH_WIN_DELTA, loserDelta: RANKED_MATCH_LOSS_DELTA };
-
     const sortAt = eventDate(match, tournament);
     events.push({
       sortAt,
       sortKind: 0,
       tournamentId: match.tournament_id,
       matchId: match.id,
-      teamId: winnerTeamId,
-      delta: deltas.winnerDelta,
-      reason: "match_win",
-    });
-    events.push({
-      sortAt,
-      sortKind: 0,
-      tournamentId: match.tournament_id,
-      matchId: match.id,
-      teamId: loserTeamId,
-      delta: deltas.loserDelta,
-      reason: "match_loss",
+      winnerTeamId,
+      loserTeamId,
+      oneVsOne: isOneVsOneFormat(tournament.format),
     });
   }
 
@@ -350,9 +357,13 @@ export async function recalculateRankedMmr(): Promise<{
     const dateCmp = a.sortAt.localeCompare(b.sortAt);
     if (dateCmp !== 0) return dateCmp;
     if (a.sortKind !== b.sortKind) return a.sortKind - b.sortKind;
-    return `${a.tournamentId}:${a.matchId ?? ""}:${a.reason}:${a.teamId}`.localeCompare(
-      `${b.tournamentId}:${b.matchId ?? ""}:${b.reason}:${b.teamId}`
-    );
+    const aKey = a.sortKind === 0
+      ? `${a.tournamentId}:${a.matchId}:match:${a.winnerTeamId}:${a.loserTeamId}`
+      : `${a.tournamentId}:${a.matchId ?? ""}:${a.reason}:${a.teamId}`;
+    const bKey = b.sortKind === 0
+      ? `${b.tournamentId}:${b.matchId}:match:${b.winnerTeamId}:${b.loserTeamId}`
+      : `${b.tournamentId}:${b.matchId ?? ""}:${b.reason}:${b.teamId}`;
+    return aKey.localeCompare(bKey);
   });
 
   const historyRows: Array<{
@@ -360,7 +371,7 @@ export async function recalculateRankedMmr(): Promise<{
     tournament_id: string;
     match_id: string | null;
     created_at: string;
-    reason: RankedEvent["reason"];
+    reason: "match_win" | "match_loss" | "tournament_win";
     delta: number;
     mmr: number;
     prestige_points: number;
@@ -368,6 +379,38 @@ export async function recalculateRankedMmr(): Promise<{
   const touchedPlayerIds = new Set<string>();
 
   for (const event of events) {
+    if (event.sortKind === 0) {
+      const deltas = event.oneVsOne
+        ? oneVsOneDeltas(event.winnerTeamId, event.loserTeamId, teamPlayersByTeam, stateByPlayer)
+        : { winnerDelta: RANKED_MATCH_WIN_DELTA, loserDelta: RANKED_MATCH_LOSS_DELTA };
+      const matchDeltas = [
+        { teamId: event.winnerTeamId, delta: deltas.winnerDelta, reason: "match_win" as const },
+        { teamId: event.loserTeamId, delta: deltas.loserDelta, reason: "match_loss" as const },
+      ];
+
+      for (const matchDelta of matchDeltas) {
+        const eventPlayerIds = teamPlayersByTeam.get(matchDelta.teamId) ?? [];
+        for (const playerId of eventPlayerIds) {
+          const current = stateByPlayer.get(playerId);
+          if (!current) continue;
+          const next = applyRankedDelta(current, matchDelta.delta);
+          stateByPlayer.set(playerId, next);
+          touchedPlayerIds.add(playerId);
+          historyRows.push({
+            player_id: playerId,
+            tournament_id: event.tournamentId,
+            match_id: event.matchId,
+            created_at: event.sortAt,
+            reason: matchDelta.reason,
+            delta: matchDelta.delta,
+            mmr: next.mmr,
+            prestige_points: next.prestigePoints,
+          });
+        }
+      }
+      continue;
+    }
+
     const eventPlayerIds = teamPlayersByTeam.get(event.teamId) ?? [];
     for (const playerId of eventPlayerIds) {
       const current = stateByPlayer.get(playerId);

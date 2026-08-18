@@ -9,6 +9,7 @@ import { nextStepDoubleElim } from "@/lib/matches/nextStepDouble";
 import {
   applyRankedDelta,
   normalizeMode,
+  PRESTIGE_POINTS_PER_MMR,
   RANKED_MATCH_LOSS_DELTA,
   RANKED_MATCH_WIN_DELTA,
   RANKED_TOURNAMENT_WIN_BONUS,
@@ -22,7 +23,7 @@ const ONE_V_ONE_BASE_LOSS_DELTA = -0.1;
 const ONE_V_ONE_UPSET_WIN_DELTA = 0.2;
 const ONE_V_ONE_UPSET_LOSS_DELTA = -0.2;
 const ONE_V_ONE_FAVORED_WIN_DELTA = 0;
-const ONE_V_ONE_RATING_DIFF_THRESHOLD = 2.5;
+const ONE_V_ONE_RANKED_SCORE_DIFF_THRESHOLD = 2.5;
 
 async function mapTeamPlayers(teamIds: string[]): Promise<Map<string, string[]>> {
   const uniqueTeamIds = Array.from(new Set(teamIds.filter(Boolean)));
@@ -144,7 +145,7 @@ async function applyDeltaToTeams(
   await applyDeltaToPlayers(playerIds, delta, options);
 }
 
-async function averageTeamRating(teamId: string, options?: { excludeMatchId?: string }): Promise<number> {
+async function averageTeamRankedScore(teamId: string, options?: { excludeMatchId?: string }): Promise<number> {
   const map = await mapTeamPlayers([teamId]);
   const teamPlayerIds = map.get(teamId) ?? [];
   if (teamPlayerIds.length === 0) return 5;
@@ -156,9 +157,10 @@ async function averageTeamRating(teamId: string, options?: { excludeMatchId?: st
   let count = 0;
   for (const playerId of teamPlayerIds) {
     const row = perf.get(playerId);
-    const rating = Number(row?.rating ?? NaN);
-    if (!Number.isFinite(rating)) continue;
-    sum += rating;
+    const rankedScore =
+      Number(row?.effectiveMmr ?? NaN) + Number(row?.prestigePoints ?? 0) / PRESTIGE_POINTS_PER_MMR;
+    if (!Number.isFinite(rankedScore)) continue;
+    sum += rankedScore;
     count += 1;
   }
   if (count <= 0) return 5;
@@ -170,21 +172,21 @@ async function computeOneVsOneDeltas(
   loserTeamId: string,
   options?: { excludeMatchId?: string }
 ): Promise<{ winnerDelta: number; loserDelta: number }> {
-  const [winnerRating, loserRating] = await Promise.all([
-    averageTeamRating(winnerTeamId, options),
-    averageTeamRating(loserTeamId, options),
+  const [winnerRankedScore, loserRankedScore] = await Promise.all([
+    averageTeamRankedScore(winnerTeamId, options),
+    averageTeamRankedScore(loserTeamId, options),
   ]);
 
-  const winnerHigherRated = winnerRating >= loserRating;
-  const ratingDiff = Math.abs(winnerRating - loserRating);
-  if (ratingDiff <= ONE_V_ONE_RATING_DIFF_THRESHOLD) {
+  const winnerHigherRanked = winnerRankedScore >= loserRankedScore;
+  const rankedScoreDiff = Math.abs(winnerRankedScore - loserRankedScore);
+  if (rankedScoreDiff <= ONE_V_ONE_RANKED_SCORE_DIFF_THRESHOLD) {
     return {
       winnerDelta: ONE_V_ONE_BASE_WIN_DELTA,
       loserDelta: ONE_V_ONE_BASE_LOSS_DELTA,
     };
   }
 
-  if (winnerHigherRated) {
+  if (winnerHigherRanked) {
     return {
       winnerDelta: ONE_V_ONE_FAVORED_WIN_DELTA,
       loserDelta: ONE_V_ONE_BASE_LOSS_DELTA,

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { readAuthContext } from "@/app/api/admin/_auth";
 import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
-import { ratingCooldownFromUpdatedAt } from "@/lib/ratingCooldown";
+import { ratingEligibilityForPair } from "@/lib/ratingEligibility";
 
 export async function POST(req: Request) {
   const ip = clientIp(req);
@@ -69,18 +69,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: existingErr.message }, { status: 500 });
   }
 
-  if (existing?.updated_at) {
-    const cooldown = ratingCooldownFromUpdatedAt(existing.updated_at);
-    if (!cooldown.canRate) {
-      return NextResponse.json(
-        {
-          error: "cooldown",
-          message: cooldown.message,
-          hoursLeft: cooldown.hoursLeft,
-        },
-        { status: 429 }
-      );
-    }
+  const eligibility = await ratingEligibilityForPair(auth.ctx.playerId, ratedId, existing?.updated_at ?? null);
+  if (!eligibility.canRate) {
+    return NextResponse.json(
+      {
+        error: eligibility.reason === "cooldown" ? "cooldown" : "rating_requalification_required",
+        message: eligibility.message,
+        hoursLeft: eligibility.hoursLeft,
+        eligibilityReason: eligibility.reason,
+        lastSharedMatchAt: eligibility.lastSharedMatchAt,
+        windowExpiresAt: eligibility.windowExpiresAt,
+      },
+      { status: eligibility.reason === "cooldown" ? 429 : 403 }
+    );
   }
 
   const upsertPayload: {
