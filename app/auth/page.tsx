@@ -268,6 +268,8 @@ function AuthPageInner() {
         setMsg("Potwierdz zabezpieczenie antybotowe i sproboj ponownie.");
       } else if (resetJson.error === "rate_limited") {
         setMsg("Za duzo prob resetu. Sprobuj pozniej.");
+      } else if (resetJson.error === "reset_cooldown") {
+        setMsg("Link resetujacy byl wysylany niedawno. Odczekaj okolo minute i sproboj ponownie.");
       } else if (resetJson.error === "email_send_failed") {
         setMsg("Nie udalo sie wyslac maila resetujacego. Sprobuj ponownie za chwile.");
       } else {
