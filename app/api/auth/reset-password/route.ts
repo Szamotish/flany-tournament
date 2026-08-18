@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { supabasePublic } from "@/lib/supabasePublic";
 import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { sendPasswordResetEmail } from "@/lib/emailNotifications";
@@ -24,6 +25,16 @@ function okResponse() {
   return NextResponse.json({ ok: true });
 }
 
+async function sendSupabasePasswordReset(email: string, redirectTo: string): Promise<void> {
+  const { error } = await supabasePublic.auth.resetPasswordForEmail(email, {
+    redirectTo,
+  });
+
+  if (error) {
+    throw new Error(`supabase_reset_failed:${error.message}`);
+  }
+}
+
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const email = String(body?.email ?? "").trim().toLowerCase();
@@ -45,11 +56,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid_email" }, { status: 400 });
   }
 
+  const redirectTo = `${appOrigin(req)}/auth/reset`;
   const linkRes = await supabaseServer.auth.admin.generateLink({
     type: "recovery",
     email,
     options: {
-      redirectTo: `${appOrigin(req)}/auth/reset`,
+      redirectTo,
     },
   });
 
@@ -65,7 +77,17 @@ export async function POST(req: Request) {
     await sendPasswordResetEmail({ email, resetLink: actionLink });
   } catch (error) {
     console.error("password_reset_email_failed", error instanceof Error ? error.message : error);
-    return NextResponse.json({ error: "email_send_failed" }, { status: 500 });
+
+    try {
+      await sendSupabasePasswordReset(email, redirectTo);
+      return okResponse();
+    } catch (fallbackError) {
+      console.error(
+        "password_reset_supabase_fallback_failed",
+        fallbackError instanceof Error ? fallbackError.message : fallbackError
+      );
+      return NextResponse.json({ error: "email_send_failed" }, { status: 500 });
+    }
   }
 
   return okResponse();
