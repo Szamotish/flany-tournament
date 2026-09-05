@@ -44,13 +44,12 @@ type InviteRow = {
 
 type TournamentFormat = "single_elim" | "double_elim" | "one_vs_one";
 
+const TEAM_GENERATION_ITERATIONS = 2000;
+
 export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
   const [accessChecked, setAccessChecked] = useState(false);
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
-  const [teamSize, setTeamSize] = useState(5);
-  const [splitInHalf, setSplitInHalf] = useState(false);
-  const [allowUneven, setAllowUneven] = useState(true);
-  const [iterations, setIterations] = useState(500);
+  const [teamSizeInput, setTeamSizeInput] = useState("");
   const [mode, setMode] = useState<"reset" | "overwrite">("reset");
   const [generationMode, setGenerationMode] = useState<"balanced" | "full_random">("balanced");
   const [msg, setMsg] = useState<string | null>(null);
@@ -95,9 +94,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
 
   useEffect(() => {
     if (!isOneVsOne) return;
-    setTeamSize(1);
-    setSplitInHalf(false);
-    setAllowUneven(false);
+    setTeamSizeInput("");
   }, [isOneVsOne]);
 
   const loadJoinRequests = useCallback(async () => {
@@ -153,9 +150,18 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
 
   async function generate() {
     setMsg(null);
-    const effectiveSplitInHalf = !isOneVsOne && splitInHalf;
-    const effectiveTeamSize = isOneVsOne ? 1 : teamSize;
-    const effectiveAllowUneven = isOneVsOne ? false : effectiveSplitInHalf ? true : allowUneven;
+    const trimmedTeamSize = teamSizeInput.trim();
+    const hasTeamSizeOverride = trimmedTeamSize.length > 0;
+    const requestedTeamSize = Number(trimmedTeamSize);
+
+    if (hasTeamSizeOverride && (!Number.isInteger(requestedTeamSize) || requestedTeamSize < 2 || requestedTeamSize > 20)) {
+      setMsg("Blad: rozmiar druzyny musi byc liczba od 2 do 20 albo pole musi zostac puste.");
+      return;
+    }
+
+    const effectiveSplitInHalf = !isOneVsOne && !hasTeamSizeOverride;
+    const effectiveTeamSize = isOneVsOne ? 1 : hasTeamSizeOverride ? requestedTeamSize : 2;
+    const effectiveAllowUneven = !isOneVsOne;
 
     const res = await authedFetch(`/api/admin/tournaments/${tournamentId}/teams/generate`, {
       method: "POST",
@@ -166,7 +172,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
         teamSize: effectiveTeamSize,
         allowUneven: effectiveAllowUneven,
         splitInHalf: effectiveSplitInHalf,
-        iterations,
+        iterations: TEAM_GENERATION_ITERATIONS,
         mode,
         generationMode,
       }),
@@ -538,68 +544,6 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
 
         <section className="tour-admin-panel mt-4">
           <div className="tour-admin-grid">
-            <div className="tour-admin-grid-2">
-              <div>
-                <label className="tour-admin-label">Rozmiar druzyny</label>
-                <input
-                  className="tour-admin-input"
-                  type="number"
-                  min={isOneVsOne ? 1 : 2}
-                  max={20}
-                  value={isOneVsOne ? 1 : teamSize}
-                  onChange={(e) => setTeamSize(Number(e.target.value))}
-                  disabled={isOneVsOne || splitInHalf}
-                />
-                {isOneVsOne ? <p className="tour-muted mt-1">Dla formatu 1v1 rozmiar druzyny jest wymuszony na 1.</p> : null}
-                {!isOneVsOne && splitInHalf ? (
-                  <p className="tour-muted mt-1">System zrobi dokladnie 2 druzyny i podzieli zawodnikow po polowie.</p>
-                ) : null}
-              </div>
-
-              <div>
-                <label className="tour-admin-label tour-admin-label-inline">
-                  Liczba prob balansu
-                  <span className="tour-info-tooltip" tabIndex={0} aria-label="Informacja o liczbie prob balansu">
-                    i
-                    <span className="tour-info-tooltip-box">
-                      Szybki jest najszybszy, ale podzial moze byc gorszy. Zbalansowany to mieszanka czasu i jakosci
-                      balansu. Dokladny daje najlepszy balans kosztem dluzszego liczenia.
-                    </span>
-                  </span>
-                </label>
-                <select
-                  className="tour-admin-input"
-                  value={iterations}
-                  disabled={generationMode === "full_random"}
-                  onChange={(e) => setIterations(Number(e.target.value))}
-                >
-                  <option value={200}>Szybki (200)</option>
-                  <option value={1000}>Zbalansowany (1000)</option>
-                  <option value={2000}>Dokladny (2000)</option>
-                </select>
-              </div>
-            </div>
-
-            <label className="tour-admin-check">
-              <input
-                type="checkbox"
-                checked={isOneVsOne ? false : allowUneven}
-                onChange={(e) => setAllowUneven(e.target.checked)}
-                disabled={isOneVsOne || splitInHalf}
-              />
-              <span>Dopusc nierowne druzyny (roznica maksymalnie 1)</span>
-            </label>
-
-            <label className="tour-admin-check">
-              <input
-                type="checkbox"
-                checked={!isOneVsOne && splitInHalf}
-                onChange={(e) => setSplitInHalf(e.target.checked)}
-                disabled={isOneVsOne}
-              />
-              <span>Podzial na pol poprosze (2 druzyny)</span>
-            </label>
-
             <div>
               <p className="tour-admin-label">Tryb generowania</p>
               <div className="tour-admin-radio-wrap">
@@ -641,6 +585,32 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
                   <span>Full random</span>
                 </label>
               </div>
+
+              <div className="tour-admin-grid-2 mt-2">
+                <div>
+                  <label className="tour-admin-label">Rozmiar druzyny (opcjonalnie)</label>
+                  <input
+                    className="tour-admin-input"
+                    type="number"
+                    min={2}
+                    max={20}
+                    value={isOneVsOne ? "" : teamSizeInput}
+                    onChange={(e) => setTeamSizeInput(e.target.value)}
+                    disabled={isOneVsOne}
+                    placeholder="Puste = 2 druzyny"
+                  />
+                  <p className="tour-muted mt-1">
+                    {isOneVsOne
+                      ? "Dla formatu 1v1 system zawsze tworzy druzyny jednoosobowe."
+                      : "Puste pole tworzy 2 druzyny. Wpisana liczba ustawia rozmiar druzyny."}
+                  </p>
+                </div>
+              </div>
+
+              <label className="tour-admin-check mt-2">
+                <input type="checkbox" checked={!isOneVsOne} readOnly disabled />
+                <span>Dopusc nierowne druzyny (roznica maksymalnie 1)</span>
+              </label>
             </div>
 
             <div className="tour-admin-grid-2">

@@ -107,7 +107,7 @@ export async function POST(
   const teamSize = Number(body?.teamSize ?? 5);
   const splitInHalf = body?.splitInHalf === true;
   const allowUneven = body?.allowUneven !== false;
-  const iterations = Number(body?.iterations ?? 500);
+  const iterations = Number(body?.iterations ?? 2000);
   const mode = (body?.mode === "overwrite" ? "overwrite" : "reset") as
     | "reset"
     | "overwrite";
