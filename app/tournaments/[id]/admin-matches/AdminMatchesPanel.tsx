@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { authedFetch } from "@/lib/authClient";
+import { playerToneStyle } from "@/lib/ui/playerProfile";
 
 type Bracket = "single" | "winners" | "losers" | "grand_final";
 
@@ -27,6 +28,16 @@ type RoundScheduleDraft = {
   location: string;
   saving: boolean;
 };
+
+type TeamTooltipPlayer = {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  profileColor: string | null;
+  isCaptain: boolean;
+};
+
+type TeamDetailsById = Record<string, { teamName: string; players: TeamTooltipPlayer[] }>;
 
 function bracketLabel(bracket: Bracket): string {
   if (bracket === "winners") return "Winners";
@@ -69,6 +80,7 @@ function formatDateTime(iso: string | null): string {
 
 export default function AdminMatchesPanel({ tournamentId }: { tournamentId: string }) {
   const [matches, setMatches] = useState<Match[]>([]);
+  const [teamDetailsById, setTeamDetailsById] = useState<TeamDetailsById>({});
   const [msg, setMsg] = useState<string | null>(null);
   const [roundScheduleDrafts, setRoundScheduleDrafts] = useState<Record<string, RoundScheduleDraft>>({});
 
@@ -77,6 +89,7 @@ export default function AdminMatchesPanel({ tournamentId }: { tournamentId: stri
     const json = await res.json().catch(() => ({}));
     if (res.ok) {
       setMatches(json.matches ?? []);
+      setTeamDetailsById(json.teamDetailsById ?? {});
     }
   }
 
@@ -88,6 +101,7 @@ export default function AdminMatchesPanel({ tournamentId }: { tournamentId: stri
       const json = await res.json().catch(() => ({}));
       if (!cancelled && res.ok) {
         setMatches(json.matches ?? []);
+        setTeamDetailsById(json.teamDetailsById ?? {});
       }
     }
 
@@ -127,6 +141,30 @@ export default function AdminMatchesPanel({ tournamentId }: { tournamentId: stri
     }
     setMsg("Wystartowano turniej.");
     await load();
+  }
+
+  async function resetTournament() {
+    if (
+      !window.confirm(
+        "Zresetowac turniej do stanu sprzed startu? Aktualna drabinka, wyniki meczow i skutki ranked zostana cofniete, ale druzyny i sklady zostana bez zmian."
+      )
+    ) {
+      return;
+    }
+
+    setMsg(null);
+    const res = await authedFetch(`/api/admin/tournaments/${tournamentId}/matches/reset`, {
+      method: "POST",
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg(`Blad resetu turnieju: ${json.error ?? res.statusText}`);
+      return;
+    }
+
+    setRoundScheduleDrafts({});
+    await load();
+    setMsg("Turniej zresetowany. Druzyny zostaly bez zmian, mozesz wystartowac turniej ponownie.");
   }
 
   async function report(matchId: string, scoreA: number, scoreB: number) {
@@ -223,6 +261,14 @@ export default function AdminMatchesPanel({ tournamentId }: { tournamentId: stri
             <div className="tour-admin-actions">
               <button className="tour-action-btn" onClick={start}>
                 Start turnieju
+              </button>
+              <button
+                className="tour-action-btn tour-action-danger"
+                type="button"
+                disabled={matches.length === 0}
+                onClick={() => void resetTournament()}
+              >
+                Reset turnieju
               </button>
             </div>
 
@@ -331,7 +377,13 @@ export default function AdminMatchesPanel({ tournamentId }: { tournamentId: stri
 
                     <div className="tour-match-list mt-3">
                       {(rounds[String(roundNo)] ?? []).map((m) => (
-                        <AdminMatchRow key={m.id} m={m} disabled={false} onReport={report} />
+                        <AdminMatchRow
+                          key={m.id}
+                          m={m}
+                          disabled={false}
+                          onReport={report}
+                          teamDetailsById={teamDetailsById}
+                        />
                       ))}
                     </div>
                   </article>
@@ -349,10 +401,12 @@ function AdminMatchRow({
   m,
   onReport,
   disabled,
+  teamDetailsById,
 }: {
   m: Match;
   onReport: (matchId: string, scoreA: number, scoreB: number) => Promise<void>;
   disabled: boolean;
+  teamDetailsById: TeamDetailsById;
 }) {
   const [a, setA] = useState(Number(m.scoreA ?? 0));
   const [b, setB] = useState(Number(m.scoreB ?? 0));
@@ -369,9 +423,19 @@ function AdminMatchRow({
       </div>
 
       <div className="tour-score-row">
-        <span className="tour-team-name">{teamAName}</span>
+        <TeamNameWithTooltip
+          team={m.teamA}
+          fallbackName={teamAName}
+          teamDetailsById={teamDetailsById}
+          align="left"
+        />
         <span className="tour-score-box">{m.teamB ? `${a}:${b}` : "BYE"}</span>
-        <span className="tour-team-name">{teamBName}</span>
+        <TeamNameWithTooltip
+          team={m.teamB}
+          fallbackName={teamBName}
+          teamDetailsById={teamDetailsById}
+          align="right"
+        />
       </div>
 
       {!m.teamB ? (
@@ -404,5 +468,53 @@ function AdminMatchRow({
 
       {winnerName && <p className="tour-winner-line">Zwyciezca: {winnerName}</p>}
     </article>
+  );
+}
+
+function TeamNameWithTooltip({
+  team,
+  fallbackName,
+  teamDetailsById,
+  align,
+}: {
+  team: { id: string; name: string } | null;
+  fallbackName: string;
+  teamDetailsById: TeamDetailsById;
+  align: "left" | "right";
+}) {
+  const details = team?.id ? teamDetailsById[team.id] : null;
+
+  if (!details || details.players.length === 0) {
+    return <span className="tour-team-name">{fallbackName}</span>;
+  }
+
+  return (
+    <div className={`tour-team-name tour-match-team-hover tour-match-team-hover-${align}`}>
+      <span>{fallbackName}</span>
+      <div className="tour-bracket-team-tooltip">
+        <p className="tour-bracket-team-tooltip-title">{details.teamName}</p>
+        <div className="tour-bracket-team-tooltip-list">
+          {details.players.map((player) => (
+            <Link
+              key={`${team?.id}-${player.id}`}
+              className="tour-player-chip tour-player-chip-avatar player-tone-card"
+              style={playerToneStyle(player.profileColor)}
+              href={`/players/${player.id}`}
+            >
+              {player.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={player.avatarUrl} alt="" className="tour-player-avatar" />
+              ) : (
+                <span className="tour-player-avatar tour-player-avatar-fallback">
+                  {player.name.slice(0, 1).toUpperCase()}
+                </span>
+              )}
+              <span>{player.name}</span>
+              {player.isCaptain ? <span className="tour-player-captain-diamond" aria-label="Kapitan" /> : null}
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }

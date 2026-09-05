@@ -139,12 +139,21 @@ function oneVsOneDeltas(
   return { winnerDelta: ONE_V_ONE_UPSET_WIN_DELTA, loserDelta: ONE_V_ONE_UPSET_LOSS_DELTA };
 }
 
-export async function recalculateRankedMmr(): Promise<{
+type RankedRecalculateOptions = {
+  playerId?: string;
+};
+
+type RankedRecalculateSummary = {
   playersUpdated: number;
   historyRows: number;
   eventsApplied: number;
   rankedTournaments: number;
-}> {
+  playerId?: string;
+};
+
+export async function recalculateRankedMmr(options: RankedRecalculateOptions = {}): Promise<RankedRecalculateSummary> {
+  const targetPlayerId = options.playerId?.trim() || null;
+
   const tournamentsRes = await supabaseServer
     .from("tournaments")
     .select("id,format,created_at")
@@ -209,7 +218,75 @@ export async function recalculateRankedMmr(): Promise<{
 
   const playerIds = Array.from(playerIdsSet);
   if (playerIds.length === 0) {
-    return { playersUpdated: 0, historyRows: 0, eventsApplied: 0, rankedTournaments: tournamentIds.length };
+    return {
+      playersUpdated: 0,
+      historyRows: 0,
+      eventsApplied: 0,
+      rankedTournaments: tournamentIds.length,
+      ...(targetPlayerId ? { playerId: targetPlayerId } : {}),
+    };
+  }
+
+  if (targetPlayerId && !playerIdsSet.has(targetPlayerId)) {
+    const targetPlayerRes = await supabaseServer
+      .from("players")
+      .select("id,mmr,prestige_points,rating_override,mmr_manual_override")
+      .eq("id", targetPlayerId)
+      .maybeSingle();
+
+    if (targetPlayerRes.error) {
+      throw new Error(`ranked_target_player_failed: ${targetPlayerRes.error.message}`);
+    }
+    if (!targetPlayerRes.data) {
+      throw new Error("player_not_found");
+    }
+
+    const targetRow = targetPlayerRes.data as PlayerRow;
+    const targetRatingRes = await supabaseServer
+      .from("ratings")
+      .select("value")
+      .eq("rated_player_id", targetPlayerId);
+
+    if (targetRatingRes.error) throw new Error(`ranked_target_ratings_failed: ${targetRatingRes.error.message}`);
+
+    const targetOverrideRaw = targetRow.rating_override;
+    const targetOverride = Number(targetOverrideRaw);
+    const targetRating = clampRating(
+      targetOverrideRaw !== null && targetOverrideRaw !== undefined && Number.isFinite(targetOverride)
+        ? targetOverride
+        : trimmedMean((targetRatingRes.data ?? []).map((row) => Number(row.value)).filter(Number.isFinite))
+    );
+    const targetBaseline = {
+      mmr: targetRow.mmr_manual_override === true ? clampRating(Number(targetRow.mmr ?? 0)) : targetRating,
+      prestigePoints:
+        targetRow.mmr_manual_override === true ? Math.max(0, Math.floor(Number(targetRow.prestige_points ?? 0))) : 0,
+    };
+
+    const deleteHistory = await supabaseServer
+      .from("player_mmr_history")
+      .delete()
+      .eq("player_id", targetPlayerId)
+      .in("reason", ["match_win", "match_loss", "tournament_win"]);
+
+    if (deleteHistory.error) throw new Error(`ranked_history_delete_failed: ${deleteHistory.error.message}`);
+
+    const update = await supabaseServer
+      .from("players")
+      .update({
+        mmr: targetBaseline.mmr,
+        prestige_points: targetBaseline.prestigePoints,
+      })
+      .eq("id", targetPlayerId);
+
+    if (update.error) throw new Error(`ranked_players_update_failed: ${update.error.message}`);
+
+    return {
+      playersUpdated: 1,
+      historyRows: 0,
+      eventsApplied: 0,
+      rankedTournaments: tournamentIds.length,
+      playerId: targetPlayerId,
+    };
   }
 
   const playerRows: PlayerRow[] = [];
@@ -288,7 +365,7 @@ export async function recalculateRankedMmr(): Promise<{
       source: row.mmr_manual_override === true ? "manual_override" : "current_rating_fallback",
     };
     const baseline = savedBaselines.get(row.id) ?? inferredBaselines.get(row.id) ?? fallbackBaseline;
-    if (!savedBaselines.has(row.id)) {
+    if (!savedBaselines.has(row.id) && (!targetPlayerId || row.id === targetPlayerId)) {
       baselineCandidates.push(baseline);
     }
     stateByPlayer.set(row.id, {
@@ -377,6 +454,8 @@ export async function recalculateRankedMmr(): Promise<{
     prestige_points: number;
   }> = [];
   const touchedPlayerIds = new Set<string>();
+  let eventsApplied = 0;
+  const shouldPersistPlayer = (playerId: string) => !targetPlayerId || playerId === targetPlayerId;
 
   for (const event of events) {
     if (event.sortKind === 0) {
@@ -395,17 +474,20 @@ export async function recalculateRankedMmr(): Promise<{
           if (!current) continue;
           const next = applyRankedDelta(current, matchDelta.delta);
           stateByPlayer.set(playerId, next);
-          touchedPlayerIds.add(playerId);
-          historyRows.push({
-            player_id: playerId,
-            tournament_id: event.tournamentId,
-            match_id: event.matchId,
-            created_at: event.sortAt,
-            reason: matchDelta.reason,
-            delta: matchDelta.delta,
-            mmr: next.mmr,
-            prestige_points: next.prestigePoints,
-          });
+          if (shouldPersistPlayer(playerId)) {
+            touchedPlayerIds.add(playerId);
+            eventsApplied += 1;
+            historyRows.push({
+              player_id: playerId,
+              tournament_id: event.tournamentId,
+              match_id: event.matchId,
+              created_at: event.sortAt,
+              reason: matchDelta.reason,
+              delta: matchDelta.delta,
+              mmr: next.mmr,
+              prestige_points: next.prestigePoints,
+            });
+          }
         }
       }
       continue;
@@ -417,18 +499,25 @@ export async function recalculateRankedMmr(): Promise<{
       if (!current) continue;
       const next = applyRankedDelta(current, event.delta);
       stateByPlayer.set(playerId, next);
-      touchedPlayerIds.add(playerId);
-      historyRows.push({
-        player_id: playerId,
-        tournament_id: event.tournamentId,
-        match_id: event.matchId,
-        created_at: event.sortAt,
-        reason: event.reason,
-        delta: event.delta,
-        mmr: next.mmr,
-        prestige_points: next.prestigePoints,
-      });
+      if (shouldPersistPlayer(playerId)) {
+        touchedPlayerIds.add(playerId);
+        eventsApplied += 1;
+        historyRows.push({
+          player_id: playerId,
+          tournament_id: event.tournamentId,
+          match_id: event.matchId,
+          created_at: event.sortAt,
+          reason: event.reason,
+          delta: event.delta,
+          mmr: next.mmr,
+          prestige_points: next.prestigePoints,
+        });
+      }
     }
+  }
+
+  if (targetPlayerId) {
+    touchedPlayerIds.add(targetPlayerId);
   }
 
   const touchedIds = Array.from(touchedPlayerIds);
@@ -471,7 +560,12 @@ export async function recalculateRankedMmr(): Promise<{
   return {
     playersUpdated: updates.length,
     historyRows: historyRows.length,
-    eventsApplied: events.length,
+    eventsApplied: targetPlayerId ? eventsApplied : events.length,
     rankedTournaments: tournamentIds.length,
+    ...(targetPlayerId ? { playerId: targetPlayerId } : {}),
   };
+}
+
+export async function recalculateRankedMmrForPlayer(playerId: string): Promise<RankedRecalculateSummary> {
+  return recalculateRankedMmr({ playerId });
 }

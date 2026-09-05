@@ -1,11 +1,19 @@
 import { NextResponse } from "next/server";
 import { supabasePublic } from "@/lib/supabasePublic";
 import { computeBeersFromFinishedMatches } from "@/lib/beers";
+import { pickTeamCaptainId } from "@/lib/teamCaptain";
 
 export const dynamic = "force-dynamic";
 
 type Bracket = "single" | "winners" | "losers" | "grand_final";
 type TeamRef = { id: string; name: string };
+type PlayerRef = {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  profileColor: string | null;
+  isCaptain: boolean;
+};
 type MatchView = {
   id: string;
   bracket: Bracket;
@@ -30,6 +38,19 @@ function parseTeamRef(value: unknown): TeamRef | null {
   const team = source as { id?: unknown; name?: unknown };
   if (typeof team.id !== "string" || typeof team.name !== "string") return null;
   return { id: team.id, name: team.name };
+}
+
+function parsePlayerRef(value: unknown): Omit<PlayerRef, "isCaptain"> | null {
+  const source = Array.isArray(value) ? value[0] : value;
+  if (!source || typeof source !== "object") return null;
+  const player = source as { id?: unknown; name?: unknown; avatar_url?: unknown; profile_color?: unknown };
+  if (typeof player.id !== "string" || typeof player.name !== "string") return null;
+  return {
+    id: player.id,
+    name: player.name,
+    avatarUrl: typeof player.avatar_url === "string" ? player.avatar_url : null,
+    profileColor: typeof player.profile_color === "string" ? player.profile_color : null,
+  };
 }
 
 function parseBracket(value: unknown): Bracket {
@@ -158,6 +179,52 @@ export async function GET(
         .filter((id): id is string => Boolean(id))
     )
   );
+  const allMatchTeamIds = Array.from(
+    new Set(
+      matches
+        .flatMap((m) => [m.teamAId, m.teamBId])
+        .filter((teamId): teamId is string => Boolean(teamId))
+    )
+  );
+
+  const teamDetailsById: Record<string, { teamName: string; players: PlayerRef[] }> = {};
+  for (const match of matches) {
+    if (match.teamAId && match.teamA) {
+      teamDetailsById[match.teamAId] ??= { teamName: match.teamA.name, players: [] };
+    }
+    if (match.teamBId && match.teamB) {
+      teamDetailsById[match.teamBId] ??= { teamName: match.teamB.name, players: [] };
+    }
+  }
+
+  if (allMatchTeamIds.length > 0) {
+    const { data: members, error: membersErr } = await supabasePublic
+      .from("team_members")
+      .select("team_id, players(id,name,avatar_url,profile_color)")
+      .in("team_id", allMatchTeamIds);
+
+    if (membersErr) {
+      return NextResponse.json({ error: membersErr.message }, { status: 500 });
+    }
+
+    for (const row of members ?? []) {
+      const teamId = String(row.team_id ?? "");
+      if (!teamId) continue;
+      teamDetailsById[teamId] ??= { teamName: "Druzyna", players: [] };
+      const parsed = parsePlayerRef((row as { players?: unknown }).players);
+      if (!parsed) continue;
+      teamDetailsById[teamId].players.push({ ...parsed, isCaptain: false });
+    }
+
+    for (const [teamId, details] of Object.entries(teamDetailsById)) {
+      details.players.sort((a, b) => a.name.localeCompare(b.name, "pl"));
+      const captainId = pickTeamCaptainId(teamId, details.players.map((player) => player.id));
+      for (const player of details.players) {
+        player.isCaptain = captainId === player.id;
+      }
+      if (!details.teamName) details.teamName = teamId;
+    }
+  }
 
   const teamSizeMap = new Map<string, number>();
   if (teamIds.length > 0) {
@@ -179,5 +246,5 @@ export async function GET(
 
   const totalBeers = computeBeersFromFinishedMatches(finishedTeamMatches, teamSizeMap);
 
-  return NextResponse.json({ matches, grouped, totalBeers });
+  return NextResponse.json({ matches, grouped, totalBeers, teamDetailsById });
 }

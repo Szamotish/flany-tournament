@@ -2227,6 +2227,38 @@ body {
   text-align: right;
 }
 
+.tour-match-team-hover {
+  position: relative;
+  overflow: visible;
+  cursor: help;
+}
+
+.tour-match-team-hover-right {
+  text-align: right;
+}
+
+.tour-match-team-hover .tour-bracket-team-tooltip {
+  min-width: 220px;
+  right: auto;
+  text-align: left;
+}
+
+.tour-match-team-hover-right .tour-bracket-team-tooltip {
+  left: auto;
+  right: 0;
+}
+
+.tour-match-team-hover:hover,
+.tour-match-team-hover:focus-within {
+  z-index: 60;
+}
+
+.tour-match-team-hover:hover .tour-bracket-team-tooltip,
+.tour-match-team-hover:focus-within .tour-bracket-team-tooltip {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .tour-score-box {
   border: 1px solid rgba(80, 48, 8, 0.22);
   border-radius: 0.6rem;

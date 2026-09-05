@@ -609,9 +609,35 @@ export default function AdminTournamentsPage() {
     await loadPlayers(q);
   }
 
+  async function recalculatePlayerRankedMmr(playerId: string, playerName: string) {
+    if (
+      !window.confirm(
+        `Przeliczyc MMR ranked tylko dla "${playerName}"? To odbuduje historie MMR tego zawodnika na podstawie zakonczonych meczow ranked.`
+      )
+    ) {
+      return;
+    }
+
+    setMsg(null);
+    const res = await authedFetch(`/api/admin/ranked/recalculate/${playerId}`, {
+      method: "POST",
+    });
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg(`Blad przeliczania MMR zawodnika: ${mapApiError(json.error ?? res.statusText)}`);
+      return;
+    }
+
+    setMsg(
+      `MMR zawodnika przeliczony. Wpisy historii: ${json.historyRows ?? 0}, eventy zawodnika: ${json.eventsApplied ?? 0}.`
+    );
+    await loadPlayers(q);
+  }
+
   function openPlayerActions(e: MouseEvent<HTMLButtonElement>, player: Player) {
     const rect = e.currentTarget.getBoundingClientRect();
-    const panelHeight = 245;
+    const panelHeight = 286;
     const openUp = rect.bottom + panelHeight > window.innerHeight;
     setPlayerActionMenu({
       player,
@@ -1265,6 +1291,17 @@ export default function AdminTournamentsPage() {
               }}
             >
               Reset MMR / PP
+            </button>
+            <button
+              className="tour-player-menu-item"
+              type="button"
+              onClick={() => {
+                const p = playerActionMenu.player;
+                setPlayerActionMenu(null);
+                void recalculatePlayerRankedMmr(p.id, p.name);
+              }}
+            >
+              Przelicz MMR
             </button>
             <button
               className="tour-player-menu-item tour-player-menu-item-danger"

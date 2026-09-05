@@ -1,6 +1,7 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { supabaseServer } from "@/lib/supabaseServer";
 import BracketTree, { type BracketTreeRound } from "@/app/components/BracketTree";
+import { pickTeamCaptainId } from "@/lib/teamCaptain";
 
 export const dynamic = "force-dynamic";
 
@@ -25,12 +26,33 @@ type RoundSchedule = {
   location: string | null;
 };
 
+type PlayerRef = {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  profileColor: string | null;
+};
+
 function parseTeamRef(value: unknown): { id: string; name: string } | null {
   const source = Array.isArray(value) ? value[0] : value;
   if (!source || typeof source !== "object") return null;
   const team = source as { id?: unknown; name?: unknown };
   if (typeof team.id !== "string" || typeof team.name !== "string") return null;
   return { id: team.id, name: team.name };
+}
+
+
+function parsePlayerRef(value: unknown): PlayerRef | null {
+  const source = Array.isArray(value) ? value[0] : value;
+  if (!source || typeof source !== "object") return null;
+  const player = source as { id?: unknown; name?: unknown; avatar_url?: unknown; profile_color?: unknown };
+  if (typeof player.id !== "string" || typeof player.name !== "string") return null;
+  return {
+    id: player.id,
+    name: player.name,
+    avatarUrl: typeof player.avatar_url === "string" ? player.avatar_url : null,
+    profileColor: typeof player.profile_color === "string" ? player.profile_color : null,
+  };
 }
 
 function parseBracket(value: unknown): Match["bracket"] {
@@ -156,6 +178,50 @@ export default async function MatchesPage({
 
   const bracketOrder: Match["bracket"][] = ["winners", "losers", "grand_final", "single"];
 
+  const bracketTeamIds = Array.from(
+    new Set(
+      matches
+        .flatMap((match) => [match.teamA?.id ?? null, match.teamB?.id ?? null])
+        .filter((teamId): teamId is string => Boolean(teamId))
+    )
+  );
+
+  const teamDetailsById: Record<string, { teamName: string; players: Array<PlayerRef & { isCaptain: boolean }> }> = {};
+  if (bracketTeamIds.length > 0) {
+    const [{ data: teamRows }, { data: teamMembers }] = await Promise.all([
+      supabaseServer.from("teams").select("id,name").in("id", bracketTeamIds),
+      supabaseServer
+        .from("team_members")
+        .select("team_id, players(id,name,avatar_url,profile_color)")
+        .in("team_id", bracketTeamIds),
+    ]);
+
+    for (const teamRow of teamRows ?? []) {
+      const teamId = String(teamRow.id ?? "");
+      if (!teamId) continue;
+      teamDetailsById[teamId] = {
+        teamName: String(teamRow.name ?? "Druzyna"),
+        players: [],
+      };
+    }
+
+    for (const row of teamMembers ?? []) {
+      const teamId = String(row.team_id ?? "");
+      if (!teamId || !teamDetailsById[teamId]) continue;
+      const parsed = parsePlayerRef((row as { players?: unknown }).players);
+      if (!parsed) continue;
+      teamDetailsById[teamId].players.push({ ...parsed, isCaptain: false });
+    }
+
+    for (const teamId of Object.keys(teamDetailsById)) {
+      teamDetailsById[teamId].players.sort((a, b) => a.name.localeCompare(b.name, "pl"));
+      const captainId = pickTeamCaptainId(teamId, teamDetailsById[teamId].players.map((player) => player.id));
+      for (const player of teamDetailsById[teamId].players) {
+        player.isCaptain = captainId === player.id;
+      }
+    }
+  }
+
   return (
     <main className="tour-root">
       <div className="tour-shell">
@@ -234,7 +300,7 @@ export default async function MatchesPage({
                 ) : null}
 
                 <div className="mt-3">
-                  <BracketTree rounds={treeRounds} variant="detailed" />
+                  <BracketTree rounds={treeRounds} variant="detailed" teamDetailsById={teamDetailsById} />
                 </div>
               </section>
             );
