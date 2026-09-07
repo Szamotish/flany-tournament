@@ -35,6 +35,7 @@ type HistoryEntry = {
 
 type MmrPoint = {
   mmr: number;
+  prestigePoints: number;
   createdAt: string | null;
 };
 
@@ -42,7 +43,16 @@ type SparkPoint = {
   x: number;
   y: number;
   mmr: number;
+  prestigePoints: number;
+  value: number;
   createdAt: string | null;
+};
+
+type SparkData = {
+  points: SparkPoint[];
+  gridValues: number[];
+  minValue: number;
+  maxValue: number;
 };
 
 type RankingPlayerRow = {
@@ -121,24 +131,47 @@ function formatChartTooltipDateTime(iso: string | null): string {
     .replace(",", "");
 }
 
-function buildSparkPoints(points: MmrPoint[]): SparkPoint[] {
-  if (points.length === 0) return [];
-  const minY = 0;
-  const maxY = 10;
+function rankedChartValue(point: MmrPoint): number {
+  return Number(point.mmr) + Math.max(0, Number(point.prestigePoints ?? 0)) / PRESTIGE_POINTS_PER_MMR;
+}
+
+function buildSparkData(points: MmrPoint[]): SparkData {
+  if (points.length === 0) return { points: [], gridValues: [], minValue: 0, maxValue: 10 };
+
+  const values = points.map(rankedChartValue).filter(Number.isFinite);
+  const minRaw = Math.min(...values);
+  const maxRaw = Math.max(...values);
+  const spread = maxRaw - minRaw;
+  const padding = Math.max(0.2, spread * 0.2);
+  let minValue = Math.max(0, Math.floor((minRaw - padding) * 2) / 2);
+  let maxValue = Math.ceil((maxRaw + padding) * 2) / 2;
+
+  if (maxValue - minValue < 1) {
+    const center = (minRaw + maxRaw) / 2;
+    minValue = Math.max(0, Math.floor((center - 0.5) * 10) / 10);
+    maxValue = Math.ceil((center + 0.5) * 10) / 10;
+  }
+
+  const range = Math.max(0.1, maxValue - minValue);
   const drawableWidth = CHART_WIDTH - CHART_PAD_X * 2;
   const drawableHeight = CHART_HEIGHT - CHART_PAD_Y * 2;
   const step = points.length > 1 ? drawableWidth / (points.length - 1) : 0;
-  return points.map((point, index) => {
+  const sparkPoints = points.map((point, index) => {
+    const value = rankedChartValue(point);
     const x = CHART_PAD_X + step * index;
-    const clamped = Math.max(minY, Math.min(maxY, Number(point.mmr ?? 0)));
-    const y = CHART_PAD_Y + drawableHeight - (clamped / (maxY - minY)) * drawableHeight;
+    const y = CHART_PAD_Y + drawableHeight - ((value - minValue) / range) * drawableHeight;
     return {
       x,
       y,
-      mmr: clamped,
+      mmr: Number(point.mmr ?? 0),
+      prestigePoints: Math.max(0, Math.floor(Number(point.prestigePoints ?? 0))),
+      value,
       createdAt: point.createdAt,
     };
   });
+
+  const gridValues = Array.from({ length: 5 }, (_, idx) => minValue + (range * idx) / 4);
+  return { points: sparkPoints, gridValues, minValue, maxValue };
 }
 
 export default async function PlayerPage({
@@ -224,11 +257,14 @@ export default async function PlayerPage({
 
   let beers = 0;
   let history: HistoryEntry[] = [];
+  let matchWins = 0;
+  let matchCount = 0;
 
   if (teamIds.length > 0) {
+    const teamIdSet = new Set(teamIds);
     const { data: beerMatches, error: beersErr } = await supabaseServer
       .from("tournament_matches")
-      .select("team_a_id,team_b_id,status")
+      .select("team_a_id,team_b_id,status,winner_team_id")
       .eq("status", "finished")
       .or(`team_a_id.in.(${teamIds.join(",")}),team_b_id.in.(${teamIds.join(",")})`);
 
@@ -238,6 +274,13 @@ export default async function PlayerPage({
         const hasB = typeof m.team_b_id === "string" && m.team_b_id.length > 0;
         return sum + (hasA && hasB ? 1 : 0);
       }, 0);
+      const completedMatches = (beerMatches ?? []).filter((m) => {
+        const hasA = typeof m.team_a_id === "string" && m.team_a_id.length > 0;
+        const hasB = typeof m.team_b_id === "string" && m.team_b_id.length > 0;
+        return hasA && hasB;
+      });
+      matchCount = completedMatches.length;
+      matchWins = completedMatches.filter((m) => typeof m.winner_team_id === "string" && teamIdSet.has(m.winner_team_id)).length;
     }
 
     const { data: results, error: resultsErr } = await supabaseServer
@@ -379,6 +422,7 @@ export default async function PlayerPage({
   }
 
   const trophies = history.filter((h) => h.placement === 1);
+  const winrate = matchCount > 0 ? Math.round((matchWins / matchCount) * 100) : null;
   const perfByPlayer = await loadPlayerPerformance([playerId]);
   const perf = perfByPlayer.get(playerId);
 
@@ -475,7 +519,7 @@ export default async function PlayerPage({
   }
   const historyRes = await supabaseServer
     .from("player_mmr_history")
-    .select("mmr,created_at")
+    .select("mmr,prestige_points,created_at")
     .eq("player_id", playerId)
     .order("created_at", { ascending: true })
     .limit(80);
@@ -484,10 +528,12 @@ export default async function PlayerPage({
   if (!historyRes.error) {
     mmrHistoryPoints = (historyRes.data ?? []).map((row) => ({
       mmr: Number(row.mmr ?? 0),
+      prestigePoints: Math.max(0, Math.floor(Number(row.prestige_points ?? 0))),
       createdAt: typeof row.created_at === "string" ? row.created_at : null,
     }));
   }
-  const sparkPoints = buildSparkPoints(mmrHistoryPoints);
+  const sparkData = buildSparkData(mmrHistoryPoints);
+  const sparkPoints = sparkData.points;
   const sparkline = sparkPoints.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
 
   return (
@@ -555,13 +601,13 @@ export default async function PlayerPage({
                         className="profile-mmr-chart-svg"
                       >
                         <g className="profile-mmr-chart-grid-wrap">
-                          {Array.from({ length: 21 }, (_, idx) => {
-                            const mmrValue = idx * 0.5;
+                          {sparkData.gridValues.map((gridValue, idx) => {
                             const drawableHeight = CHART_HEIGHT - CHART_PAD_Y * 2;
-                            const y = CHART_PAD_Y + drawableHeight - (mmrValue / 10) * drawableHeight;
+                            const range = Math.max(0.1, sparkData.maxValue - sparkData.minValue);
+                            const y = CHART_PAD_Y + drawableHeight - ((gridValue - sparkData.minValue) / range) * drawableHeight;
                             return (
                               <line
-                                key={mmrValue}
+                                key={`${idx}-${gridValue.toFixed(2)}`}
                                 x1={CHART_PAD_X}
                                 y1={y}
                                 x2={CHART_WIDTH - CHART_PAD_X}
@@ -574,8 +620,9 @@ export default async function PlayerPage({
                         <polyline points={sparkline} className="profile-mmr-chart-line" />
                         <g className="profile-mmr-chart-dots">
                           {sparkPoints.map((point, idx) => {
-                            const label = `MMR ${point.mmr.toFixed(1)} | ${formatChartTooltipDateTime(point.createdAt)}`;
-                            const tooltipW = 126;
+                            const prestigeLabel = point.prestigePoints > 0 ? ` | PP ${point.prestigePoints}` : "";
+                            const label = `MMR ${point.mmr.toFixed(1)}${prestigeLabel} | ${formatChartTooltipDateTime(point.createdAt)}`;
+                            const tooltipW = point.prestigePoints > 0 ? 152 : 126;
                             const tooltipH = 20;
                             const tooltipX = Math.max(
                               2,
@@ -623,6 +670,9 @@ export default async function PlayerPage({
                   </span>
                   <span className="profile-rating-chip">Ranga: {currentRankLabel}</span>
                 </div>
+                <p className="profile-muted mt-2">
+                  Winrate: {winrate !== null ? `${winrate}% (${matchWins}/${matchCount})` : "brak rozegranych meczow"}
+                </p>
                 {ratingsErr && <p className="profile-muted mt-1">Blad ocen: {ratingsErr.message}</p>}
                 {membershipsErr && <p className="profile-muted mt-1">Blad historii: {membershipsErr.message}</p>}
               </div>
@@ -651,7 +701,7 @@ export default async function PlayerPage({
             <p className="profile-muted mt-3">Brak pucharow.</p>
           ) : (
             <div className="trophy-grid mt-3">
-              {trophies.slice(0, 8).map((t, idx) => (
+              {trophies.map((t, idx) => (
                 <div key={`${t.tournamentId}-${idx}`} className="trophy-item">
                   <TrophyIcon seed={`${idx}`} />
                   <p className="trophy-name" title={t.tournamentName}>
