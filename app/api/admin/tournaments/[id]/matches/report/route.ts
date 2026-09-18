@@ -6,198 +6,9 @@ import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { propagateFromMatch } from "@/lib/matches/propagate";
 import { autoAdvanceSingleElim } from "@/lib/matches/autoAdvanceSingle";
 import { nextStepDoubleElim } from "@/lib/matches/nextStepDouble";
-import {
-  applyRankedDelta,
-  normalizeMode,
-  PRESTIGE_POINTS_PER_MMR,
-  RANKED_MATCH_LOSS_DELTA,
-  RANKED_MATCH_WIN_DELTA,
-  RANKED_TOURNAMENT_WIN_BONUS,
-} from "@/lib/ranked";
-import { loadPlayerPerformance } from "@/lib/playerPerformance";
-import { ensureRankedBaselines } from "@/lib/rankedBaseline";
-import { isDoubleElimFormat, isOneVsOneFormat, usesSingleBracket } from "@/lib/tournamentFormat";
-
-const ONE_V_ONE_BASE_WIN_DELTA = 0.1;
-const ONE_V_ONE_BASE_LOSS_DELTA = -0.1;
-const ONE_V_ONE_UPSET_WIN_DELTA = 0.2;
-const ONE_V_ONE_UPSET_LOSS_DELTA = -0.2;
-const ONE_V_ONE_FAVORED_WIN_DELTA = 0;
-const ONE_V_ONE_RANKED_SCORE_DIFF_THRESHOLD = 2.5;
-
-async function mapTeamPlayers(teamIds: string[]): Promise<Map<string, string[]>> {
-  const uniqueTeamIds = Array.from(new Set(teamIds.filter(Boolean)));
-  const result = new Map<string, string[]>();
-
-  if (uniqueTeamIds.length === 0) return result;
-
-  const { data: members, error } = await supabaseServer
-    .from("team_members")
-    .select("team_id,player_id")
-    .in("team_id", uniqueTeamIds);
-
-  if (error) throw new Error(`ranked_team_members_failed: ${error.message}`);
-
-  for (const row of members ?? []) {
-    const teamId = String(row.team_id ?? "");
-    const playerId = String(row.player_id ?? "");
-    if (!teamId || !playerId) continue;
-    const current = result.get(teamId) ?? [];
-    current.push(playerId);
-    result.set(teamId, current);
-  }
-
-  return result;
-}
-
-async function applyDeltaToPlayers(
-  playerIds: string[],
-  delta: number,
-  options?: {
-    excludeMatchId?: string;
-    reason?: "match_win" | "match_loss" | "tournament_win";
-    tournamentId?: string;
-    matchId?: string;
-  }
-): Promise<void> {
-  const uniquePlayerIds = Array.from(new Set(playerIds.filter(Boolean)));
-  if (uniquePlayerIds.length === 0) return;
-
-  const perfByPlayer = await loadPlayerPerformance(uniquePlayerIds, {
-    excludeMatchId: options?.excludeMatchId,
-  });
-
-  await ensureRankedBaselines(
-    uniquePlayerIds.map((playerId) => {
-      const perf = perfByPlayer.get(playerId);
-      return {
-        playerId,
-        mmr: Number(perf?.effectiveMmr ?? 0),
-        prestigePoints: Number(perf?.prestigePoints ?? 0),
-        source: "first_ranked_match",
-      };
-    })
-  );
-
-  const updates = uniquePlayerIds.map((playerId) => {
-    const perf = perfByPlayer.get(playerId);
-    if (!perf) {
-      return {
-        id: playerId,
-        mmr: 0,
-        prestige_points: 0,
-      };
-    }
-    const state = {
-      mmr: perf.effectiveMmr,
-      prestigePoints: perf.prestigePoints,
-    };
-    const next = applyRankedDelta(state, delta);
-    return {
-      id: playerId,
-      mmr: next.mmr,
-      prestige_points: next.prestigePoints,
-    };
-  });
-
-  if (updates.length === 0) return;
-
-  for (const row of updates) {
-    const { error: updateErr } = await supabaseServer
-      .from("players")
-      .update({
-        mmr: row.mmr,
-        prestige_points: row.prestige_points,
-      })
-      .eq("id", row.id);
-
-    if (updateErr) throw new Error(`ranked_players_update_failed: ${updateErr.message}`);
-  }
-
-  const historyRows = updates.map((row) => ({
-    player_id: row.id,
-    tournament_id: options?.tournamentId ?? null,
-    match_id: options?.matchId ?? null,
-    reason: options?.reason ?? "manual",
-    delta,
-    mmr: row.mmr,
-    prestige_points: row.prestige_points,
-  }));
-
-  const historyInsert = await supabaseServer.from("player_mmr_history").insert(historyRows);
-  if (historyInsert.error && !historyInsert.error.message.includes("player_mmr_history")) {
-    throw new Error(`ranked_history_insert_failed: ${historyInsert.error.message}`);
-  }
-}
-
-async function applyDeltaToTeams(
-  teamIds: string[],
-  delta: number,
-  options?: {
-    excludeMatchId?: string;
-    reason?: "match_win" | "match_loss" | "tournament_win";
-    tournamentId?: string;
-    matchId?: string;
-  }
-): Promise<void> {
-  const teamPlayersMap = await mapTeamPlayers(teamIds);
-  const playerIds = Array.from(teamPlayersMap.values()).flat();
-  await applyDeltaToPlayers(playerIds, delta, options);
-}
-
-async function averageTeamRankedScore(teamId: string, options?: { excludeMatchId?: string }): Promise<number> {
-  const map = await mapTeamPlayers([teamId]);
-  const teamPlayerIds = map.get(teamId) ?? [];
-  if (teamPlayerIds.length === 0) return 5;
-  const perf = await loadPlayerPerformance(teamPlayerIds, {
-    excludeMatchId: options?.excludeMatchId,
-  });
-
-  let sum = 0;
-  let count = 0;
-  for (const playerId of teamPlayerIds) {
-    const row = perf.get(playerId);
-    const rankedScore =
-      Number(row?.effectiveMmr ?? NaN) + Number(row?.prestigePoints ?? 0) / PRESTIGE_POINTS_PER_MMR;
-    if (!Number.isFinite(rankedScore)) continue;
-    sum += rankedScore;
-    count += 1;
-  }
-  if (count <= 0) return 5;
-  return sum / count;
-}
-
-async function computeOneVsOneDeltas(
-  winnerTeamId: string,
-  loserTeamId: string,
-  options?: { excludeMatchId?: string }
-): Promise<{ winnerDelta: number; loserDelta: number }> {
-  const [winnerRankedScore, loserRankedScore] = await Promise.all([
-    averageTeamRankedScore(winnerTeamId, options),
-    averageTeamRankedScore(loserTeamId, options),
-  ]);
-
-  const winnerHigherRanked = winnerRankedScore >= loserRankedScore;
-  const rankedScoreDiff = Math.abs(winnerRankedScore - loserRankedScore);
-  if (rankedScoreDiff <= ONE_V_ONE_RANKED_SCORE_DIFF_THRESHOLD) {
-    return {
-      winnerDelta: ONE_V_ONE_BASE_WIN_DELTA,
-      loserDelta: ONE_V_ONE_BASE_LOSS_DELTA,
-    };
-  }
-
-  if (winnerHigherRanked) {
-    return {
-      winnerDelta: ONE_V_ONE_FAVORED_WIN_DELTA,
-      loserDelta: ONE_V_ONE_BASE_LOSS_DELTA,
-    };
-  }
-
-  return {
-    winnerDelta: ONE_V_ONE_UPSET_WIN_DELTA,
-    loserDelta: ONE_V_ONE_UPSET_LOSS_DELTA,
-  };
-}
+import { normalizeMode } from "@/lib/ranked";
+import { recalculateRankedMmr } from "@/lib/rankedRecalculate";
+import { isDoubleElimFormat, usesSingleBracket } from "@/lib/tournamentFormat";
 
 export async function POST(
   req: Request,
@@ -244,7 +55,6 @@ export async function POST(
   }
 
   const need = Math.floor(Number(m.bo) / 2) + 1;
-  const wasFinishedBefore = m.status === "finished" && typeof m.winner_team_id === "string" && m.winner_team_id.length > 0;
   const finished = scoreA >= need || scoreB >= need;
 
   let winner: string | null = null;
@@ -294,34 +104,10 @@ export async function POST(
     const tournament = t;
     const tournamentMode = normalizeMode((tournament as { mode?: unknown }).mode);
 
-    if (
-      tournamentMode === "ranked" &&
-      updated.status === "finished" &&
-      updated.winner_team_id &&
-      !wasFinishedBefore
-    ) {
-      const winnerTeamId = String(updated.winner_team_id);
-      const loserTeamId = winnerTeamId === m.team_a_id ? m.team_b_id : m.team_a_id;
-      const isOneVsOne = isOneVsOneFormat(tournament.format);
-      const deltas = loserTeamId && isOneVsOne
-        ? await computeOneVsOneDeltas(winnerTeamId, loserTeamId, { excludeMatchId: matchId })
-        : { winnerDelta: RANKED_MATCH_WIN_DELTA, loserDelta: RANKED_MATCH_LOSS_DELTA };
-
-      await applyDeltaToTeams([winnerTeamId], deltas.winnerDelta, {
-        excludeMatchId: matchId,
-        reason: "match_win",
-        tournamentId,
-        matchId,
-      });
-      if (loserTeamId) {
-        await applyDeltaToTeams([loserTeamId], deltas.loserDelta, {
-          excludeMatchId: matchId,
-          reason: "match_loss",
-          tournamentId,
-          matchId,
-        });
-      }
-    }
+    // Rebuild podium after edits as well, so reopening a final removes its champion reward.
+    const clearPodium = await supabaseServer.from("tournament_results").delete()
+      .eq("tournament_id", tournamentId).in("placement", [1, 2]);
+    if (clearPodium.error) throw new Error(clearPodium.error.message);
 
     if (updated.status === "finished" && updated.winner_team_id) {
       if (usesSingleBracket(tournament.format)) {
@@ -332,24 +118,6 @@ export async function POST(
     }
 
     async function saveResults(championId: string, runnerUpId: string) {
-      const { data: existingChampion, error: existingErr } = await supabaseServer
-        .from("tournament_results")
-        .select("team_id")
-        .eq("tournament_id", tournamentId)
-        .eq("placement", 1)
-        .maybeSingle();
-
-      if (existingErr) throw new Error(existingErr.message);
-      const hadChampionBefore = Boolean(existingChampion?.team_id);
-
-      const { error: delErr } = await supabaseServer
-        .from("tournament_results")
-        .delete()
-        .eq("tournament_id", tournamentId)
-        .in("placement", [1, 2]);
-
-      if (delErr) throw new Error(delErr.message);
-
       const { error: insErr } = await supabaseServer
         .from("tournament_results")
         .insert([
@@ -358,13 +126,6 @@ export async function POST(
         ]);
 
       if (insErr) throw new Error(insErr.message);
-
-      if (tournamentMode === "ranked" && !hadChampionBefore && !isOneVsOneFormat(tournament.format)) {
-        await applyDeltaToTeams([championId], RANKED_TOURNAMENT_WIN_BONUS, {
-          reason: "tournament_win",
-          tournamentId,
-        });
-      }
     }
 
     if (usesSingleBracket(tournament.format)) {
@@ -455,6 +216,9 @@ export async function POST(
           }
         }
       }
+    }
+    if (tournamentMode === "ranked") {
+      await recalculateRankedMmr();
     }
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);

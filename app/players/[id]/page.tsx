@@ -6,6 +6,8 @@ import BeerCan3D from "@/app/components/BeerCan3D";
 import { trimmedMean } from "@/lib/rating";
 import { supabaseServer } from "@/lib/supabaseServer";
 import TrophyIcon from "@/app/components/TrophyIcon";
+import WinstreakBadge from "@/app/components/WinstreakBadge";
+import PerformanceMedal from "@/app/components/PerformanceMedal";
 import BackNavButton from "@/app/components/BackNavButton";
 import { PRESTIGE_POINTS_PER_MMR } from "@/lib/ranked";
 import { loadPlayerPerformance } from "@/lib/playerPerformance";
@@ -552,12 +554,17 @@ export default async function PlayerPage({
             initialFavoriteBeer={favoriteBeer}
           />
           <div className="profile-hero-top">
+            <div className="profile-avatar-awards">
             {player.avatar_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={player.avatar_url} alt="avatar" className="profile-avatar" />
             ) : (
               <div className="profile-avatar profile-avatar-fallback">{player.name.slice(0, 1).toUpperCase()}</div>
             )}
+            {perf?.performanceMedalActive && perf.performanceBonusUntil ? (
+              <PerformanceMedal expiresAt={perf.performanceBonusUntil} />
+            ) : null}
+            </div>
 
             <div className="profile-hero-name-block">
               <div className="profile-name-row">
@@ -658,7 +665,7 @@ export default async function PlayerPage({
                   </div>
                 </div>
 
-                <div className="mt-2 flex items-center gap-2">
+                <div className="mt-2 flex flex-wrap items-center gap-2">
                   <span className="profile-rating-chip">MMR {Number.isFinite(rankedMmr) ? rankedMmr.toFixed(1) : "0.0"}</span>
                   <span
                     className="profile-rating-chip"
@@ -669,6 +676,7 @@ export default async function PlayerPage({
                     PP {Math.floor(rankedPrestigePoints)}
                   </span>
                   <span className="profile-rating-chip">Ranga: {currentRankLabel}</span>
+                  <WinstreakBadge wins={perf?.rankedWinStreak ?? 0} duelWins={perf?.rankedDuelWins ?? 0} />
                 </div>
                 <p className="profile-muted mt-2">
                   Winrate: {winrate !== null ? `${winrate}% (${matchWins}/${matchCount})` : "brak rozegranych meczow"}

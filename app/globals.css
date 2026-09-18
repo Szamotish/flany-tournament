@@ -4234,3 +4234,62 @@ body {
     min-width: 0;
   }
 }
+.winstreak-badge {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  margin-top: 5px;
+  border: 1px solid #ffc35c;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #63301c, #351d27);
+  color: #ffe5b1;
+  box-shadow: 0 0 10px #f9731655, inset 0 0 6px #fb923c55;
+  font-size: 0.7rem;
+  font-weight: 750;
+  line-height: 1;
+  white-space: nowrap;
+}
+.winstreak-badge-content { position: relative; padding: 8px 9px; border-radius: inherit; background: linear-gradient(135deg, #63301c, #351d27); }
+.winstreak-badge strong { color: #fff9dc; margin-left: 3px; }
+.winstreak-flames {
+  position: absolute;
+  z-index: -1;
+  inset: -15px -4px auto;
+  width: calc(100% + 8px);
+  height: 40px;
+  opacity: 0.8;
+  transform-origin: center bottom;
+  animation: winstreak-flicker 2.2s ease-in-out infinite alternate;
+  filter: drop-shadow(0 -2px 3px #fb923c66);
+  pointer-events: none;
+}
+.winstreak-badge.is-blazing { border-color: #ffe49a; box-shadow: 0 0 16px #f9731699, inset 0 0 9px #fb923c66; }
+.is-blazing .winstreak-flames { height: 44px; inset-block-start: -19px; opacity: 1; }
+@keyframes winstreak-flicker { from { transform: scaleY(0.88) skewX(-3deg); } to { transform: scaleY(1.06) skewX(3deg); } }
+@media (prefers-reduced-motion: reduce) { .winstreak-flames { animation: none; } }
+.profile-avatar-awards { position: relative; flex-shrink: 0; }
+.performance-medal { position: absolute; right: -14px; bottom: -12px; width: 36px; height: 54px; filter: drop-shadow(0 3px 3px #472c2566); }
+.performance-medal svg { width: 100%; height: 100%; }
+.performance-bonus-dialog {
+  margin: auto;
+  width: min(460px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 24px;
+  border: 1px solid #dbb36d;
+  border-radius: 20px;
+  color: #302315;
+  background: linear-gradient(150deg, #fff8e5, #eaf7ee);
+  box-shadow: 0 24px 80px #17292e55;
+}
+.performance-bonus-dialog::backdrop { background: #11262f88; backdrop-filter: blur(5px); }
+.performance-bonus-dialog h2 { font-size: 1.5rem; font-weight: 800; }
+.performance-bonus-eyebrow { color: #795523; text-transform: uppercase; font-size: 0.65rem; letter-spacing: 0.12em; font-weight: 750; }
+@media (max-width: 1100px) {
+  .player-rank-card:has(.winstreak-badge) { flex-wrap: wrap; }
+  .player-rank-card:has(.winstreak-badge) .player-rank-main { flex-basis: 100%; }
+  .player-rank-card:has(.winstreak-badge) .player-rank-right { flex: 1; justify-content: flex-end; flex-wrap: wrap; }
+  .player-rank-right .winstreak-badge { margin-right: auto; }
+}

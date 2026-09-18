@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { authedFetch } from "@/lib/authClient";
 import { BEER_LIST } from "@/lib/beers";
 import { ONE_V_ONE_PLAYER_LIMIT } from "@/lib/tournamentFormat";
+import PerformanceBonusDialog from "./PerformanceBonusDialog";
 
 type Player = {
   id: string;
@@ -107,6 +108,7 @@ export default function AdminTournamentsPage() {
   const [beerOfDayChoice, setBeerOfDayChoice] = useState<string | null>(null);
   const [savingBeerOfDay, setSavingBeerOfDay] = useState(false);
   const [recalculatingRanked, setRecalculatingRanked] = useState(false);
+  const [bonusPlayer, setBonusPlayer] = useState<Player | null>(null);
 
   const selectedIds = useMemo(
     () => Object.entries(selected).filter(([, v]) => v).map(([id]) => id),
@@ -637,7 +639,7 @@ export default function AdminTournamentsPage() {
 
   function openPlayerActions(e: MouseEvent<HTMLButtonElement>, player: Player) {
     const rect = e.currentTarget.getBoundingClientRect();
-    const panelHeight = 286;
+    const panelHeight = 330;
     const openUp = rect.bottom + panelHeight > window.innerHeight;
     setPlayerActionMenu({
       player,
@@ -1210,6 +1212,13 @@ export default function AdminTournamentsPage() {
           </section>
         </div>
       </div>
+      {bonusPlayer && isMainAdmin ? (
+        <PerformanceBonusDialog player={bonusPlayer} onClose={() => setBonusPlayer(null)} onSaved={() => {
+          setBonusPlayer(null);
+          setMsg("Performance bonus przyznany. Medal będzie widoczny przez 7 dni.");
+          void loadPlayers(q);
+        }} />
+      ) : null}
       {playerActionMenu ? (
         <div
           className="tour-player-menu-backdrop"
@@ -1281,6 +1290,12 @@ export default function AdminTournamentsPage() {
             >
               Ustaw PP
             </button>
+            {isMainAdmin ? (
+              <button className="tour-player-menu-item" type="button" onClick={() => {
+                setBonusPlayer(playerActionMenu.player);
+                setPlayerActionMenu(null);
+              }}>🏅 Performance bonus</button>
+            ) : null}
             <button
               className="tour-player-menu-item"
               type="button"

@@ -10,6 +10,10 @@ export type PlayerPerformance = {
   hasFinishedMatch: boolean;
   mmrManualOverride: boolean;
   effectiveMmr: number;
+  rankedWinStreak: number;
+  rankedDuelWins: number;
+  performanceBonusUntil: string | null;
+  performanceMedalActive: boolean;
 };
 
 type LoadPlayerPerformanceOptions = {
@@ -43,7 +47,7 @@ export async function loadPlayerPerformance(
   const [playersPrimary, ratingsResult] = await Promise.all([
     supabaseServer
       .from("players")
-      .select("id,mmr,prestige_points,rating_override,mmr_manual_override")
+      .select("id,mmr,prestige_points,rating_override,mmr_manual_override,ranked_win_streak,ranked_duel_wins,performance_bonus_until")
       .in("id", ids),
     supabaseServer.from("ratings").select("rated_player_id,value").in("rated_player_id", ids),
   ]);
@@ -55,6 +59,9 @@ export async function loadPlayerPerformance(
         prestige_points: number | null;
         rating_override?: number | null;
         mmr_manual_override?: boolean | null;
+        ranked_win_streak?: number;
+        ranked_duel_wins?: number;
+        performance_bonus_until?: string | null;
       }>
     | null;
   let playerErr = playersPrimary.error;
@@ -196,6 +203,7 @@ export async function loadPlayerPerformance(
       mmrManualOverride: false,
     };
     const rankAllowed = hasFinishedMatch || row.mmrManualOverride;
+    const awards = playerRows?.find((player) => player.id === playerId);
 
     result.set(playerId, {
       playerId,
@@ -204,7 +212,11 @@ export async function loadPlayerPerformance(
       prestigePoints: row.prestigePoints,
       hasFinishedMatch,
       mmrManualOverride: row.mmrManualOverride,
-      effectiveMmr: rankAllowed ? row.mmr : rating,
+      effectiveMmr: rankAllowed || awards?.performance_bonus_until ? row.mmr : rating,
+      rankedWinStreak: awards?.ranked_win_streak ?? 0,
+      rankedDuelWins: awards?.ranked_duel_wins ?? 0,
+      performanceBonusUntil: awards?.performance_bonus_until ?? null,
+      performanceMedalActive: Boolean(awards?.performance_bonus_until && Date.parse(awards.performance_bonus_until) > Date.now()),
     });
   }
 

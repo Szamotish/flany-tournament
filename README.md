@@ -31,6 +31,8 @@ where name = 'TWOJ_PSEUDONIM';
 
 ## Getting Started
 
+Performance bonus i winstreak: [zasady i migracja bazy](docs/ranked-bonuses.md).
+
 First, run the development server:
 
 ```bash
