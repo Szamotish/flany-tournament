@@ -1294,7 +1294,7 @@ export default function AdminTournamentsPage() {
               <button className="tour-player-menu-item" type="button" onClick={() => {
                 setBonusPlayer(playerActionMenu.player);
                 setPlayerActionMenu(null);
-              }}>🏅 Performance bonus</button>
+              }}>Performance bonus</button>
             ) : null}
             <button
               className="tour-player-menu-item"
