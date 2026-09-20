@@ -4288,8 +4288,54 @@ body {
 .performance-bonus-dialog h2 { font-size: 1.5rem; font-weight: 800; }
 .performance-bonus-eyebrow { color: #795523; text-transform: uppercase; font-size: 0.65rem; letter-spacing: 0.12em; font-weight: 750; }
 @media (max-width: 1100px) {
-  .player-rank-card:has(.winstreak-badge) { flex-wrap: wrap; }
-  .player-rank-card:has(.winstreak-badge) .player-rank-main { flex-basis: 100%; }
-  .player-rank-card:has(.winstreak-badge) .player-rank-right { flex: 1; justify-content: flex-end; flex-wrap: wrap; }
-  .player-rank-right .winstreak-badge { margin-right: auto; }
+  .player-rank-card:has(:is(.winstreak-badge, .losestreak-badge)) { flex-wrap: wrap; }
+  .player-rank-card:has(:is(.winstreak-badge, .losestreak-badge)) .player-rank-main { flex-basis: 100%; }
+  .player-rank-card:has(:is(.winstreak-badge, .losestreak-badge)) .player-rank-right { flex: 1; justify-content: flex-end; flex-wrap: wrap; }
+  .player-rank-right :is(.winstreak-badge, .losestreak-badge) { margin-right: auto; }
 }
+
+.losestreak-badge {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  margin-top: 5px;
+  border: 1px solid #c6edff;
+  border-radius: 9px;
+  color: #dcf3ff;
+  background: #193e5c;
+  box-shadow: 0 0 10px #78cfff55, inset 0 0 6px #a2deff55;
+  font-size: 0.7rem;
+  font-weight: 750;
+  line-height: 1;
+  white-space: nowrap;
+}
+.losestreak-badge-content {
+  position: relative;
+  padding: 8px 9px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, #285574, #172c4a);
+  box-shadow: inset 0 1px 3px #d9f3ff88;
+}
+.losestreak-badge strong { color: #f2fbff; margin-left: 3px; }
+.losestreak-ice {
+  position: absolute;
+  z-index: -1;
+  inset: -11px -3px auto;
+  width: calc(100% + 6px);
+  height: 33px;
+  filter: drop-shadow(0 -1px 3px #c7eeff66);
+  pointer-events: none;
+}
+.losestreak-extra-ice { display: none; }
+.losestreak-badge.is-frozen { border-color: #effaff; box-shadow: 0 0 15px #8bd8ff99, 0 0 3px #ffffffbb; }
+.is-frozen .losestreak-extra-ice { display: initial; }
+.is-frozen .losestreak-ice {
+  inset-block-start: -16px;
+  height: 39px;
+  animation: losestreak-shimmer 3.6s ease-in-out infinite alternate;
+}
+.is-frozen .losestreak-badge-content { box-shadow: inset 0 1px 4px #e2f8ffbb, inset 0 -1px 2px #bde6ff99; }
+@keyframes losestreak-shimmer { from { opacity: 0.72; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .is-frozen .losestreak-ice { animation: none; } }

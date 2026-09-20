@@ -118,6 +118,7 @@ async function recalculateAttempt(targetPlayerId: string | null) {
   const updates = Array.from(replay.states).filter(([id]) => persist(id)).map(([id, state]) => ({
     id, mmr: state.mmr, prestige_points: state.prestigePoints,
     ranked_win_streak: replay.streaks.get(id)?.wins ?? 0,
+    ranked_loss_streak: replay.lossStreaks.get(id) ?? 0,
     ranked_duel_wins: replay.streaks.get(id)?.duelWins ?? 0,
   }));
   const history = replay.history.filter((row) => persist(row.player_id));

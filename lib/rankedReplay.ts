@@ -19,6 +19,7 @@ export type RankedHistoryRow = {
 export function replayRanked(baselines: Map<string, RankedState>, input: RankedEvent[]) {
   const states = new Map(Array.from(baselines, ([id, state]) => [id, { ...state }]));
   const streaks = new Map<string, RankedStreak>();
+  const lossStreaks = new Map<string, number>();
   const history: RankedHistoryRow[] = [];
   const priority = { match: 0, champion: 1, performance: 2, manual: 3 };
   const events = [...input].sort((a, b) =>
@@ -63,6 +64,8 @@ export function replayRanked(baselines: Map<string, RankedState>, input: RankedE
         loserDelta = difference < -2.5 ? -0.2 : -0.1;
       }
       for (const id of new Set(event.winners)) {
+        // Any ranked match win breaks the cold streak, even a zero-point duel win.
+        lossStreaks.set(id, 0);
         const result = event.oneVsOne
           ? advanceStreak(streak(id), true, true)
           : { state: streak(id), bonus: streakBonus(streak(id).wins + 1) };
@@ -71,10 +74,11 @@ export function replayRanked(baselines: Map<string, RankedState>, input: RankedE
         apply(id, winnerDelta + (winnerDelta > 0 ? result.bonus : 0), event, "match_win");
       }
       for (const id of new Set(event.losers)) {
+        lossStreaks.set(id, (lossStreaks.get(id) ?? 0) + 1);
         streaks.set(id, advanceStreak(streak(id), false, event.oneVsOne).state);
         apply(id, loserDelta, event, "match_loss");
       }
     }
   }
-  return { states, streaks, history };
+  return { states, streaks, lossStreaks, history };
 }

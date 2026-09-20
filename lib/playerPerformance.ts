@@ -11,6 +11,7 @@ export type PlayerPerformance = {
   mmrManualOverride: boolean;
   effectiveMmr: number;
   rankedWinStreak: number;
+  rankedLossStreak: number;
   rankedDuelWins: number;
   performanceBonusUntil: string | null;
   performanceMedalActive: boolean;
@@ -47,7 +48,7 @@ export async function loadPlayerPerformance(
   const [playersPrimary, ratingsResult] = await Promise.all([
     supabaseServer
       .from("players")
-      .select("id,mmr,prestige_points,rating_override,mmr_manual_override,ranked_win_streak,ranked_duel_wins,performance_bonus_until")
+      .select("id,mmr,prestige_points,rating_override,mmr_manual_override,ranked_win_streak,ranked_loss_streak,ranked_duel_wins,performance_bonus_until")
       .in("id", ids),
     supabaseServer.from("ratings").select("rated_player_id,value").in("rated_player_id", ids),
   ]);
@@ -60,6 +61,7 @@ export async function loadPlayerPerformance(
         rating_override?: number | null;
         mmr_manual_override?: boolean | null;
         ranked_win_streak?: number;
+        ranked_loss_streak?: number;
         ranked_duel_wins?: number;
         performance_bonus_until?: string | null;
       }>
@@ -68,6 +70,15 @@ export async function loadPlayerPerformance(
 
   const ratingsRows = ratingsResult.data;
   const ratingsErr = ratingsResult.error;
+
+  // Keep existing ranking data visible during rollout, before the additive migration runs.
+  if (playerErr?.message.includes("ranked_loss_streak")) {
+    const retry = await supabaseServer.from("players")
+      .select("id,mmr,prestige_points,rating_override,mmr_manual_override,ranked_win_streak,ranked_duel_wins,performance_bonus_until")
+      .in("id", ids);
+    playerRows = retry.data;
+    playerErr = retry.error;
+  }
 
   if (
     playerErr &&
@@ -214,6 +225,7 @@ export async function loadPlayerPerformance(
       mmrManualOverride: row.mmrManualOverride,
       effectiveMmr: rankAllowed || awards?.performance_bonus_until ? row.mmr : rating,
       rankedWinStreak: awards?.ranked_win_streak ?? 0,
+      rankedLossStreak: awards?.ranked_loss_streak ?? 0,
       rankedDuelWins: awards?.ranked_duel_wins ?? 0,
       performanceBonusUntil: awards?.performance_bonus_until ?? null,
       performanceMedalActive: Boolean(awards?.performance_bonus_until && Date.parse(awards.performance_bonus_until) > Date.now()),

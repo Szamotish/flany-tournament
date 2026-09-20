@@ -7,6 +7,7 @@ import { trimmedMean } from "@/lib/rating";
 import { supabaseServer } from "@/lib/supabaseServer";
 import TrophyIcon from "@/app/components/TrophyIcon";
 import WinstreakBadge from "@/app/components/WinstreakBadge";
+import LosestreakBadge from "@/app/components/LosestreakBadge";
 import PerformanceMedal from "@/app/components/PerformanceMedal";
 import BackNavButton from "@/app/components/BackNavButton";
 import { PRESTIGE_POINTS_PER_MMR } from "@/lib/ranked";
@@ -677,6 +678,7 @@ export default async function PlayerPage({
                   </span>
                   <span className="profile-rating-chip">Ranga: {currentRankLabel}</span>
                   <WinstreakBadge wins={perf?.rankedWinStreak ?? 0} duelWins={perf?.rankedDuelWins ?? 0} />
+                  <LosestreakBadge losses={perf?.rankedLossStreak ?? 0} />
                 </div>
                 <p className="profile-muted mt-2">
                   Winrate: {winrate !== null ? `${winrate}% (${matchWins}/${matchCount})` : "brak rozegranych meczow"}

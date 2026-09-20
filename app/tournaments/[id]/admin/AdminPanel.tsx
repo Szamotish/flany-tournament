@@ -66,8 +66,10 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
   const [eventLocation, setEventLocation] = useState("");
   const [joinDeadlineAt, setJoinDeadlineAt] = useState("");
   const [metaBusy, setMetaBusy] = useState(false);
-  const [swapPlayerAId, setSwapPlayerAId] = useState("");
-  const [swapPlayerBId, setSwapPlayerBId] = useState("");
+  const [{ playerAId: swapPlayerAId, playerBId: swapPlayerBId }, setSwapSelection] = useState({
+    playerAId: "",
+    playerBId: "",
+  });
   const [movePlayerId, setMovePlayerId] = useState("");
   const [moveTargetTeamId, setMoveTargetTeamId] = useState("");
   const [tournamentFormat, setTournamentFormat] = useState<TournamentFormat>("single_elim");
@@ -205,7 +207,17 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
         setMsg(`Blad pobierania druzyn: ${json.error ?? res.statusText}`);
         return;
       }
-      setTeams(json.teams ?? []);
+      const nextTeams: TeamEntry[] = json.teams ?? [];
+      setTeams(nextTeams);
+      setSwapSelection((current) => {
+        const teamA = nextTeams.find((team) => team.players.some((player) => player.id === current.playerAId));
+        const teamB = nextTeams.find((team) => team.players.some((player) => player.id === current.playerBId));
+        const playerAId = teamA ? current.playerAId : "";
+        const playerBId = teamB && teamB.id !== teamA?.id ? current.playerBId : "";
+        return playerAId === current.playerAId && playerBId === current.playerBId
+          ? current
+          : { playerAId, playerBId };
+      });
       setSpectators(json.spectators ?? []);
     } finally {
       if (!silent) setLoadingTeams(false);
@@ -456,8 +468,8 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
   }
 
   async function swapPlayers() {
-    if (!swapPlayerAId || !swapPlayerBId || swapPlayerAId === swapPlayerBId) {
-      setMsg("Wybierz dwoch roznych zawodnikow do zamiany.");
+    if (!canSwapPlayers) {
+      setMsg("Wybierz zawodnikow z dwoch roznych druzyn.");
       return;
     }
 
@@ -475,17 +487,22 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
 
     setMsg("Zamiana zawodnikow wykonana.");
     await loadTeams();
-    setSwapPlayerAId("");
-    setSwapPlayerBId("");
+    setSwapSelection({ playerAId: "", playerBId: "" });
   }
 
   const activeTeamPlayers = teams.flatMap((team) =>
     team.players.map((player) => ({
       id: player.id,
       name: player.isCaptain ? `${player.name} (K)` : player.name,
+      teamId: team.id,
       teamName: team.name,
     }))
   );
+  const swapPlayerA = activeTeamPlayers.find((player) => player.id === swapPlayerAId);
+  const swapPlayerB = activeTeamPlayers.find((player) => player.id === swapPlayerBId);
+  const swapOptionsA = activeTeamPlayers.filter((player) => player.teamId !== swapPlayerB?.teamId);
+  const swapOptionsB = activeTeamPlayers.filter((player) => player.teamId !== swapPlayerA?.teamId);
+  const canSwapPlayers = Boolean(swapPlayerA && swapPlayerB && swapPlayerA.teamId !== swapPlayerB.teamId);
   const movablePlayers = [
     ...activeTeamPlayers.map((player) => ({ ...player, statusLabel: player.teamName })),
     ...spectators.map((player) => ({ id: player.id, name: player.name, teamName: "Ogladajacy", statusLabel: "Ogladajacy" })),
@@ -873,14 +890,15 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
               <p className="tour-muted mt-1">Dziala tylko przed startem turnieju.</p>
               <div className="tour-admin-grid-2 mt-2">
                 <div>
-                  <label className="tour-admin-label">Zawodnik A</label>
+                  <label className="tour-admin-label" htmlFor="swap-player-a">Zawodnik A</label>
                   <select
+                    id="swap-player-a"
                     className="tour-admin-input"
                     value={swapPlayerAId}
-                    onChange={(e) => setSwapPlayerAId(e.target.value)}
+                    onChange={(e) => setSwapSelection((current) => ({ ...current, playerAId: e.target.value }))}
                   >
                     <option value="">Wybierz</option>
-                    {activeTeamPlayers.map((row) => (
+                    {swapOptionsA.map((row) => (
                       <option key={`a-${row.id}`} value={row.id}>
                         {row.name} ({row.teamName})
                       </option>
@@ -888,14 +906,15 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
                   </select>
                 </div>
                 <div>
-                  <label className="tour-admin-label">Zawodnik B</label>
+                  <label className="tour-admin-label" htmlFor="swap-player-b">Zawodnik B</label>
                   <select
+                    id="swap-player-b"
                     className="tour-admin-input"
                     value={swapPlayerBId}
-                    onChange={(e) => setSwapPlayerBId(e.target.value)}
+                    onChange={(e) => setSwapSelection((current) => ({ ...current, playerBId: e.target.value }))}
                   >
                     <option value="">Wybierz</option>
-                    {activeTeamPlayers.map((row) => (
+                    {swapOptionsB.map((row) => (
                       <option key={`b-${row.id}`} value={row.id}>
                         {row.name} ({row.teamName})
                       </option>
@@ -904,7 +923,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
                 </div>
               </div>
               <div className="tour-admin-actions mt-2">
-                <button className="tour-action-btn" type="button" onClick={() => void swapPlayers()}>
+                <button className="tour-action-btn" type="button" disabled={!canSwapPlayers} onClick={() => void swapPlayers()}>
                   Zrob swap
                 </button>
               </div>

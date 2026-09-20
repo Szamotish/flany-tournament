@@ -5,6 +5,7 @@ import { loadPlayerPerformance } from "@/lib/playerPerformance";
 import { playerToneStyle } from "@/lib/ui/playerProfile";
 import RatingStatusBadge from "./RatingStatusBadge";
 import WinstreakBadge from "@/app/components/WinstreakBadge";
+import LosestreakBadge from "@/app/components/LosestreakBadge";
 import {
   FRAME_BY_RANK,
   canShowRankFromMmr,
@@ -119,7 +120,7 @@ export default async function PlayersPage() {
   }
 
   const effectiveMmrByPlayer = new Map<string, number>();
-  const streakByPlayer = new Map<string, { wins: number; duelWins: number }>();
+  const streakByPlayer = new Map<string, { wins: number; losses: number; duelWins: number }>();
   const hasFinishedMatchByPlayer = new Map<string, boolean>();
   const mmrManualOverrideByPlayer = new Map<string, boolean>();
   for (const player of players) {
@@ -132,7 +133,7 @@ export default async function PlayersPage() {
         const perf = perfByPlayer.get(playerId);
         if (!perf) continue;
         effectiveMmrByPlayer.set(playerId, perf.effectiveMmr);
-        streakByPlayer.set(playerId, { wins: perf.rankedWinStreak, duelWins: perf.rankedDuelWins });
+        streakByPlayer.set(playerId, { wins: perf.rankedWinStreak, losses: perf.rankedLossStreak, duelWins: perf.rankedDuelWins });
         hasFinishedMatchByPlayer.set(playerId, perf.hasFinishedMatch);
         mmrManualOverrideByPlayer.set(playerId, perf.mmrManualOverride);
       }
@@ -194,6 +195,7 @@ export default async function PlayersPage() {
 
                   <div className="player-rank-right">
                     <WinstreakBadge wins={streakByPlayer.get(p.id)?.wins ?? 0} duelWins={streakByPlayer.get(p.id)?.duelWins ?? 0} />
+                    <LosestreakBadge losses={streakByPlayer.get(p.id)?.losses ?? 0} />
                     <span className="player-rank-state">{p.active ? "aktywny" : "nieaktywny"}</span>
                     <span
                       className="player-rank-pp"

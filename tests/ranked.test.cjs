@@ -10,6 +10,7 @@ require.extensions['.ts'] = (module, filename) => {
 };
 const { replayRanked } = require('../lib/rankedReplay.ts');
 const { applyRankedDelta } = require('../lib/ranked.ts');
+const { lossStreakTier } = require('../lib/rankedStreak.ts');
 const at = (i) => new Date(Date.UTC(2026, 0, 1, 0, i)).toISOString();
 const baseline = () => new Map([['p', { mmr: 5, prestigePoints: 0 }], ['q', { mmr: 5, prestigePoints: 0 }]]);
 const match = (i, { duel = false, won = true, tournamentId = `t${i}` } = {}) => ({
@@ -112,4 +113,62 @@ test('out-of-order input replays deterministically and does not mutate baseline'
 test('manual rank edits are retained on subsequent automatic recalculations', () => {
   const events = [...wins(3), { kind: 'manual', id: 'manual', at: at(4), playerId: 'p', state: { mmr: 9, prestigePoints: 0 } }, performance(5)];
   assert.equal(replayRanked(baseline(), events).states.get('p').mmr, 9.2);
+});
+
+test('lose streak counts each lost round, including several rounds in one tournament, without extra penalties', () => {
+  const events = Array.from({ length: 6 }, (_, i) => match(i, { won: false, tournamentId: 'multi' }));
+  const r = replayRanked(baseline(), events);
+  assert.equal(r.lossStreaks.get('p'), 6);
+  assert.equal(r.states.get('p').mmr, 3.2);
+  assert.deepEqual(playerHistory(r).map((h) => h.delta), Array(6).fill(-0.3));
+  assert.equal(r.streaks.get('p').wins, 0);
+});
+
+test('a ranked round win resets lose streak before the tournament finishes', () => {
+  const losses = Array.from({ length: 3 }, (_, i) => match(i, { won: false }));
+  const r = replayRanked(baseline(), [...losses, match(4)]);
+  assert.equal(r.lossStreaks.get('p'), 0);
+  assert.equal(r.streaks.get('p').wins, 0);
+  assert.equal(replayRanked(baseline(), [...losses, match(4), match(5, { won: false })]).lossStreaks.get('p'), 1);
+});
+
+test('ranked 1v1 losses have no streak cap and retain their normal penalties', () => {
+  const r = replayRanked(baseline(), Array.from({ length: 8 }, (_, i) => match(i, { won: false, duel: true })));
+  assert.equal(r.lossStreaks.get('p'), 8);
+  assert.equal(r.states.get('p').mmr, 4.2);
+  assert.deepEqual(playerHistory(r).map((h) => h.delta), Array(8).fill(-0.1));
+});
+
+test('a favored zero-point duel win still breaks lose streak', () => {
+  const initial = baseline();
+  initial.set('p', { mmr: 10, prestigePoints: 0 });
+  initial.set('q', { mmr: 0, prestigePoints: 0 });
+  const losses = Array.from({ length: 3 }, (_, i) => match(i, { won: false }));
+  const r = replayRanked(initial, [...losses, match(4, { duel: true })]);
+  assert.equal(playerHistory(r).at(-1).delta, 0);
+  assert.equal(r.lossStreaks.get('p'), 0);
+});
+
+test('performance and manual points do not clear losses or add extra PP penalties', () => {
+  const initial = baseline();
+  initial.set('p', { mmr: 10, prestigePoints: 100 });
+  const losses = Array.from({ length: 6 }, (_, i) => match(i, { won: false }));
+  const r = replayRanked(initial, [...losses, performance(7)]);
+  assert.equal(r.lossStreaks.get('p'), 6);
+  assert.deepEqual(r.states.get('p'), { mmr: 10, prestigePoints: 48 });
+  const manual = { kind: 'manual', id: 'edit', at: at(8), playerId: 'p', state: { mmr: 9, prestigePoints: 0 } };
+  assert.equal(replayRanked(initial, [...losses, manual]).lossStreaks.get('p'), 6);
+});
+
+test('correcting or resetting matches rebuilds lose streak deterministically', () => {
+  const losses = Array.from({ length: 6 }, (_, i) => match(i, { won: false }));
+  assert.deepEqual(replayRanked(baseline(), losses), replayRanked(baseline(), [...losses].reverse()));
+  const corrected = [...losses.slice(0, 3), match(3), ...losses.slice(4)];
+  assert.equal(replayRanked(baseline(), corrected).lossStreaks.get('p'), 2);
+  assert.equal(replayRanked(baseline(), losses.slice(0, 2)).lossStreaks.get('p'), 2);
+  assert.equal(replayRanked(baseline(), []).lossStreaks.get('p') ?? 0, 0);
+});
+
+test('losestreak is hidden below 3, frosted at 3–5 and frozen from 6', () => {
+  assert.deepEqual([0, 1, 2, 3, 5, 6, 12].map(lossStreakTier), ['none', 'none', 'none', 'frost', 'frost', 'frozen', 'frozen']);
 });

@@ -1,5 +1,9 @@
 export type RankedStreak = { wins: number; duelWins: number };
 
+export function lossStreakTier(losses: number): "none" | "frost" | "frozen" {
+  return losses >= 6 ? "frozen" : losses >= 3 ? "frost" : "none";
+}
+
 export function streakBonus(wins: number): number {
   return wins >= 7 ? 0.2 : wins >= 4 ? 0.1 : 0;
 }
