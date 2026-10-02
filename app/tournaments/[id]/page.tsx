@@ -1,5 +1,6 @@
 ﻿import Link from "next/link";
 import TrophyIcon from "@/app/components/TrophyIcon";
+import BackNavButton from "@/app/components/BackNavButton";
 import BracketTree, { type BracketTreeRound } from "@/app/components/BracketTree";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { teamToneVars } from "@/lib/ui/teamTone";
@@ -338,9 +339,7 @@ export default async function TournamentPage({
     <main className="tour-root">
       <div className="tour-shell">
         <div className="tour-topbar">
-          <Link className="underline opacity-80" href="/tournaments">
-            Back
-          </Link>
+          <BackNavButton className="underline opacity-80" fallbackHref="/tournaments" />
           <span className="tour-kicker">Podglad turnieju</span>
         </div>
 

@@ -3510,6 +3510,12 @@ body {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.56rem;
+  max-height: min(60vh, 30rem);
+  overflow-y: auto;
+  padding: 0.4rem;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(102, 55, 13, 0.55) transparent;
 }
 
 .trophy-item {
