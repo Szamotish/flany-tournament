@@ -14,6 +14,7 @@ import { PRESTIGE_POINTS_PER_MMR } from "@/lib/ranked";
 import { loadPlayerPerformance } from "@/lib/playerPerformance";
 import { rankingCompare, type RankingComparable } from "@/lib/ranking";
 import { playerToneStyle } from "@/lib/ui/playerProfile";
+import { BADGE_BY_RANK } from "@/lib/ui/rankBadge";
 import {
   FRAME_BY_RANK,
   canShowRankFromMmr,
@@ -593,7 +594,10 @@ export default async function PlayerPage({
 
           <UploadAvatar playerId={playerId} className="mt-4" />
 
-          <div className="profile-rating-box mt-5">
+          <div
+            className={`profile-rating-box profile-rating-box-${currentRank} mt-5`}
+            style={{ borderImageSource: `url('${BADGE_BY_RANK[currentRank]}')` }}
+          >
             <div className="profile-rating-layout">
               <div className="profile-rating-copy">
                 <div className="profile-rating-head">

@@ -3311,10 +3311,52 @@ body {
 }
 
 .profile-rating-box {
-  border: 1px solid rgba(80, 48, 8, 0.26);
-  border-radius: 0.95rem;
-  padding: 0.8rem;
-  background: linear-gradient(155deg, rgba(255, 255, 255, 0.62), rgba(255, 242, 208, 0.56));
+  border: solid transparent;
+  border-width: 30px 36px;
+  border-image-slice: 180 350 fill;
+  border-image-repeat: stretch;
+  padding: 0.7rem 0.35rem;
+  color: #f5f6ff;
+  filter: drop-shadow(0 5px 8px rgba(16, 13, 30, 0.26));
+}
+
+.profile-rating-box-emerald {
+  border-image-slice: 220 330 250 fill;
+}
+
+.profile-rating-box .profile-muted,
+.profile-rating-box .profile-rating-scale {
+  color: #e0e4ed;
+  text-shadow: 0 1px 3px #0b1020;
+}
+
+.profile-rating-box .profile-section-title,
+.profile-rating-box .profile-rating-value {
+  text-shadow: 0 2px 4px #0b1020;
+}
+
+.profile-rating-box .profile-rating-chip {
+  color: #f5f6ff;
+  border-color: rgba(223, 228, 249, 0.4);
+  background: rgba(8, 13, 29, 0.64);
+}
+
+.profile-rating-box .profile-mmr-chart-svg {
+  border-color: rgba(228, 235, 255, 0.28);
+  background: rgba(8, 13, 29, 0.68);
+}
+
+.profile-rating-box .profile-mmr-chart-grid {
+  stroke: rgba(228, 235, 255, 0.18);
+}
+
+.profile-rating-box .profile-mmr-chart-line,
+.profile-rating-box .profile-mmr-chart-dot {
+  stroke: #8df5bd;
+}
+
+.profile-rating-box .profile-mmr-chart-dot {
+  fill: #8df5bd;
 }
 
 .profile-rating-layout {
@@ -3322,6 +3364,9 @@ body {
   gap: 0.9rem;
   grid-template-columns: minmax(0, 1fr);
   align-items: center;
+  padding: 0.65rem;
+  border-radius: 0.6rem;
+  background: rgba(6, 10, 24, 0.56);
 }
 
 .profile-rating-copy {
@@ -3340,7 +3385,7 @@ body {
   align-content: start;
   gap: 0.6rem;
   place-items: center;
-  min-height: 190px;
+  min-width: 0;
 }
 
 .profile-mmr-chart {
@@ -3410,8 +3455,8 @@ body {
 .profile-rank-preview-wrap {
   position: relative;
   display: grid;
-  width: min(248px, 62vw);
-  height: min(248px, 62vw);
+  width: min(200px, 100%);
+  aspect-ratio: 1;
   place-items: center;
 }
 
@@ -3671,20 +3716,40 @@ body {
   accent-color: #2f8d6a;
 }
 
-@media (min-width: 900px) {
-  .profile-rating-layout {
-    grid-template-columns: minmax(0, 1fr) 340px;
-  }
+.profile-hero {
+  container: profile-hero / inline-size;
+}
 
+@container profile-hero (min-width: 460px) {
   .profile-rating-head {
-    grid-template-columns: minmax(0, 1fr) minmax(210px, 246px);
+    grid-template-columns: minmax(90px, 0.7fr) minmax(150px, 1.3fr);
     column-gap: 0.9rem;
+  }
+}
+
+@container profile-hero (min-width: 580px) {
+  .profile-rating-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(160px, 0.55fr);
+    gap: 1.2rem;
   }
 
   .profile-rank-preview {
-    justify-self: end;
-    margin-left: 0;
-    margin-right: 8px;
+    width: 100%;
+  }
+}
+
+@container profile-hero (max-width: 459px) {
+  .profile-rating-box {
+    border-width: 26px 22px;
+    padding: 0.55rem 0.25rem;
+  }
+
+  .profile-rank-preview-wrap {
+    width: 144px;
+  }
+
+  .profile-mmr-chart {
+    max-width: none;
   }
 }
 
