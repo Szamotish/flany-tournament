@@ -3,6 +3,7 @@ import { writeAuditLog } from "@/lib/auditLog";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { assertMainAdmin } from "@/app/api/admin/_auth";
 import { normalizeMode } from "@/lib/ranked";
+import { parseTournamentDateTime } from "@/lib/tournamentDate";
 import {
   normalizeTournamentFormat,
   ONE_V_ONE_PLAYER_LIMIT,
@@ -17,7 +18,6 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => null);
 
-  const name = String(body?.name ?? "").trim();
   const format = normalizeTournamentFormat(body?.format);
   const mode = normalizeMode(body?.mode);
   const boDefault = Number(body?.boDefault ?? 1);
@@ -39,7 +39,6 @@ export async function POST(req: Request) {
     new Set([...(localAdminPlayerIdsRaw ?? []), ...(admin.ctx.playerId ? [admin.ctx.playerId] : [])])
   );
 
-  if (!name) return NextResponse.json({ error: "missing_name" }, { status: 400 });
   if (![1, 3, 5].includes(boDefault)) {
     return NextResponse.json({ error: "invalid_boDefault" }, { status: 400 });
   }
@@ -56,12 +55,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "missing_localAdminPlayerIds" }, { status: 400 });
   }
 
-  const eventAt = eventAtRaw ? new Date(eventAtRaw) : null;
+  const eventAt = eventAtRaw ? parseTournamentDateTime(eventAtRaw) : null;
   if (eventAtRaw && Number.isNaN(eventAt?.getTime())) {
     return NextResponse.json({ error: "invalid_eventAt" }, { status: 400 });
   }
 
-  const joinDeadlineAt = joinDeadlineAtRaw ? new Date(joinDeadlineAtRaw) : null;
+  const joinDeadlineAt = joinDeadlineAtRaw ? parseTournamentDateTime(joinDeadlineAtRaw) : null;
   if (joinDeadlineAtRaw && Number.isNaN(joinDeadlineAt?.getTime())) {
     return NextResponse.json({ error: "invalid_joinDeadlineAt" }, { status: 400 });
   }
@@ -116,7 +115,7 @@ export async function POST(req: Request) {
   }
 
   const tournamentInsert = {
-    name,
+    name_date: null, // The database assigns the name and daily number atomically.
     format,
     mode,
     bo_default: boDefault,
@@ -127,55 +126,33 @@ export async function POST(req: Request) {
     join_deadline_at: joinDeadlineAt ? joinDeadlineAt.toISOString() : null,
     is_private: isPrivate,
   };
-  const legacyTournamentInsert = {
-    name,
-    format,
-    mode,
-    bo_default: boDefault,
-    bo_finals: boFinals,
-    gf_reset_enabled: format === "double_elim" ? gfResetEnabled : false,
-  };
-
-  let t = null as { id: string } | null;
+  let t = null as { id: string; name: string } | null;
   let tErr: { message: string } | null = null;
 
   const insertPrimary = await supabaseServer
     .from("tournaments")
     .insert(tournamentInsert)
-    .select("id")
+    .select("id,name")
     .single();
 
   t = insertPrimary.data;
   tErr = insertPrimary.error;
 
-  if (
-    insertPrimary.error &&
-    (insertPrimary.error.message.includes("event_at") ||
-      insertPrimary.error.message.includes("event_location") ||
-      insertPrimary.error.message.includes("join_deadline_at") ||
-      insertPrimary.error.message.includes("is_private"))
-  ) {
-    const retryLegacy = await supabaseServer
-      .from("tournaments")
-      .insert(legacyTournamentInsert)
-      .select("id")
-      .single();
-    t = retryLegacy.data;
-    tErr = retryLegacy.error;
-  }
-
   if (tErr && tErr.message.includes("local_admin_password")) {
     const insertLegacy = await supabaseServer
       .from("tournaments")
-      .insert({ ...legacyTournamentInsert, local_admin_password: crypto.randomUUID() })
-      .select("id")
+      .insert({ ...tournamentInsert, local_admin_password: crypto.randomUUID() })
+      .select("id,name")
       .single();
 
     t = insertLegacy.data;
     tErr = insertLegacy.error;
   }
 
-  if (tErr) return NextResponse.json({ error: tErr.message }, { status: 500 });
+  if (tErr) return NextResponse.json({
+    error: tErr.message.includes("name_date") || tErr.message.includes("tournament_daily_counters")
+      ? "missing_tournament_naming_schema" : tErr.message,
+  }, { status: 500 });
   if (!t?.id) return NextResponse.json({ error: "tournament_create_failed" }, { status: 500 });
 
   const tournamentId = t.id;
@@ -214,5 +191,5 @@ export async function POST(req: Request) {
     },
   });
 
-  return NextResponse.json({ tournamentId });
+  return NextResponse.json({ tournamentId, name: t.name });
 }

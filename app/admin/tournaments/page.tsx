@@ -7,6 +7,7 @@ import { authedFetch } from "@/lib/authClient";
 import { BEER_LIST } from "@/lib/beers";
 import { ONE_V_ONE_PLAYER_LIMIT } from "@/lib/tournamentFormat";
 import PerformanceBonusDialog from "./PerformanceBonusDialog";
+import { tournamentDateTimeInput } from "@/lib/tournamentDate";
 
 type Player = {
   id: string;
@@ -52,6 +53,9 @@ function formatLabel(value: Tournament["format"]): string {
 
 function mapApiError(error: unknown): string {
   const text = String(error ?? "");
+  if (text.includes("missing_tournament_naming_schema")) return "Uruchom migrację automatycznych nazw turniejów w bazie.";
+  if (text.includes("invalid_eventAt")) return "Nieprawidłowy termin turnieju. Podaj istniejącą datę i godzinę czasu polskiego.";
+  if (text.includes("invalid_joinDeadlineAt")) return "Nieprawidłowy termin zgłoszeń. Podaj istniejącą datę i godzinę czasu polskiego.";
   if (text.includes("forbidden_main_admin_only")) return "Ta akcja wymaga roli Main Admin.";
   if (text.includes("invalid_or_expired_token")) return "Sesja wygasla. Zaloguj sie ponownie.";
   if (text.includes("missing_bearer_token")) return "Brak sesji. Zaloguj sie.";
@@ -77,7 +81,7 @@ function mapApiError(error: unknown): string {
 
 export default function AdminTournamentsPage() {
   const [isMainAdmin, setIsMainAdmin] = useState<boolean | null>(null);
-  const [name, setName] = useState("");
+  const [editingTournamentName, setEditingTournamentName] = useState("");
   const [format, setFormat] = useState<"single_elim" | "double_elim" | "one_vs_one">("double_elim");
   const [mode, setMode] = useState<"normal" | "ranked">("normal");
   const [boDefault, setBoDefault] = useState<1 | 3 | 5>(1);
@@ -165,7 +169,7 @@ export default function AdminTournamentsPage() {
   function resetTournamentForm() {
     setEditingTournamentId(null);
     setEditingStarted(false);
-    setName("");
+    setEditingTournamentName("");
     setFormat("double_elim");
     setMode("normal");
     setBoDefault(1);
@@ -191,7 +195,7 @@ export default function AdminTournamentsPage() {
     const tournament = json.tournament as Tournament;
     setEditingTournamentId(tournamentId);
     setEditingStarted(json.started === true);
-    setName(tournament.name ?? "");
+    setEditingTournamentName(tournament.name ?? "");
     if (tournament.format === "double_elim" || tournament.format === "one_vs_one") {
       setFormat(tournament.format);
     } else {
@@ -201,9 +205,9 @@ export default function AdminTournamentsPage() {
     setBoDefault(parseBo(String(tournament.bo_default)) ?? 1);
     setBoFinals(parseBo(String(tournament.bo_finals)) ?? 3);
     setGfResetEnabled(tournament.gf_reset_enabled !== false);
-    setEventAt(typeof tournament.event_at === "string" ? tournament.event_at.slice(0, 16) : "");
+    setEventAt(tournamentDateTimeInput(tournament.event_at));
     setEventLocation(typeof tournament.event_location === "string" ? tournament.event_location : "");
-    setJoinDeadlineAt(typeof tournament.join_deadline_at === "string" ? tournament.join_deadline_at.slice(0, 16) : "");
+    setJoinDeadlineAt(tournamentDateTimeInput(tournament.join_deadline_at));
     setIsPrivate(tournament.is_private === true);
 
     const nextSelected: Record<string, boolean> = {};
@@ -290,7 +294,6 @@ export default function AdminTournamentsPage() {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        name,
         format,
         mode,
         boDefault,
@@ -311,8 +314,8 @@ export default function AdminTournamentsPage() {
       return;
     }
 
-    setMsg("Turniej zostal utworzony.");
-    setName("");
+    setMsg(`Utworzono turniej ${json.name}.`);
+    setEditingTournamentName("");
     setMode("normal");
     setEventAt("");
     setEventLocation("");
@@ -331,7 +334,6 @@ export default function AdminTournamentsPage() {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        name,
         format,
         mode,
         boDefault,
@@ -353,6 +355,7 @@ export default function AdminTournamentsPage() {
     }
 
     setMsg("Turniej zaktualizowany.");
+    setEditingTournamentName(json.tournament?.name ?? editingTournamentName);
     await loadTournaments();
   }
 
@@ -871,7 +874,7 @@ export default function AdminTournamentsPage() {
         <div className="tour-admin-split mt-4">
           <section className="tour-admin-panel">
             <div className="tour-card-head">
-              <p className="tour-card-title">{editingTournamentId ? "Edytuj turniej" : "Utworz turniej"}</p>
+              <p className="tour-card-title">{editingTournamentId ? `Edytuj ${editingTournamentName}` : "Utworz turniej"}</p>
               {editingTournamentId ? (
                 <button className="tour-action-btn" type="button" onClick={resetTournamentForm}>
                   Nowy turniej
@@ -881,12 +884,14 @@ export default function AdminTournamentsPage() {
 
             <div className="tour-admin-grid mt-3">
               <div>
-                <label className="tour-admin-label">Nazwa turnieju</label>
+                <label className="tour-admin-label" htmlFor="tournament-location">Lokalizacja</label>
                 <input
+                  id="tournament-location"
                   className="tour-admin-input"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="np. Flany Cup #1"
+                  value={eventLocation}
+                  onChange={(e) => setEventLocation(e.target.value)}
+                  placeholder="np. Schodki, u Tomka, Sarbsk"
+                  maxLength={140}
                 />
               </div>
 
@@ -973,23 +978,12 @@ export default function AdminTournamentsPage() {
                 </div>
 
                 <div>
-                  <label className="tour-admin-label">Data i godzina turnieju</label>
+                  <label className="tour-admin-label">Data i godzina turnieju (czas polski)</label>
                   <input
                     className="tour-admin-input"
                     type="datetime-local"
                     value={eventAt}
                     onChange={(e) => setEventAt(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="tour-admin-label">Miejsce</label>
-                  <input
-                    className="tour-admin-input"
-                    value={eventLocation}
-                    onChange={(e) => setEventLocation(e.target.value)}
-                    placeholder="np. Sarbsk, domek nr 12"
-                    maxLength={140}
                   />
                 </div>
 
@@ -1127,7 +1121,7 @@ export default function AdminTournamentsPage() {
               <div className="tour-admin-actions">
                 <button
                   className="tour-action-btn"
-                  disabled={!name || !selectedCountValid || localAdminIds.length < 1}
+                  disabled={!selectedCountValid || localAdminIds.length < 1}
                   onClick={editingTournamentId ? saveTournamentChanges : createTournament}
                 >
                   {editingTournamentId ? "Zapisz zmiany" : "Utworz turniej"}
@@ -1170,6 +1164,7 @@ export default function AdminTournamentsPage() {
                     <div className="tour-card-head">
                       <div>
                         <p className="tour-card-title">{t.name}</p>
+                        {t.event_location ? <p className="tour-card-sub">{t.event_location}</p> : null}
                         <p className="tour-card-sub">
                           {t.mode === "ranked" ? "ranked" : "normal"} - {formatLabel(t.format)} - BO{t.bo_default} - final BO{t.bo_finals}
                         </p>

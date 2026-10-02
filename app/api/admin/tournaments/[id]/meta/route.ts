@@ -3,6 +3,7 @@ import { assertTournamentAdmin } from "@/app/api/admin/tournaments/_auth";
 import { writeAuditLog } from "@/lib/auditLog";
 import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { parseTournamentDateTime } from "@/lib/tournamentDate";
 
 export async function PATCH(
   req: Request,
@@ -24,12 +25,12 @@ export async function PATCH(
   const joinDeadlineAtRaw =
     typeof body?.joinDeadlineAt === "string" ? body.joinDeadlineAt.trim() : "";
 
-  const eventAt = eventAtRaw ? new Date(eventAtRaw) : null;
+  const eventAt = eventAtRaw ? parseTournamentDateTime(eventAtRaw) : null;
   if (eventAtRaw && Number.isNaN(eventAt?.getTime())) {
     return NextResponse.json({ error: "invalid_eventAt" }, { status: 400 });
   }
 
-  const joinDeadlineAt = joinDeadlineAtRaw ? new Date(joinDeadlineAtRaw) : null;
+  const joinDeadlineAt = joinDeadlineAtRaw ? parseTournamentDateTime(joinDeadlineAtRaw) : null;
   if (joinDeadlineAtRaw && Number.isNaN(joinDeadlineAt?.getTime())) {
     return NextResponse.json({ error: "invalid_joinDeadlineAt" }, { status: 400 });
   }

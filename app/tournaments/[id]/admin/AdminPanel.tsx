@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { teamToneVars } from "@/lib/ui/teamTone";
 import { authedFetch } from "@/lib/authClient";
+import { tournamentDateTimeInput } from "@/lib/tournamentDate";
 
 type TeamEntry = {
   id: string;
@@ -89,8 +90,8 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
       formatValue === "double_elim" || formatValue === "one_vs_one" ? formatValue : "single_elim"
     );
 
-    setEventAt(eventAtIso ? eventAtIso.slice(0, 16) : "");
-    setJoinDeadlineAt(joinDeadlineIso ? joinDeadlineIso.slice(0, 16) : "");
+    setEventAt(tournamentDateTimeInput(eventAtIso));
+    setJoinDeadlineAt(tournamentDateTimeInput(joinDeadlineIso));
     setEventLocation(typeof json.tournament?.event_location === "string" ? json.tournament.event_location : "");
   }, [tournamentId]);
 
@@ -632,7 +633,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
 
             <div className="tour-admin-grid-2">
               <div>
-                <label className="tour-admin-label">Data i godzina turnieju</label>
+                <label className="tour-admin-label">Data i godzina turnieju (czas polski)</label>
                 <input
                   className="tour-admin-input"
                   type="datetime-local"
@@ -641,7 +642,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
                 />
               </div>
               <div>
-                <label className="tour-admin-label">Miejsce</label>
+                <label className="tour-admin-label">Lokalizacja</label>
                 <input
                   className="tour-admin-input"
                   value={eventLocation}

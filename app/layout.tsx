@@ -17,6 +17,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Flany Tournament",
   description: "Turnieje we flanki, druzyny, ranking i statystyki ligi.",
+  icons: {
+    icon: { url: "/ikona.png", type: "image/png" },
+    shortcut: "/ikona.png",
+    apple: "/ikona.png",
+  },
 };
 
 export default function RootLayout({

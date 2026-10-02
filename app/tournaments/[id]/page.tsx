@@ -470,7 +470,7 @@ export default async function TournamentPage({
               {champion && (
                 <article className="tour-champion" style={teamToneVars(champion.teamId)}>
                   <div className="tour-champion-inner">
-                    <TrophyIcon seed={`detail-${id}`} className="tour-champion-trophy" />
+                    <TrophyIcon className="tour-champion-trophy" />
                     <div>
                       <p className="tour-winner-label">Zwyciezca turnieju</p>
                       <p className="tour-winner-team">{champion.teamName}</p>

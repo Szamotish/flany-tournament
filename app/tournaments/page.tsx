@@ -302,7 +302,7 @@ export default async function TournamentsPage() {
           <p className="mt-4 text-sm opacity-70">Brak turniejow.</p>
         ) : (
           <section className="tour-list mt-4">
-            {tournaments.map((t, idx) => {
+            {tournaments.map((t) => {
               const winner = winnerByTournament.get(t.id);
               const isFinished = Boolean(winner);
               const upcoming = upcomingRoundByTournament.get(t.id) ?? null;
@@ -365,7 +365,7 @@ export default async function TournamentsPage() {
 
                   {winner ? (
                     <div className="tour-winner-box mt-3">
-                      <TrophyIcon seed={`list-${idx}`} className="tour-winner-trophy" />
+                      <TrophyIcon className="tour-winner-trophy" />
                       <div>
                         <p className="tour-winner-label">Zwyciezca</p>
                         <p className="tour-winner-team">{winner.teamName}</p>

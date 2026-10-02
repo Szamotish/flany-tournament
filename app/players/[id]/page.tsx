@@ -28,6 +28,7 @@ type PlayerBrief = { id: string; name: string };
 type HistoryEntry = {
   tournamentId: string;
   tournamentName: string;
+  tournamentLocation: string | null;
   tournamentTypeLabel: string;
   tournamentPlayedAt: string | null;
   teamId: string;
@@ -299,6 +300,7 @@ export default async function PlayerPage({
         string,
         {
           name: string;
+          event_location: string | null;
           created_at: string | null;
           started_at: string | null;
           format: string | null;
@@ -312,13 +314,14 @@ export default async function PlayerPage({
       if (tournamentIds.length > 0) {
         const primaryTournaments = await supabaseServer
           .from("tournaments")
-          .select("id,name,created_at,started_at,format,mode")
+          .select("id,name,event_location,created_at,started_at,format,mode")
           .in("id", tournamentIds);
 
         let tournaments = primaryTournaments.data as
           | Array<{
               id: string;
               name: string | null;
+              event_location?: string | null;
               created_at: string | null;
               started_at?: string | null;
               format?: string | null;
@@ -330,7 +333,8 @@ export default async function PlayerPage({
           primaryTournaments.error &&
           (primaryTournaments.error.message.includes("started_at") ||
             primaryTournaments.error.message.includes("format") ||
-            primaryTournaments.error.message.includes("mode"))
+            primaryTournaments.error.message.includes("mode") ||
+            primaryTournaments.error.message.includes("event_location"))
         ) {
           const fallbackTournaments = await supabaseServer
             .from("tournaments")
@@ -347,6 +351,7 @@ export default async function PlayerPage({
         for (const t of tournaments ?? []) {
           tournamentsMap.set(String(t.id), {
             name: String(t.name ?? "(unknown)"),
+            event_location: t.event_location ?? null,
             created_at: t.created_at ? String(t.created_at) : null,
             started_at: t.started_at ? String(t.started_at) : null,
             format: typeof t.format === "string" ? t.format : null,
@@ -406,6 +411,7 @@ export default async function PlayerPage({
         return {
           tournamentId,
           tournamentName: t?.name ?? "(unknown)",
+          tournamentLocation: t?.event_location ?? null,
           tournamentTypeLabel: formatTournamentHistoryType(t?.format, t?.mode),
           tournamentPlayedAt: t?.started_at ?? firstMatchAtByTournament.get(tournamentId) ?? t?.created_at ?? null,
           teamId,
@@ -712,12 +718,15 @@ export default async function PlayerPage({
           ) : (
             <div className="trophy-grid mt-3">
               {trophies.map((t, idx) => (
-                <div key={`${t.tournamentId}-${idx}`} className="trophy-item">
-                  <TrophyIcon seed={`${idx}`} />
-                  <p className="trophy-name" title={t.tournamentName}>
+                <Link key={`${t.tournamentId}-${idx}`} className="trophy-item"
+                  href={`/tournaments/${t.tournamentId}`} title={[t.tournamentName, t.tournamentLocation].filter(Boolean).join(" · ")}
+                  aria-label={`Turniej: ${t.tournamentName}`}>
+                  <TrophyIcon />
+                  <p className="trophy-name">
                     {t.tournamentName}
                   </p>
-                </div>
+                  {t.tournamentLocation ? <p className="trophy-location">{t.tournamentLocation}</p> : null}
+                </Link>
               ))}
             </div>
           )}
@@ -747,6 +756,7 @@ export default async function PlayerPage({
                       </Link>
                     </p>
                     <p className="mt-1">Typ: {h.tournamentTypeLabel}</p>
+                    {h.tournamentLocation ? <p className="mt-1">Lokalizacja: {h.tournamentLocation}</p> : null}
                     <p className="mt-1">Druzyna: {h.teamName}</p>
                     {h.teamRoster.length > 0 && (
                       <p className="mt-1">Sklad: {h.teamRoster.map((p) => p.name).join(", ")}</p>

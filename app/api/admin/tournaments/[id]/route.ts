@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { assertMainAdmin } from "@/app/api/admin/_auth";
 import { writeAuditLog } from "@/lib/auditLog";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { parseTournamentDateTime } from "@/lib/tournamentDate";
 import { normalizeMode } from "@/lib/ranked";
 import {
   normalizeTournamentFormat,
@@ -101,7 +102,6 @@ export async function PATCH(
   if (existingRes.error) return NextResponse.json({ error: existingRes.error.message }, { status: 500 });
   if (!existingRes.data) return NextResponse.json({ error: "tournament_not_found" }, { status: 404 });
 
-  const name = String(body?.name ?? "").trim();
   const format = normalizeTournamentFormat(body?.format);
   const mode = normalizeMode(body?.mode);
   const boDefault = parseBo(body?.boDefault);
@@ -122,7 +122,6 @@ export async function PATCH(
     new Set([...(localAdminPlayerIdsRaw ?? []), ...(admin.ctx.playerId ? [admin.ctx.playerId] : [])])
   );
 
-  if (!name) return NextResponse.json({ error: "missing_name" }, { status: 400 });
   if (playerIds.length < 2) return NextResponse.json({ error: "invalid_playerIds" }, { status: 400 });
   if (isOneVsOneFormat(format) && playerIds.length !== ONE_V_ONE_PLAYER_LIMIT) {
     return NextResponse.json({ error: "invalid_playerIds_1v1_requires_exactly_2" }, { status: 400 });
@@ -131,12 +130,12 @@ export async function PATCH(
     return NextResponse.json({ error: "missing_localAdminPlayerIds" }, { status: 400 });
   }
 
-  const eventAt = eventAtRaw ? new Date(eventAtRaw) : null;
+  const eventAt = eventAtRaw ? parseTournamentDateTime(eventAtRaw) : null;
   if (eventAtRaw && Number.isNaN(eventAt?.getTime())) {
     return NextResponse.json({ error: "invalid_eventAt" }, { status: 400 });
   }
 
-  const joinDeadlineAt = joinDeadlineAtRaw ? new Date(joinDeadlineAtRaw) : null;
+  const joinDeadlineAt = joinDeadlineAtRaw ? parseTournamentDateTime(joinDeadlineAtRaw) : null;
   if (joinDeadlineAtRaw && Number.isNaN(joinDeadlineAt?.getTime())) {
     return NextResponse.json({ error: "invalid_joinDeadlineAt" }, { status: 400 });
   }
@@ -181,7 +180,6 @@ export async function PATCH(
   const { data, error } = await supabaseServer
     .from("tournaments")
     .update({
-      name,
       format,
       mode,
       bo_default: boDefault,
