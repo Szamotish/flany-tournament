@@ -4,13 +4,13 @@ import { trimmedMean } from "@/lib/rating";
 import { loadPlayerPerformance } from "@/lib/playerPerformance";
 import { playerToneStyle } from "@/lib/ui/playerProfile";
 import RatingStatusBadge from "./RatingStatusBadge";
+import PlayerRankBadge from "@/app/components/PlayerRankBadge";
 import WinstreakBadge from "@/app/components/WinstreakBadge";
 import LosestreakBadge from "@/app/components/LosestreakBadge";
 import {
   FRAME_BY_RANK,
   canShowRankFromMmr,
   displayRankFromProgress,
-  rankLabel,
 } from "@/lib/playerRank";
 
 export const dynamic = "force-dynamic";
@@ -32,12 +32,6 @@ type PlayerRow = {
 function formatAverage(value: number | null): string {
   if (value === null || !Number.isFinite(value)) return "--";
   return value.toFixed(1);
-}
-
-function formatMmr(value: number | null): string {
-  const mmr = Number(value ?? 0);
-  if (!Number.isFinite(mmr)) return "0.0";
-  return mmr.toFixed(1);
 }
 
 export default async function PlayersPage() {
@@ -163,12 +157,11 @@ export default async function PlayersPage() {
             const prestigePoints = Math.max(0, Math.floor(Number(p.prestige_points ?? 0)));
             const canShowRank = canShowRankFromMmr(hasFinishedMatch, mmrManualOverride);
             const rank = displayRankFromProgress(canShowRank, mmr, prestigePoints);
-            const shownRankLabel = rankLabel(rank);
             const frameUrl = p.rank_frame_enabled === false ? null : FRAME_BY_RANK[rank];
             const frameClass = `player-rank-tier-${rank}`;
 
             return (
-              <Link key={p.id} href={`/players/${p.id}`} className="block min-w-0 no-underline">
+              <Link key={p.id} href={`/players/${p.id}`} className="player-list-entry block min-w-0 no-underline">
                 <div className={`player-rank-card ${frameClass} player-tone-card`} style={playerToneStyle(p.profile_color)}>
                   <div className="player-rank-main">
                     <span className={`player-rank-avatar-wrap${frameUrl ? " has-frame" : ""}`}>
@@ -197,15 +190,7 @@ export default async function PlayersPage() {
                     <WinstreakBadge wins={streakByPlayer.get(p.id)?.wins ?? 0} duelWins={streakByPlayer.get(p.id)?.duelWins ?? 0} />
                     <LosestreakBadge losses={streakByPlayer.get(p.id)?.losses ?? 0} />
                     <span className="player-rank-state">{p.active ? "aktywny" : "nieaktywny"}</span>
-                    <span
-                      className="player-rank-pp"
-                      title={`Ranga: ${shownRankLabel}`}
-                    >
-                      <span className="player-rank-pp-label">MMR {formatMmr(mmr)}</span>
-                      <span className="player-rank-pp-value">
-                        Ranga: {shownRankLabel}
-                      </span>
-                    </span>
+                    <PlayerRankBadge rank={rank} mmr={mmr} />
                     <RatingStatusBadge
                       playerId={p.id}
                       averageLabel={formatAverage(averageRatingByPlayer.get(p.id) ?? null)}
