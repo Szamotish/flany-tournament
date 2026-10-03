@@ -1,4 +1,5 @@
 import Link from "next/link";
+import BackNavButton from "@/app/components/BackNavButton";
 import { supabaseServer } from "@/lib/supabaseServer";
 import BracketTree, { type BracketTreeRound } from "@/app/components/BracketTree";
 import { pickTeamCaptainId } from "@/lib/teamCaptain";
@@ -226,9 +227,7 @@ export default async function MatchesPage({
     <main className="tour-root">
       <div className="tour-shell">
         <div className="tour-topbar">
-          <Link className="underline opacity-80" href={`/tournaments/${id}`}>
-            Back
-          </Link>
+          <BackNavButton className="underline opacity-80" fallbackHref={`/tournaments/${id}`} />
         </div>
 
         <section className="tour-detail-main mt-4">

@@ -1,5 +1,6 @@
 "use client";
 
+import BackNavButton from "@/app/components/BackNavButton";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { authedFetch } from "@/lib/authClient";
@@ -246,9 +247,7 @@ export default function AdminMatchesPanel({ tournamentId }: { tournamentId: stri
     <main className="tour-root">
       <div className="tour-shell">
         <div className="tour-topbar">
-          <Link className="underline opacity-80" href={`/tournaments/${tournamentId}/matches`}>
-            Back
-          </Link>
+          <BackNavButton className="underline opacity-80" fallbackHref={`/tournaments/${tournamentId}/matches`} />
         </div>
 
         <section className="tour-detail-main mt-4">

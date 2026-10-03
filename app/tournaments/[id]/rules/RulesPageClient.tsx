@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import BackNavButton from "@/app/components/BackNavButton";
 import { useCallback, useEffect, useState } from "react";
 import { authedFetch } from "@/lib/authClient";
 
@@ -70,9 +70,7 @@ export default function RulesPageClient({ tournamentId }: { tournamentId: string
     <main className="tour-root">
       <div className="tour-shell">
         <div className="tour-topbar">
-          <Link className="underline opacity-80" href={`/tournaments/${tournamentId}`}>
-            Back
-          </Link>
+          <BackNavButton className="underline opacity-80" fallbackHref={`/tournaments/${tournamentId}`} />
         </div>
 
         <section className="tour-rules-stage mt-4">

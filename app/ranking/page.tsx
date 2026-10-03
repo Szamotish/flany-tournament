@@ -150,7 +150,7 @@ export default async function RankingPage() {
       </Link>
 
       <section className="ranking-hero glass-card mt-4">
-        <h1 className="ranking-title">Tabela Flanki League</h1>
+        <h1 className="ranking-title">Ranking</h1>
       </section>
 
       {error ? (

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import BackNavButton from "@/app/components/BackNavButton";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { teamToneVars } from "@/lib/ui/teamTone";
 import { playerToneStyle } from "@/lib/ui/playerProfile";
@@ -123,9 +124,7 @@ export default async function TournamentTeamsPage({
     <main className="tour-root">
       <div className="tour-shell">
         <div className="tour-topbar">
-          <Link className="underline opacity-80" href={`/tournaments/${tournamentId}`}>
-            Back
-          </Link>
+          <BackNavButton className="underline opacity-80" fallbackHref={`/tournaments/${tournamentId}`} />
         </div>
 
         <section className="tour-detail-main mt-4">
