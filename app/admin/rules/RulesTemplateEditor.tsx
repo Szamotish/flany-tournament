@@ -47,7 +47,6 @@ export default function RulesTemplateEditor() {
           <Link className="underline opacity-80" href="/admin/tournaments">
             Back
           </Link>
-          <span className="tour-kicker">Main admin</span>
         </div>
 
         <section className="tour-detail-main mt-4">

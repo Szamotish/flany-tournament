@@ -249,7 +249,6 @@ export default function AdminMatchesPanel({ tournamentId }: { tournamentId: stri
           <Link className="underline opacity-80" href={`/tournaments/${tournamentId}/matches`}>
             Back
           </Link>
-          <span className="tour-kicker">Admin meczow</span>
         </div>
 
         <section className="tour-detail-main mt-4">

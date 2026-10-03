@@ -229,7 +229,6 @@ export default async function MatchesPage({
           <Link className="underline opacity-80" href={`/tournaments/${id}`}>
             Back
           </Link>
-          <span className="tour-kicker">Drabinka meczow</span>
         </div>
 
         <section className="tour-detail-main mt-4">

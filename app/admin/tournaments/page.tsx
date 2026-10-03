@@ -790,7 +790,6 @@ export default function AdminTournamentsPage() {
           <Link className="underline opacity-80" href="/">
             Back
           </Link>
-          <span className="tour-kicker">Main admin</span>
         </div>
 
         <section className="tour-detail-main mt-4">

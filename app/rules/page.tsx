@@ -13,7 +13,6 @@ export default async function RulesPage() {
           <Link className="underline opacity-80" href="/">
             Back
           </Link>
-          <span className="tour-kicker">Zasady</span>
         </div>
 
         <section className="tour-rules-stage mt-4">

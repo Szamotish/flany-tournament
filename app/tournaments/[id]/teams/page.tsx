@@ -126,7 +126,6 @@ export default async function TournamentTeamsPage({
           <Link className="underline opacity-80" href={`/tournaments/${tournamentId}`}>
             Back
           </Link>
-          <span className="tour-kicker">Sklady druzyn</span>
         </div>
 
         <section className="tour-detail-main mt-4">

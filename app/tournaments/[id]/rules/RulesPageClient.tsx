@@ -73,7 +73,6 @@ export default function RulesPageClient({ tournamentId }: { tournamentId: string
           <Link className="underline opacity-80" href={`/tournaments/${tournamentId}`}>
             Back
           </Link>
-          <span className="tour-kicker">Zasady turnieju</span>
         </div>
 
         <section className="tour-rules-stage mt-4">

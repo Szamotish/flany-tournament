@@ -150,7 +150,6 @@ export default async function RankingPage() {
       </Link>
 
       <section className="ranking-hero glass-card mt-4">
-        <p className="panel-top-label">Ranking ligi</p>
         <h1 className="ranking-title">Tabela Flanki League</h1>
       </section>
 

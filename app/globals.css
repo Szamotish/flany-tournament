@@ -341,15 +341,21 @@ body {
 }
 
 .landing-title {
-  margin: 0;
-  font-size: 3.1rem;
-  line-height: 0.95;
-  letter-spacing: -0.03em;
-  text-shadow: 0 8px 22px rgba(62, 35, 3, 0.2);
+  width: min(100%, 640px);
+  margin: 0 auto;
+  line-height: 0;
+}
+
+.landing-title-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 5px 9px rgba(62, 35, 3, 0.18));
 }
 
 .landing-link-list {
-  margin-top: 1.05rem;
+  width: min(100%, 520px);
+  margin: 1.05rem auto 0;
   display: grid;
   gap: 0.65rem;
 }
@@ -384,13 +390,6 @@ body {
   font-weight: 760;
   line-height: 1;
   letter-spacing: -0.02em;
-}
-
-.landing-link-sub {
-  display: block;
-  margin-top: 0.35rem;
-  color: var(--muted-ink);
-  font-size: 0.86rem;
 }
 
 .landing-beer {
@@ -1120,13 +1119,8 @@ body {
     grid-area: oracle;
   }
 
-  .landing-title {
-    font-size: 4.7rem;
-  }
-
   .landing-link-list {
     margin-top: 1.2rem;
-    max-width: 520px;
   }
 }
 
@@ -1145,18 +1139,6 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 0.7rem;
-}
-
-.tour-kicker {
-  border: 1px solid rgba(80, 48, 8, 0.28);
-  border-radius: 999px;
-  padding: 0.2rem 0.58rem;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  font-weight: 700;
-  color: rgba(38, 26, 9, 0.8);
-  background: rgba(255, 255, 255, 0.52);
 }
 
 .tour-hero,
@@ -3071,18 +3053,6 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 0.6rem;
-}
-
-.profile-kicker {
-  border: 1px solid rgba(80, 48, 8, 0.28);
-  border-radius: 999px;
-  padding: 0.2rem 0.58rem;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  font-weight: 700;
-  color: rgba(38, 26, 9, 0.8);
-  background: rgba(255, 255, 255, 0.52);
 }
 
 .player-grid {

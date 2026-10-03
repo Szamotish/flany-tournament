@@ -288,12 +288,10 @@ export default async function TournamentsPage() {
           <Link className="underline opacity-80" href="/">
             Back
           </Link>
-          <span className="tour-kicker">Lista turniejow</span>
         </div>
 
         <section className="tour-hero mt-4">
           <h1 className="tour-title">Turnieje</h1>
-          <p className="tour-muted">Przeglad aktywnych i zakonczonych turniejow.</p>
         </section>
 
         {error ? (

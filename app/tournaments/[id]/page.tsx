@@ -340,7 +340,6 @@ export default async function TournamentPage({
       <div className="tour-shell">
         <div className="tour-topbar">
           <BackNavButton className="underline opacity-80" fallbackHref="/tournaments" />
-          <span className="tour-kicker">Podglad turnieju</span>
         </div>
 
         {!t ? (

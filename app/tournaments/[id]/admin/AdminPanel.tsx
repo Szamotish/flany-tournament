@@ -517,7 +517,6 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
             <Link className="underline opacity-80" href={`/tournaments/${tournamentId}`}>
               Back
             </Link>
-            <span className="tour-kicker">Lokalny admin</span>
           </div>
           <section className="tour-admin-panel mt-4">
             <p className="tour-muted">Sprawdzanie uprawnien...</p>
@@ -535,7 +534,6 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
             <Link className="underline opacity-80" href={`/tournaments/${tournamentId}`}>
               Back
             </Link>
-            <span className="tour-kicker">Lokalny admin</span>
           </div>
           <section className="tour-admin-panel mt-4">
             <p className="tour-card-title">Brak dostepu</p>
@@ -553,7 +551,6 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
           <Link className="underline opacity-80" href={`/tournaments/${tournamentId}`}>
             Back
           </Link>
-          <span className="tour-kicker">Lokalny admin</span>
         </div>
 
         <section className="tour-detail-main mt-4">

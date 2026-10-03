@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabaseServer";
+import Image from "next/image";
 import { BEER_LIST, beerOfTheDay, computeBeersFromFinishedMatches } from "@/lib/beers";
 import { readConfiguredBeerOfDay } from "@/lib/appBackground";
 import BeerCan3D from "@/app/components/BeerCan3D";
@@ -153,22 +154,30 @@ export default async function HomePage() {
       <div className="landing-shell">
         <section className="landing-grid">
           <article className="glass-card landing-main">
-            <h1 className="landing-title">Flanki League</h1>
+            <h1 className="landing-title">
+              <span className="sr-only">Flanki League</span>
+              <Image
+                className="landing-title-image"
+                src="/title.png"
+                alt=""
+                width={2172}
+                height={724}
+                sizes="(max-width: 704px) calc(100vw - 68px), 640px"
+                preload
+              />
+            </h1>
 
             <div className="landing-link-list">
               <Link href="/tournaments" className="landing-link-card">
                 <span className="landing-link-title">Turnieje</span>
-                <span className="landing-link-sub">Lista turniejow i podglad drabinek</span>
               </Link>
 
               <Link href="/players" className="landing-link-card">
                 <span className="landing-link-title">Zawodnicy</span>
-                <span className="landing-link-sub">Profile zawodnikow, oceny i historia</span>
               </Link>
 
               <Link href="/ranking" className="landing-link-card">
                 <span className="landing-link-title">Ranking</span>
-                <span className="landing-link-sub">Tabela rang, MMR i punktow PP</span>
               </Link>
             </div>
           </article>

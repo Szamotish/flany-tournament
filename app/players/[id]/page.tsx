@@ -550,7 +550,6 @@ export default async function PlayerPage({
     <main className="player-profile-root">
       <div className="profile-topbar">
         <BackNavButton className="underline opacity-80" fallbackHref="/players" />
-        <span className="profile-kicker">Profil zawodnika</span>
       </div>
 
       <section className="player-grid mt-4">
