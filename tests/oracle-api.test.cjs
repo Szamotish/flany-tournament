@@ -48,6 +48,49 @@ test('server is disabled unless every opt-in and secret is present', () => {
   for (const key of Object.keys(env)) assert.equal(server(undefined, { ...env, [key]: '' }).oracleConfigured(), false);
   assert.equal(server().oracleConfigured(), true);
 });
+test('configuration identifies missing and invalid flags without exposing their values', () => {
+  const settings = { ORACLE_ENABLED: 'false', ORACLE_FREE_PLAN_CONFIRMED: 'secret-accidentally-pasted-as-flag', GROQ_API_KEY: 'private-key-value' };
+  const status = server(undefined, settings).oracleConfiguration();
+  assert.equal(status.configured, false);
+  assert.equal(status.configurationIssues.length, 2);
+  assert.equal(status.configurationIssues[0].variable, 'ORACLE_ENABLED');
+  assert.equal(status.configurationIssues[0].reason, 'not_true');
+  assert.equal(status.configurationIssues[1].variable, 'ORACLE_FREE_PLAN_CONFIRMED');
+  assert.ok(!JSON.stringify(status).includes('private-key-value'));
+  assert.ok(!JSON.stringify(status).includes('secret-accidentally-pasted-as-flag'));
+  const missing = server(undefined, {}).oracleConfiguration();
+  assert.equal(missing.configurationIssues.length, 3);
+  assert.ok(missing.configurationIssues.every(issue => issue.reason === 'missing'));
+});
+test('copy/paste whitespace is tolerated but false, quoted true and arbitrary values cannot enable AI', () => {
+  assert.equal(server(undefined, { ...env, ORACLE_ENABLED: 'true\n', ORACLE_FREE_PLAN_CONFIRMED: ' true ' }).oracleConfigured(), true);
+  for (const variable of ['ORACLE_ENABLED', 'ORACLE_FREE_PLAN_CONFIRMED']) {
+    for (const value of ['false', '"true"', '1', 'TRUE', ' ', `${variable}=true`])
+      assert.equal(server(undefined, { ...env, [variable]: value }).oracleConfigured(), false);
+  }
+});
+test('only main admin can access configuration diagnostics; GET and PATCH never return a secret', async () => {
+  for (const allowed of [false, true]) {
+    let calls = 0;
+    const route = load('app/api/admin/oracle/route.ts', {
+      '@/lib/oracleConfig': config,
+      '@/lib/oracleServer': server(undefined, { ...env, ORACLE_ENABLED: 'false' }),
+      '@/app/api/admin/_auth': { assertMainAdmin: async () => allowed ? { ok: true, ctx: { userId: 'admin' } } : { ok: false, status: 403 } },
+      '@/lib/supabaseServer': { supabaseServer: { rpc: async () => { calls++; return { data: { mode: 'admin', model: config.ORACLE_MODELS[0] } }; } } },
+    });
+    for (const method of ['GET', 'PATCH']) {
+      const response = await route[method](method === 'GET' ? new Request('https://example.test/api/admin/oracle') : request({ mode: 'admin', model: config.ORACLE_MODELS[0] }));
+      assert.equal(response.status, allowed ? 200 : 403);
+      const json = await response.json();
+      if (allowed) {
+        assert.equal(json.configured, false);
+        assert.equal(json.configurationIssues[0].variable, 'ORACLE_ENABLED');
+      } else assert.equal(json.configurationIssues, undefined);
+      assert.ok(!JSON.stringify(json).includes(env.GROQ_API_KEY));
+    }
+    assert.equal(calls, allowed ? 2 : 0);
+  }
+});
 test('input rejects long/blank questions, custom endpoints, token overrides and non-UUID identifiers', async () => {
   const s = server();
   for (const body of [{ ...input(), question: ' ' }, { ...input(), question: 'x'.repeat(181) },

@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import BackNavButton from "@/app/components/BackNavButton";
 import { useOracle } from "@/app/components/useOracle";
 import { authedFetch } from "@/lib/authClient";
-import { ORACLE_MODELS, ORACLE_QUESTION_LENGTH, oracleStatusText, type OracleMode, type OracleModel } from "@/lib/oracleConfig";
+import { ORACLE_MODELS, ORACLE_QUESTION_LENGTH, oracleStatusText, type OracleMode, type OracleModel, type OracleConfigurationIssue } from "@/lib/oracleConfig";
 
-type Config = { configured: boolean; mode: OracleMode; model: OracleModel; blockedUntil: string | null };
+type Config = { configured: boolean; configurationIssues?: OracleConfigurationIssue[]; mode: OracleMode; model: OracleModel; blockedUntil: string | null };
 export default function OracleAdminPage() {
   const oracle = useOracle();
   const [config, setConfig] = useState<Config | null>(null);
@@ -49,7 +49,15 @@ export default function OracleAdminPage() {
       {message ? <p role="status">{message}</p> : null}
       {!config && !message ? <p>Wczytywanie…</p> : null}
       {config ? <div className="oracle-admin-form">
-        {!config.configured ? <p role="status">Kula jest wyłączona na serwerze. Skonfiguruj Groq Free i zmienne Vercela zgodnie z instrukcją w docs/oracle-ai.md.</p> : null}
+        {!config.configured ? <div role="status">
+          <p>Tryb kuli można zapisać, ale to wdrożenie nie ma kompletnej konfiguracji serwera:</p>
+          {config.configurationIssues?.length ? <ul className="list-disc pl-5 mt-2">
+            {config.configurationIssues.map((issue) => <li key={issue.variable}>
+              <code>{issue.variable}</code>: {issue.reason === "missing" ? "brak zmiennej lub pusta wartość." : "wartość musi wynosić dokładnie true (bez cudzysłowów)."}
+            </li>)}
+          </ul> : <p>Sprawdź GROQ_API_KEY, ORACLE_ENABLED i ORACLE_FREE_PLAN_CONFIRMED.</p>}
+          <p className="mt-2">Popraw zmienne w Vercelu dla Production, wykonaj Redeploy i odśwież tę stronę. Klucza API nie wklejaj na czat.</p>
+        </div> : null}
         <label>Dostępność
           <select className="tour-admin-input" value={mode} onChange={(event) => setMode(event.target.value as OracleMode)} disabled={saving}>
             <option value="off">Wyłączona</option><option value="admin">Tylko main admin</option>
@@ -66,7 +74,7 @@ export default function OracleAdminPage() {
           <button className="tour-action-btn" disabled={saving} onClick={() => void save("off")}>Wyłącz kulę</button>
         </div>
         <p className="tour-muted">Limit: 100 pytań wspólnie i 10 na osobę w ostatnich 24 godzinach. Testy też się liczą. Obowiązuje dodatkowy budżet tokenów; zmiana modelu nie zeruje limitów.</p>
-        <p role="status">{oracleStatusText(oracle.status)}</p>
+        {config.configured ? <p role="status">{oracleStatusText(oracle.status)}</p> : null}
         {oracle.status?.remainingGlobal !== undefined ? <p>Pozostało pytań: {oracle.status.remainingGlobal} wspólnie / {oracle.status.remainingUser} dla Ciebie.</p> : null}
         <label>Pytanie
           <input className="tour-admin-input" value={question} maxLength={ORACLE_QUESTION_LENGTH}

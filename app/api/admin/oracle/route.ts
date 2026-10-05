@@ -1,6 +1,6 @@
 import { assertMainAdmin } from "@/app/api/admin/_auth";
 import { supabaseServer } from "@/lib/supabaseServer";
-import { oracleConfigured, readSmallJson } from "@/lib/oracleServer";
+import { oracleConfiguration, readSmallJson } from "@/lib/oracleServer";
 import { isOracleModel } from "@/lib/oracleConfig";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ async function handle(req: Request, update: boolean) {
     }
     const { data, error } = await supabaseServer.rpc("oracle_config", { p_user: auth.ctx.userId, ...change });
     if (error || !data) return reply({ error: "Brak konfiguracji kuli. Sprawdź migrację Supabase." }, 503);
-    return reply({ ...data, configured: oracleConfigured() });
+    return reply({ ...data, ...oracleConfiguration() });
   } catch { return reply({ error: "Nie udało się odczytać ustawień kuli." }, 503); }
 }
 export const GET = (req: Request) => handle(req, false);

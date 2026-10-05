@@ -3,6 +3,10 @@ export const ORACLE_MODELS = ["qwen/qwen3.8-27b", "openai/gpt-oss-120b"] as cons
 export type OracleModel = (typeof ORACLE_MODELS)[number];
 export type OracleMode = "off" | "admin" | "public";
 export const ORACLE_QUESTION_LENGTH = 180;
+export type OracleConfigurationIssue = {
+  variable: "ORACLE_ENABLED" | "ORACLE_FREE_PLAN_CONFIRMED" | "GROQ_API_KEY";
+  reason: "missing" | "not_true";
+};
 export type OracleStatus = {
   available: boolean;
   reason: string;
