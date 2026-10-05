@@ -1,7 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import Image from "next/image";
 import { useOracle } from "@/app/components/useOracle";
+import { useOracleMotion } from "@/app/components/useOracleMotion";
 import { ORACLE_QUESTION_LENGTH, oracleStatusText } from "@/lib/oracleConfig";
 
 const SHAKE_TARGET = 7;
@@ -33,12 +36,18 @@ export default function MagicOracle() {
 
   function revealAnswer() {
     const cleanQuestion = question.trim();
-    if (!cleanQuestion) {
+    if (!open || !oracle.status?.available || isShaking || !cleanQuestion) {
       return;
     }
 
     void oracle.ask(cleanQuestion);
   }
+
+  const motion = useOracleMotion(
+    open && !!oracle.status?.available && !!question.trim() && !isShaking && !answer && !oracle.error,
+    question,
+    revealAnswer,
+  );
 
   function clearDrag() {
     lastXRef.current = null;
@@ -87,11 +96,14 @@ export default function MagicOracle() {
 
   return (
     <>
-      {oracle.status?.available ? <article className="glass-card landing-oracle">
-        <button className="oracle-card-button" type="button" onClick={() => setOpen(true)} aria-label="Otworz magiczna kule" />
-      </article> : null}
+      {oracle.status?.available ? (
+        <button className="oracle-card-button" type="button" onClick={() => { motion.detect(); setOpen(true); }}
+          aria-label="Otwórz magiczną kulę" aria-haspopup="dialog" title="Magiczna kula">
+          <Image src="/8ballcover.png" alt="" width={64} height={64} sizes="64px" draggable={false} />
+        </button>
+      ) : null}
 
-      {open ? (
+      {open ? createPortal(
         <div className="oracle-overlay" role="dialog" aria-modal="true" aria-label="Magiczna kula">
           <button className="oracle-backdrop" type="button" aria-label="Zamknij" onClick={closeOracle} />
           <section className="oracle-modal">
@@ -137,6 +149,18 @@ export default function MagicOracle() {
                 }}
                 placeholder="Pytanie do kuli"
               />
+              {motion.access === "prompt" || motion.access === "pending" ? (
+                <button className="tour-action-btn" type="button" disabled={motion.access === "pending"}
+                  onClick={() => void motion.enable()}>
+                  {motion.access === "pending" ? "Czekam na zgodę…" : "Włącz potrząsanie telefonem"}
+                </button>
+              ) : null}
+              {motion.access === "enabled" && !answer ? (
+                <p className="mt-3">Wpisz pytanie i potrząśnij telefonem kilka razy na boki. Możesz też nacisnąć „Zapytaj”.</p>
+              ) : null}
+              {motion.access === "denied" ? (
+                <p className="mt-3" role="status">Brak dostępu do czujnika ruchu. Możesz poruszać kulą palcem lub nacisnąć „Zapytaj”.</p>
+              ) : null}
               <button className="tour-action-btn" type="button" onClick={revealAnswer}
                 disabled={isShaking || !oracle.status?.available || !question.trim()}>
                 {isShaking ? "Kula odpowiada…" : "Zapytaj"}
@@ -144,7 +168,8 @@ export default function MagicOracle() {
               <button className="tour-action-btn" type="button" onClick={closeOracle}>Zamknij</button>
             </div>
           </section>
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </>
   );

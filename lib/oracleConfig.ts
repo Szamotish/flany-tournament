@@ -20,7 +20,7 @@ export function isOracleModel(value: unknown): value is OracleModel {
 export function oracleStatusText(status: OracleStatus | null): string {
   if (!status) return "Sprawdzam dostępność kuli…";
   const messages: Record<string, string> = {
-    ready: "Kula jest gotowa.", disabled: "Kula jest wyłączona lub dostępna tylko w testach.",
+    ready: "Kula jest gotowa.", disabled: "Kula jest wyłączona lub niedostępna dla Twojego konta.",
     global_limit: "Kula wykorzystała wspólny limit pytań.", personal_limit: "Wykorzystałeś swój limit pytań.",
     provider_limit: "Kula ma przerwę. Spróbuj po odnowieniu dostępności.",
     busy: "Kula odpowiada na inne pytanie.", cooldown: "Daj kuli chwilę przed kolejnym pytaniem.",

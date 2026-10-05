@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import BackNavButton from "@/app/components/BackNavButton";
 import { useOracle } from "@/app/components/useOracle";
 import { authedFetch } from "@/lib/authClient";
-import { ORACLE_MODELS, ORACLE_QUESTION_LENGTH, oracleStatusText, type OracleMode, type OracleModel, type OracleConfigurationIssue } from "@/lib/oracleConfig";
+import { ORACLE_MODELS, oracleStatusText, type OracleMode, type OracleModel, type OracleConfigurationIssue } from "@/lib/oracleConfig";
 
 type Config = { configured: boolean; configurationIssues?: OracleConfigurationIssue[]; mode: OracleMode; model: OracleModel; blockedUntil: string | null };
 export default function OracleAdminPage() {
@@ -12,7 +12,6 @@ export default function OracleAdminPage() {
   const [config, setConfig] = useState<Config | null>(null);
   const [mode, setMode] = useState<OracleMode>("off");
   const [model, setModel] = useState<OracleModel>(ORACLE_MODELS[0]);
-  const [question, setQuestion] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   useEffect(() => {
@@ -45,7 +44,7 @@ export default function OracleAdminPage() {
   return <main className="tour-root"><div className="tour-shell">
     <div className="tour-topbar"><BackNavButton fallbackHref="/" /></div>
     <section className="tour-detail-main mt-4">
-      <h1 className="tour-title">Test kuli</h1>
+      <h1 className="tour-title">Ustawienia kuli</h1>
       {message ? <p role="status">{message}</p> : null}
       {!config && !message ? <p>Wczytywanie…</p> : null}
       {config ? <div className="oracle-admin-form">
@@ -64,8 +63,8 @@ export default function OracleAdminPage() {
             <option value="public">Zalogowani, aktywni gracze</option>
           </select>
         </label>
-        <label>Model do testu i do zapisania jako domyślny
-          <select className="tour-admin-input" value={model} onChange={(event) => setModel(event.target.value as OracleModel)} disabled={saving || oracle.busy}>
+        <label>Model kuli
+          <select className="tour-admin-input" value={model} onChange={(event) => setModel(event.target.value as OracleModel)} disabled={saving}>
             {ORACLE_MODELS.map((value) => <option key={value} value={value}>{value}{value.startsWith("qwen") ? " (preview)" : ""}</option>)}
           </select>
         </label>
@@ -73,22 +72,13 @@ export default function OracleAdminPage() {
           <button className="tour-action-btn" disabled={saving} onClick={() => void save()}>Zapisz ustawienia</button>
           <button className="tour-action-btn" disabled={saving} onClick={() => void save("off")}>Wyłącz kulę</button>
         </div>
-        <p className="tour-muted">Limit: 100 pytań wspólnie i 10 na osobę w ostatnich 24 godzinach. Testy też się liczą. Obowiązuje dodatkowy budżet tokenów; zmiana modelu nie zeruje limitów.</p>
+        <p className="tour-muted">Kula otwiera się przyciskiem w prawym górnym rogu kafelka Flanki League na stronie głównej. Aby udostępnić ją graczom, wybierz „Zalogowani, aktywni gracze” i zapisz ustawienia.</p>
+        <p className="tour-muted">Limit: 100 pytań wspólnie i 10 na osobę w ostatnich 24 godzinach. Obowiązuje dodatkowy budżet tokenów; zmiana modelu nie zeruje limitów.</p>
         {config.configured ? <p role="status">{oracleStatusText(oracle.status)}</p> : null}
         {oracle.status?.remainingGlobal !== undefined ? <p>Pozostało pytań: {oracle.status.remainingGlobal} wspólnie / {oracle.status.remainingUser} dla Ciebie.</p> : null}
-        <label>Pytanie
-          <input className="tour-admin-input" value={question} maxLength={ORACLE_QUESTION_LENGTH}
-            onChange={(event) => setQuestion(event.target.value)} disabled={oracle.busy}
-            onKeyDown={(event) => { if (event.key === "Enter") void oracle.ask(question, model); }} />
-        </label>
         <div className="tour-admin-actions">
-          <button className="tour-action-btn" disabled={oracle.busy || !oracle.status?.available || !question.trim()} onClick={() => void oracle.ask(question, model)}>
-            {oracle.busy ? "Kula odpowiada…" : "Zapytaj wybrany model"}
-          </button>
           <button className="tour-action-btn" onClick={() => void oracle.refresh()}>Odśwież dostępność</button>
         </div>
-        {oracle.answer ? <p className="oracle-admin-answer" aria-live="polite">{oracle.answer}</p> : null}
-        {oracle.error ? <p role="alert">{oracle.error}</p> : null}
       </div> : null}
     </section>
   </div></main>;

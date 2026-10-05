@@ -151,6 +151,7 @@ export default async function HomePage() {
       <div className="landing-shell">
         <section className="landing-grid">
           <article className="glass-card landing-main">
+            <MagicOracle />
             <h1 className="landing-title">
               <span className="sr-only">Flanki League</span>
               <Image
@@ -206,8 +207,6 @@ export default async function HomePage() {
           </article>
 
           <NearbyLiquorCompassCard />
-
-          <MagicOracle />
 
           <article className="glass-card landing-weather">
             <div className="card-head">
