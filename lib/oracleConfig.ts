@@ -26,6 +26,9 @@ export function oracleStatusText(status: OracleStatus | null): string {
     busy: "Kula odpowiada na inne pytanie.", cooldown: "Daj kuli chwilę przed kolejnym pytaniem.",
     minute_limit: "Kula ma krótką przerwę.", uncertain: "Kula jest chwilowo niedostępna.",
     duplicate: "To pytanie zostało już wysłane.", unavailable: "Kula jest chwilowo niedostępna.",
+    rules_unavailable: "Kula nie może teraz odczytać zasad gry z aplikacji.",
+    context_unavailable: "Kula nie może teraz odczytać statystyk ligi. Spróbuj później.",
+    prompt_budget_exceeded: "Pytanie, instrukcje kuli i regulamin przekraczają budżet. Skróć pytanie lub poproś main admina o skrócenie instrukcji kuli.",
   };
   const message = messages[status.reason] ?? messages.unavailable;
   const date = status.retryAt ? new Date(status.retryAt) : null;
