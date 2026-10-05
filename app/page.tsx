@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabaseServer";
 import Image from "next/image";
-import { BEER_LIST, beerOfTheDay, computeBeersFromFinishedMatches } from "@/lib/beers";
+import { beerOfTheDay, computeBeersFromFinishedMatches } from "@/lib/beers";
 import { readConfiguredBeerOfDay } from "@/lib/appBackground";
 import BeerCan3D from "@/app/components/BeerCan3D";
 import NearbyLiquorCompassCard from "@/app/components/NearbyLiquorCompassCard";
@@ -105,16 +105,13 @@ export default async function HomePage() {
   const degree = "\u00B0C";
 
   const [playersRes, tournamentsCountRes, finishedMatchesRes, weather] = await Promise.all([
-    supabaseServer.from("players").select("id,name", { count: "exact" }).eq("active", true),
+    supabaseServer.from("players").select("id", { count: "exact", head: true }).eq("active", true),
     supabaseServer.from("tournaments").select("id", { count: "exact", head: true }),
     supabaseServer.from("tournament_matches").select("team_a_id,team_b_id,status").eq("status", "finished"),
     fetchSarbskWeather(),
   ]);
 
   const playersCount = playersRes.count ?? playersRes.data?.length ?? 0;
-  const playerNames = (playersRes.data ?? [])
-    .map((player) => String(player.name ?? "").trim())
-    .filter(Boolean);
   const tournamentsCount = tournamentsCountRes.count ?? 0;
   const finishedTeamMatches = (finishedMatchesRes.data ?? []).map((m) => ({
     team_a_id: typeof m.team_a_id === "string" ? m.team_a_id : null,
@@ -210,11 +207,7 @@ export default async function HomePage() {
 
           <NearbyLiquorCompassCard />
 
-          <MagicOracle
-            playerNames={playerNames}
-            beerNames={BEER_LIST.map((item) => item.name)}
-            beerOfDay={beer.name}
-          />
+          <MagicOracle />
 
           <article className="glass-card landing-weather">
             <div className="card-head">

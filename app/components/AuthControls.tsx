@@ -467,6 +467,11 @@ export default function AuthControls() {
               Zasady
             </Link>
             {auth.isMainAdmin ? (
+              <Link className="auth-menu-item" href="/admin/oracle" onClick={() => setMenuOpen(false)}>
+                Test kuli
+              </Link>
+            ) : null}
+            {auth.isMainAdmin ? (
               <Link className="auth-menu-item" href="/admin/tournaments" onClick={() => setMenuOpen(false)}>
                 Main admin
               </Link>

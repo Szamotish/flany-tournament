@@ -1,32 +1,25 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { answerOracle } from "@/lib/oracle";
-
-type MagicOracleProps = {
-  playerNames: string[];
-  beerNames: string[];
-  beerOfDay: string;
-};
+import { useOracle } from "@/app/components/useOracle";
+import { ORACLE_QUESTION_LENGTH, oracleStatusText } from "@/lib/oracleConfig";
 
 const SHAKE_TARGET = 7;
-const MAX_QUESTION_LENGTH = 180;
 
-export default function MagicOracle({ playerNames, beerNames, beerOfDay }: MagicOracleProps) {
+export default function MagicOracle() {
+  const oracle = useOracle();
+  const { answer, busy: isShaking } = oracle;
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState("");
-  const [answer, setAnswer] = useState<string | null>(null);
   const [, setShakeCount] = useState(0);
-  const [isShaking, setIsShaking] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0, rotation: 0 });
   const lastXRef = useRef<number | null>(null);
   const lastYRef = useRef<number | null>(null);
   const directionRef = useRef<1 | -1 | 0>(0);
 
   function resetSession() {
-    setAnswer(null);
+    oracle.clearAnswer();
     setShakeCount(0);
-    setIsShaking(false);
     setDragOffset({ x: 0, y: 0, rotation: 0 });
     lastXRef.current = null;
     lastYRef.current = null;
@@ -44,11 +37,7 @@ export default function MagicOracle({ playerNames, beerNames, beerOfDay }: Magic
       return;
     }
 
-    setIsShaking(true);
-    window.setTimeout(() => {
-      setAnswer(answerOracle(cleanQuestion, { playerNames, beerNames, beerOfDay }));
-      setIsShaking(false);
-    }, 620);
+    void oracle.ask(cleanQuestion);
   }
 
   function clearDrag() {
@@ -98,9 +87,9 @@ export default function MagicOracle({ playerNames, beerNames, beerOfDay }: Magic
 
   return (
     <>
-      <article className="glass-card landing-oracle">
+      {oracle.status?.available ? <article className="glass-card landing-oracle">
         <button className="oracle-card-button" type="button" onClick={() => setOpen(true)} aria-label="Otworz magiczna kule" />
-      </article>
+      </article> : null}
 
       {open ? (
         <div className="oracle-overlay" role="dialog" aria-modal="true" aria-label="Magiczna kula">
@@ -124,16 +113,21 @@ export default function MagicOracle({ playerNames, beerNames, beerOfDay }: Magic
               aria-label="Potrzasnij kula"
             >
               <span className="oracle-ball-window">
-                {answer ? <span>{answer}</span> : <span>?</span>}
+                <span>{isShaking ? "…" : "?"}</span>
               </span>
             </button>
 
             <div className="oracle-form">
+              {answer ? <p className="oracle-answer" aria-live="polite">{answer}</p> : null}
+              {oracle.error ? <p role="alert">{oracle.error}</p> : null}
+              {!oracle.status?.available && !isShaking ? <p role="status">{oracleStatusText(oracle.status)}</p> : null}
               <input
                 id="oracle-question"
                 className="tour-admin-input oracle-input"
                 value={question}
-                maxLength={MAX_QUESTION_LENGTH}
+                maxLength={ORACLE_QUESTION_LENGTH}
+                disabled={isShaking || !oracle.status?.available}
+                aria-label="Pytanie do kuli"
                 onChange={(event) => {
                   setQuestion(event.target.value);
                   resetSession();
@@ -143,6 +137,11 @@ export default function MagicOracle({ playerNames, beerNames, beerOfDay }: Magic
                 }}
                 placeholder="Pytanie do kuli"
               />
+              <button className="tour-action-btn" type="button" onClick={revealAnswer}
+                disabled={isShaking || !oracle.status?.available || !question.trim()}>
+                {isShaking ? "Kula odpowiada…" : "Zapytaj"}
+              </button>
+              <button className="tour-action-btn" type="button" onClick={closeOracle}>Zamknij</button>
             </div>
           </section>
         </div>
