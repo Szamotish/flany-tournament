@@ -8,44 +8,68 @@ export type BeerOfTheDay = {
   name: string;
 };
 
-export const BEER_LIST: BeerOfTheDay[] = [
-  { name: "Tatra" },
-  { name: "\u017Bywiec" },
-  { name: "\u017Bywiec Bia\u0142e" },
-  { name: "Warka" },
-  { name: "Lech" },
-  { name: "\u0141om\u017Ca" },
-  { name: "Tyskie" },
-  { name: "Per\u0142a" },
-  { name: "Okocim" },
-  { name: "Harna\u015B" },
-  { name: "Kasztelan" },
-  { name: "Ksi\u0105\u017C\u0119ce" },
-  { name: "Kr\u00F3lewskie" },
-  { name: "Namys\u0142\u00F3w" },
-  { name: "Desperados" },
-  { name: "Heineken" },
-  { name: "Carlsberg" },
-  { name: "\u017Bubr" },
-  { name: "D\u0119bowe" },
-  { name: "Specjal" },
-  { name: "EB" },
-  { name: "Captain Jack" },
-  { name: "Guinness" },
-  { name: "Kozel" },
-  { name: "Pilsner Urquell" },
-  { name: "Budweiser" },
-  { name: "Bud Light" },
-  { name: "Beck\u2019s" },
-  { name: "Paulaner" },
-  { name: "Super Bock" },
-  { name: "Perlenbacher" },
-  { name: "Argus" },
-  { name: "Kustosz" },
-  { name: "Karpackie" },
-  { name: "Romper" },
-  { name: "Brok" },
+type BeerDefinition = BeerOfTheDay & { labelFile: string };
+
+export const BEER_LIST: BeerDefinition[] = [
+  { name: "Tatra", labelFile: "tatra.png" },
+  { name: "\u017Bywiec", labelFile: "zywiec.png" },
+  { name: "\u017Bywiec Bia\u0142e", labelFile: "zywiec biale.png" },
+  { name: "Warka", labelFile: "warka.png" },
+  { name: "Lech", labelFile: "lech.png" },
+  { name: "\u0141om\u017Ca", labelFile: "lomza.png" },
+  { name: "Tyskie", labelFile: "tyskie.png" },
+  { name: "Per\u0142a", labelFile: "perla.png" },
+  { name: "Okocim", labelFile: "okocim.png" },
+  { name: "Harna\u015B", labelFile: "harnas.png" },
+  { name: "Kasztelan", labelFile: "kasztelan.png" },
+  { name: "Ksi\u0105\u017C\u0119ce", labelFile: "ksiazece.png" },
+  { name: "Kr\u00F3lewskie", labelFile: "krolewskie.png" },
+  { name: "Namys\u0142\u00F3w", labelFile: "namyslow.png" },
+  { name: "Desperados", labelFile: "desperados.png" },
+  { name: "Heineken", labelFile: "heineken.png" },
+  { name: "Carlsberg", labelFile: "carlsberg.png" },
+  { name: "\u017Bubr", labelFile: "zubr.png" },
+  { name: "D\u0119bowe", labelFile: "debowe.png" },
+  { name: "Specjal", labelFile: "specjal.png" },
+  { name: "EB", labelFile: "eb.png" },
+  { name: "Captain Jack", labelFile: "capjack.png" },
+  { name: "Guinness", labelFile: "guinness.png" },
+  { name: "Kozel", labelFile: "kozel.png" },
+  { name: "Pilsner Urquell", labelFile: "pilsner.png" },
+  { name: "Budweiser", labelFile: "budweiser.png" },
+  { name: "Bud Light", labelFile: "budlight.png" },
+  { name: "Beck\u2019s", labelFile: "becks.png" },
+  { name: "Paulaner", labelFile: "paulaner.png" },
+  { name: "Super Bock", labelFile: "super bock.png" },
+  { name: "Perlenbacher", labelFile: "perlenbacher.png" },
+  { name: "Argus", labelFile: "argus.png" },
+  { name: "Kustosz", labelFile: "kustosz.png" },
+  { name: "Karpackie", labelFile: "karpackie.png" },
+  { name: "Romper", labelFile: "romper.png" },
+  { name: "Brok", labelFile: "brok.png" },
 ];
+
+function normalizeBeerKey(value: string): string {
+  return value
+    .replace(/[łŁ]/g, "l")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\u2019'`\u00B4]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+const LABEL_FILE_BY_KEY: Record<string, string> = Object.fromEntries(
+  BEER_LIST.map(beer => [normalizeBeerKey(beer.name), beer.labelFile])
+);
+// Keep the legacy transliterations accepted by older saved profiles.
+Object.assign(LABEL_FILE_BY_KEY, { omza: "lomza.png", pera: "perla.png", namysow: "namyslow.png" });
+
+export function beerLabelPath(beerName: string): string | null {
+  const key = normalizeBeerKey(beerName);
+  const file = LABEL_FILE_BY_KEY[key] ?? Object.entries(LABEL_FILE_BY_KEY).find(([candidate]) => key.includes(candidate))?.[1];
+  return file ? `/models/etykiety clean/${encodeURIComponent(file)}` : null;
+}
 
 export function beerOfTheDay(dayKey: string): BeerOfTheDay {
   let hash = 0;

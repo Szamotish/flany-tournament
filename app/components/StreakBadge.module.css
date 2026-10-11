@@ -1,0 +1,36 @@
+.badge {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 180px;
+  height: 60px;
+  vertical-align: middle;
+}
+
+.artwork {
+  position: absolute;
+  width: 125%;
+  max-width: none;
+  height: auto;
+  left: -12.5%;
+  top: -12.5%;
+  pointer-events: none;
+}
+
+.count {
+  position: absolute;
+  left: 71%;
+  top: 40%;
+  width: 20%;
+  height: 40%;
+  display: grid;
+  place-items: center;
+  font-size: 19px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-shadow: 0 2px 3px #000b;
+}
+
+.winstreak { color: #fff2ba; }
+.losestreak { color: #e4f7ff; }

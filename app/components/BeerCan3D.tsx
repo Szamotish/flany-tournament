@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import Script from "next/script";
+import { beerLabelPath } from "@/lib/beers";
 import { useEffect, useRef } from "react";
 
 type BeerForCan = {
@@ -35,98 +36,6 @@ type ModelViewerWithSceneGraph = {
 
 const MODEL_SRC = "/models/Puszka_Tomek.glb";
 const ModelViewer = "model-viewer" as unknown as React.ElementType;
-
-const READY_LABEL_DIR = "/models/etykiety clean";
-const LABEL_FILE_BY_KEY: Record<string, string> = {
-  tatra: "tatra.png",
-  zywiec: "zywiec.png",
-  zywiecbiale: "zywiec biale.png",
-  warka: "warka.png",
-  lech: "lech.png",
-  lomza: "lomza.png",
-  omza: "lomza.png",
-  tyskie: "tyskie.png",
-  perla: "perla.png",
-  pera: "perla.png",
-  okocim: "okocim.png",
-  harnas: "harnas.png",
-  kasztelan: "kasztelan.png",
-  ksiazece: "ksiazece.png",
-  krolewskie: "krolewskie.png",
-  namyslow: "namyslow.png",
-  namysow: "namyslow.png",
-  desperados: "desperados.png",
-  heineken: "heineken.png",
-  carlsberg: "carlsberg.png",
-  zubr: "zubr.png",
-  debowe: "debowe.png",
-  specjal: "specjal.png",
-  eb: "eb.png",
-  captainjack: "capjack.png",
-  guinness: "guinness.png",
-  kozel: "kozel.png",
-  pilsnerurquell: "pilsner.png",
-  budweiser: "budweiser.png",
-  budlight: "budlight.png",
-  becks: "becks.png",
-  paulaner: "paulaner.png",
-  superbock: "super bock.png",
-  perlenbacher: "perlenbacher.png",
-  argus: "argus.png",
-  kustosz: "kustosz.png",
-  karpackie: "karpackie.png",
-  romper: "romper.png",
-  brok: "brok.png",
-};
-const LABEL_DRAW_SCALE_BY_KEY: Record<string, number> = {};
-const LABEL_CROP_ANCHOR_Y_BY_KEY: Record<string, number> = {};
-
-function buildLabelPath(dir: string, file: string): string {
-  return `${dir}/${encodeURIComponent(file)}`;
-}
-
-function normalizeBeerKey(value: string): string {
-  return value
-    .replace(/[łŁ]/g, "l")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[\u2019'`\u00B4]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "");
-}
-
-function resolveLabelPath(beerName: string): string | null {
-  const direct = LABEL_FILE_BY_KEY[normalizeBeerKey(beerName)];
-  if (direct) return buildLabelPath(READY_LABEL_DIR, direct);
-
-  const normalized = normalizeBeerKey(beerName);
-  for (const [key, file] of Object.entries(LABEL_FILE_BY_KEY)) {
-    if (normalized.includes(key)) return buildLabelPath(READY_LABEL_DIR, file);
-  }
-  return null;
-}
-
-function resolveLabelDrawScale(beerName: string): number {
-  const normalized = normalizeBeerKey(beerName);
-  const direct = LABEL_DRAW_SCALE_BY_KEY[normalized];
-  if (typeof direct === "number") return direct;
-
-  for (const [key, scale] of Object.entries(LABEL_DRAW_SCALE_BY_KEY)) {
-    if (normalized.includes(key)) return scale;
-  }
-  return 1;
-}
-
-function resolveLabelCropAnchorY(beerName: string): number {
-  const normalized = normalizeBeerKey(beerName);
-  const direct = LABEL_CROP_ANCHOR_Y_BY_KEY[normalized];
-  if (typeof direct === "number") return direct;
-
-  for (const [key, anchor] of Object.entries(LABEL_CROP_ANCHOR_Y_BY_KEY)) {
-    if (normalized.includes(key)) return anchor;
-  }
-  return 0.5;
-}
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -165,7 +74,7 @@ async function createCanWrapTexture(beerName: string): Promise<string> {
     ctx.fillRect(x, 0, 4, height);
   }
 
-  const labelPath = resolveLabelPath(beerName);
+  const labelPath = beerLabelPath(beerName);
   let labelImage: HTMLImageElement | null = null;
 
   if (labelPath) {
@@ -178,10 +87,8 @@ async function createCanWrapTexture(beerName: string): Promise<string> {
 
   const bandTop = Math.round(height * 0.03);
   const bandHeight = Math.round(height * 0.46);
-  const labelDrawScale = Math.max(0.2, Math.min(1, resolveLabelDrawScale(beerName)));
-  const labelCropAnchorY = Math.max(0, Math.min(1, resolveLabelCropAnchorY(beerName)));
-  const drawWidth = Math.round(width * labelDrawScale);
-  const drawX = Math.round((width - drawWidth) / 2);
+  const drawWidth = width;
+  const drawX = 0;
 
   if (labelImage) {
     ctx.save();
@@ -195,7 +102,7 @@ async function createCanWrapTexture(beerName: string): Promise<string> {
 
     if (targetH >= bandHeight) {
       const srcH = Math.max(1, bandHeight / scaleToWidth);
-      const srcY = Math.max(0, (labelImage.height - srcH) * labelCropAnchorY);
+      const srcY = Math.max(0, (labelImage.height - srcH) / 2);
       ctx.drawImage(labelImage, 0, srcY, labelImage.width, srcH, drawX, bandTop, drawWidth, bandHeight);
     } else {
       const destY = bandTop + (bandHeight - targetH) / 2;

@@ -9,7 +9,7 @@ import { readProfilePreferences } from "@/lib/profileHistoryServer";
 import { loadPlayerPerformance } from "@/lib/playerPerformance";
 import { canShowRankFromMmr, displayRankFromProgress } from "@/lib/playerRank";
 
-export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: playerId } = await params;
 
   const primaryPlayer = await supabaseServer

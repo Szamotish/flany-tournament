@@ -33,16 +33,6 @@ export function normalizeMode(value: unknown): TournamentMode {
   return value === "ranked" ? "ranked" : "normal";
 }
 
-export function parseRankedState(value: unknown): RankedState {
-  const row = (value ?? {}) as { mmr?: unknown; prestige_points?: unknown; prestigePoints?: unknown };
-  const mmrRaw = Number(row.mmr ?? 0);
-  const prestigeRaw = Number(row.prestige_points ?? row.prestigePoints ?? 0);
-  return {
-    mmr: clampMmr(mmrRaw),
-    prestigePoints: normalizePrestigePoints(prestigeRaw),
-  };
-}
-
 export function applyRankedDelta(state: RankedState, delta: number): RankedState {
   if (!Number.isFinite(delta) || delta === 0) return state;
 

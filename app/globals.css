@@ -3096,6 +3096,20 @@ body {
     0 14px 32px rgba(35, 20, 2, 0.18);
 }
 
+.profile-frame-toggle-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.86rem;
+  font-weight: 620;
+}
+
+.profile-frame-toggle-row input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #2f8d6a;
+}
+
 .profile-hero {
   position: relative;
 }
@@ -3744,25 +3758,6 @@ body {
   font-weight: 740;
 }
 
-.profile-frame-toggle {
-  display: grid;
-  gap: 0.3rem;
-}
-
-.profile-frame-toggle-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.86rem;
-  font-weight: 620;
-}
-
-.profile-frame-toggle-row input[type="checkbox"] {
-  width: 1rem;
-  height: 1rem;
-  accent-color: #2f8d6a;
-}
-
 .profile-hero {
   container: profile-hero / inline-size;
 }
@@ -4316,41 +4311,6 @@ body {
     min-width: 0;
   }
 }
-.winstreak-badge {
-  position: relative;
-  isolation: isolate;
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  margin-top: 5px;
-  border: 1px solid #ffc35c;
-  border-radius: 9px;
-  background: linear-gradient(135deg, #63301c, #351d27);
-  color: #ffe5b1;
-  box-shadow: 0 0 10px #f9731655, inset 0 0 6px #fb923c55;
-  font-size: 0.7rem;
-  font-weight: 750;
-  line-height: 1;
-  white-space: nowrap;
-}
-.winstreak-badge-content { position: relative; padding: 8px 9px; border-radius: inherit; background: linear-gradient(135deg, #63301c, #351d27); }
-.winstreak-badge strong { color: #fff9dc; margin-left: 3px; }
-.winstreak-flames {
-  position: absolute;
-  z-index: -1;
-  inset: -15px -4px auto;
-  width: calc(100% + 8px);
-  height: 40px;
-  opacity: 0.8;
-  transform-origin: center bottom;
-  animation: winstreak-flicker 2.2s ease-in-out infinite alternate;
-  filter: drop-shadow(0 -2px 3px #fb923c66);
-  pointer-events: none;
-}
-.winstreak-badge.is-blazing { border-color: #ffe49a; box-shadow: 0 0 16px #f9731699, inset 0 0 9px #fb923c66; }
-.is-blazing .winstreak-flames { height: 44px; inset-block-start: -19px; opacity: 1; }
-@keyframes winstreak-flicker { from { transform: scaleY(0.88) skewX(-3deg); } to { transform: scaleY(1.06) skewX(3deg); } }
-@media (prefers-reduced-motion: reduce) { .winstreak-flames { animation: none; } }
 .profile-avatar-awards { position: relative; flex-shrink: 0; }
 .performance-medal { position: absolute; right: -14px; bottom: -12px; width: 36px; height: 54px; filter: drop-shadow(0 3px 3px #472c2566); }
 .performance-medal svg { width: 100%; height: 100%; }
@@ -4375,49 +4335,3 @@ body {
   .player-rank-card:has(:is(.winstreak-badge, .losestreak-badge)) .player-rank-right { flex: 1; justify-content: flex-end; flex-wrap: wrap; }
   .player-rank-right :is(.winstreak-badge, .losestreak-badge) { margin-right: auto; }
 }
-
-.losestreak-badge {
-  position: relative;
-  isolation: isolate;
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  margin-top: 5px;
-  border: 1px solid #c6edff;
-  border-radius: 9px;
-  color: #dcf3ff;
-  background: #193e5c;
-  box-shadow: 0 0 10px #78cfff55, inset 0 0 6px #a2deff55;
-  font-size: 0.7rem;
-  font-weight: 750;
-  line-height: 1;
-  white-space: nowrap;
-}
-.losestreak-badge-content {
-  position: relative;
-  padding: 8px 9px;
-  border-radius: inherit;
-  background: linear-gradient(135deg, #285574, #172c4a);
-  box-shadow: inset 0 1px 3px #d9f3ff88;
-}
-.losestreak-badge strong { color: #f2fbff; margin-left: 3px; }
-.losestreak-ice {
-  position: absolute;
-  z-index: -1;
-  inset: -11px -3px auto;
-  width: calc(100% + 6px);
-  height: 33px;
-  filter: drop-shadow(0 -1px 3px #c7eeff66);
-  pointer-events: none;
-}
-.losestreak-extra-ice { display: none; }
-.losestreak-badge.is-frozen { border-color: #effaff; box-shadow: 0 0 15px #8bd8ff99, 0 0 3px #ffffffbb; }
-.is-frozen .losestreak-extra-ice { display: initial; }
-.is-frozen .losestreak-ice {
-  inset-block-start: -16px;
-  height: 39px;
-  animation: losestreak-shimmer 3.6s ease-in-out infinite alternate;
-}
-.is-frozen .losestreak-badge-content { box-shadow: inset 0 1px 4px #e2f8ffbb, inset 0 -1px 2px #bde6ff99; }
-@keyframes losestreak-shimmer { from { opacity: 0.72; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .is-frozen .losestreak-ice { animation: none; } }

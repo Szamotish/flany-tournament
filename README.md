@@ -1,67 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Flanki League
 
-## Auth + Role Setup (Supabase)
+Aplikacja ligi: turnieje, drużyny, ranking MMR/PP, profile graczy i kula AI. Next.js App Router, React, TypeScript i Supabase. Wdrożenie na Vercelu.
 
-1. Run SQL migration:
+## Uruchomienie
 
-`supabase/migrations/20260427_account_auth_and_roles.sql`
-`supabase/migrations/20260427_tournament_requests_and_meta.sql`
-`supabase/migrations/20260427_player_mmr_history.sql`
-`supabase/migrations/20260427_tournament_round_schedules.sql`
-
-2. (Optional fresh start) run:
-
-`supabase/migrations/20260427_reset_app_data.sql`
-
-3. Create your account in `/auth` and then mark it as main admin in Supabase SQL:
-
-```sql
-update public.players
-set is_main_admin = true
-where name = 'TWOJ_PSEUDONIM';
-```
-
-4. Required env vars in Vercel / `.env.local`:
-
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-
-`ADMIN_PASSWORD` is no longer used.
-
-## Getting Started
-
-Performance bonus i winstreak: [zasady i migracja bazy](docs/ranked-bonuses.md).
-
-First, run the development server:
-
-```bash
+```sh
+npm ci
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Serwer lokalny: `http://localhost:3000`. Zmienne umieść w `.env.local` (nie commituj tego pliku):
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Zmienna | Zastosowanie |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Adres projektu Supabase |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Publiczny klucz Supabase |
+| `SUPABASE_SERVICE_ROLE_KEY` | Klucz serwerowy; nigdy w kodzie klienta |
+| `NEXT_PUBLIC_SITE_URL` / `SITE_URL` | Adres aplikacji w linkach i przekierowaniach |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | Ochrona formularzy; sekret wymagany w produkcji |
+| `BREVO_API_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME` | Opcjonalne powiadomienia e-mail |
+| `GROQ_API_KEY`, `ORACLE_ENABLED`, `ORACLE_FREE_PLAN_CONFIRMED` | Kula AI; obie flagi muszą mieć wartość `true` |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Samo ustawienie flag kuli nie zmienia planu rozliczeniowego dostawcy. Ustawienia dostępności i modelu są w panelu administratora. Instrukcje modelu: `lib/oraclePrompt.ts`; zasady gry i kontekst ligi ładowane są po stronie serwera.
 
-## Learn More
+## Weryfikacja
 
-To learn more about Next.js, take a look at the following resources:
+```sh
+npm run check   # ESLint, TypeScript i testy
+npm run build  # produkcyjny build; next/font pobiera fonty Google
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Testy przeglądarkowe są opcjonalne. Wskaż zainstalowany `playwright-core` przez `PROFILE_PLAYWRIGHT_PATH` i Chrome przez `PROFILE_CHROME_PATH`; testy kuli korzystają z analogicznych zmiennych `ORACLE_PLAYWRIGHT_PATH` i `ORACLE_CHROME_PATH`. Zmienne nie są potrzebne aplikacji w produkcji.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**Baza danych:** obecny checkout nie zawiera migracji SQL. Testy migracji odwołują się do `supabase/migrations/` i domyślnie są pomijane. Do odtworzenia nowej bazy lub uruchomienia tych testów potrzebne są oryginalne migracje i PGlite, wskazany przez zmienne opisane w odpowiednich testach. Nie uruchamiaj testów na bazie produkcyjnej.
 
-## Deploy on Vercel
+## Organizacja
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `app/` — strony i endpointy Next.js; `app/components/` — wspólne elementy interfejsu.
+- `lib/` — logika domenowa i odczyty serwerowe; `lib/ui/` — mapowania wyglądu, `lib/matches/` — drabinki i rozstrzyganie meczów.
+- `public/` — grafiki i modele. Nowe plakietki serii są w `public/streaks/`.
+- `tests/` — testy logiki, kontraktów API oraz opcjonalne testy bazy i przeglądarki.
+- `docs/` — opis architektury i ustalenia z przeglądu.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Piwo dodaje się w `lib/beers.ts`: nazwa i `labelFile` w jednym wpisie. Etykietę umieść w `public/models/etykiety clean/`. Wspólny katalog obsługuje ulubione piwo, piwo dnia, panel admina i model puszki.
+
+Szczegóły: [architektura i przegląd projektu](docs/architecture.md).
