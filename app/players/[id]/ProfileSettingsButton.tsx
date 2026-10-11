@@ -1,16 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { BEER_LIST } from "@/lib/beers";
 import { authedFetch } from "@/lib/authClient";
 import { PLAYER_PROFILE_COLORS } from "@/lib/ui/playerProfile";
+import { availablePanels, resolvePanelRank, validChartRange, type ProfilePreferences } from "@/lib/profilePreferences";
+import { rankLabel, type DisplayRank } from "@/lib/playerRank";
+import ProfileRankPanel from "@/app/components/ProfileRankPanel";
 
 type ProfileSettingsButtonProps = {
   playerId: string;
   initialRankFrameEnabled: boolean;
   initialProfileColor: string | null;
   initialFavoriteBeer: string | null;
+  currentRank: DisplayRank;
+  initialPreferences: ProfilePreferences;
 };
 
 export default function ProfileSettingsButton({
@@ -18,6 +24,8 @@ export default function ProfileSettingsButton({
   initialRankFrameEnabled,
   initialProfileColor,
   initialFavoriteBeer,
+  currentRank,
+  initialPreferences,
 }: ProfileSettingsButtonProps) {
   const router = useRouter();
   const [canEdit, setCanEdit] = useState(false);
@@ -25,6 +33,9 @@ export default function ProfileSettingsButton({
   const [rankFrameEnabled, setRankFrameEnabled] = useState(initialRankFrameEnabled);
   const [profileColor, setProfileColor] = useState(initialProfileColor ?? "");
   const [favoriteBeer, setFavoriteBeer] = useState(initialFavoriteBeer ?? "");
+  const [chartFrom, setChartFrom] = useState(initialPreferences.chart_from ?? "");
+  const [chartTo, setChartTo] = useState(initialPreferences.chart_to ?? "");
+  const [rankPanel, setRankPanel] = useState(initialPreferences.rank_panel === null ? "" : resolvePanelRank(initialPreferences.rank_panel, currentRank));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -44,27 +55,41 @@ export default function ProfileSettingsButton({
   }, [playerId]);
 
   async function saveSettings() {
-    setSaving(true);
-    setMessage(null);
-    const res = await authedFetch(`/api/public/players/${playerId}/profile`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        rankFrameEnabled,
-        profileColor: profileColor || null,
-        favoriteBeer: favoriteBeer || null,
-      }),
-    });
-    const json = await res.json().catch(() => ({}));
-    setSaving(false);
-
-    if (!res.ok) {
-      setMessage(`Blad zapisu: ${json.error ?? res.statusText}`);
+    if (!validChartRange(chartFrom || null, chartTo || null)) {
+      setMessage("Podaj poprawny zakres dat. Data końcowa nie może być wcześniejsza niż początkowa.");
       return;
     }
+    setSaving(true);
+    setMessage(null);
+    try {
+      const res = await authedFetch(`/api/public/players/${playerId}/profile`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          rankFrameEnabled,
+          profileColor: profileColor || null,
+          favoriteBeer: favoriteBeer || null,
+          chartFrom: chartFrom || null,
+          chartTo: chartTo || null,
+          rankPanel: rankPanel || null,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
 
-    setMessage("Ustawienia zapisane.");
-    router.refresh();
+      if (!res.ok) {
+        const errors: Record<string, string> = {
+          missing_profile_chart_preferences: "Nowe ustawienia wymagają aktualizacji bazy danych przez administratora.",
+          rank_panel_not_unlocked: "Ten panel nie jest dostępny przy Twojej aktualnej randze. Odśwież profil i wybierz ponownie.",
+          invalid_chart_range: "Data końcowa nie może być wcześniejsza niż początkowa.",
+        };
+        setMessage(errors[json.error] ?? `Błąd zapisu: ${json.error ?? res.statusText}`);
+        return;
+      }
+
+      setMessage("Ustawienia zapisane.");
+      router.refresh();
+    } catch { setMessage("Nie udało się zapisać ustawień. Spróbuj ponownie."); }
+    finally { setSaving(false); }
   }
 
   if (!canEdit) return null;
@@ -83,7 +108,7 @@ export default function ProfileSettingsButton({
         </svg>
       </button>
 
-      {open ? (
+      {open ? createPortal(
         <div className="auth-modal-backdrop" role="presentation" onClick={() => setOpen(false)}>
           <div className="auth-modal profile-settings-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <div className="auth-modal-head">
@@ -146,6 +171,26 @@ export default function ProfileSettingsButton({
                 </select>
               </div>
 
+              <fieldset className="profile-chart-settings" disabled={saving}>
+                <legend>Okres historii MMR</legend>
+                <div className="profile-chart-date-inputs">
+                  <label>Od<input className="tour-admin-input" type="date" value={chartFrom} max={chartTo || undefined} onChange={e => setChartFrom(e.target.value)} /></label>
+                  <label>Do<input className="tour-admin-input" type="date" value={chartTo} min={chartFrom || undefined} onChange={e => setChartTo(e.target.value)} /></label>
+                </div>
+                <p className="profile-muted">Puste „Od” oznacza od początku, a puste „Do” obejmuje też przyszłe gry.</p>
+                <button className="tour-action-btn" type="button" onClick={() => { setChartFrom(""); setChartTo(""); }}>Cała historia</button>
+              </fieldset>
+              <div>
+                <label className="tour-admin-label" htmlFor="profile-rank-panel">Wygląd panelu rankingowego</label>
+                <select id="profile-rank-panel" className="tour-admin-input" value={rankPanel} disabled={saving} onChange={e => setRankPanel(e.target.value)}>
+                  <option value="">Automatycznie według rangi</option>
+                  {availablePanels(currentRank).map(rank => <option key={rank} value={rank}>{rankLabel(rank)}</option>)}
+                </select>
+                <div className="profile-panel-preview" aria-label={`Podgląd panelu: ${rankLabel(resolvePanelRank(rankPanel, currentRank))}`}>
+                  <ProfileRankPanel rank={resolvePanelRank(rankPanel, currentRank)}><div className="profile-rating-layout"><p>{rankLabel(resolvePanelRank(rankPanel, currentRank))}</p></div></ProfileRankPanel>
+                </div>
+              </div>
+
               <div className="profile-settings-actions">
                 <button className="tour-action-btn" type="button" disabled={saving} onClick={saveSettings}>
                   {saving ? "Zapisywanie..." : "Zapisz ustawienia"}
@@ -154,7 +199,7 @@ export default function ProfileSettingsButton({
               {message ? <p className="profile-muted">{message}</p> : null}
             </div>
           </div>
-        </div>
+        </div>, document.body,
       ) : null}
     </>
   );

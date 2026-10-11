@@ -4,6 +4,10 @@ import { trimmedMean } from "@/lib/rating";
 import { readAuthContext } from "@/app/api/admin/_auth";
 import { isKnownBeerName } from "@/lib/beers";
 import { normalizeProfileColor } from "@/lib/ui/playerProfile";
+import { availablePanels, isPanelRank, isProfileDate, validChartRange } from "@/lib/profilePreferences";
+import { readProfilePreferences } from "@/lib/profileHistoryServer";
+import { loadPlayerPerformance } from "@/lib/playerPerformance";
+import { canShowRankFromMmr, displayRankFromProgress } from "@/lib/playerRank";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: playerId } = await params;
@@ -39,6 +43,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 });
   if (!player) return NextResponse.json({ error: "player_not_found" }, { status: 404 });
 
+  const preferences = await readProfilePreferences(playerId);
+  const publicPlayer = { ...player, ...preferences };
+
   const { data: ratings, error: rErr } = await supabaseServer
     .from("ratings")
     .select("value")
@@ -64,7 +71,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const teamIds = (memberships ?? []).map((x) => x.team_id);
   if (teamIds.length === 0) {
     return NextResponse.json({
-      player,
+      player: publicPlayer,
       rating,
       ratingsCount: values.length,
       beers: 0,
@@ -131,7 +138,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     }));
 
   return NextResponse.json({
-    player,
+    player: publicPlayer,
     rating,
     ratingsCount: values.length,
     beers,
@@ -155,6 +162,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     rank_frame_enabled?: boolean;
     profile_color?: string | null;
     favorite_beer?: string | null;
+    chart_from?: string | null;
+    chart_to?: string | null;
+    rank_panel?: string | null;
   } = {};
 
   if (Object.prototype.hasOwnProperty.call(body ?? {}, "rankFrameEnabled")) {
@@ -180,6 +190,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     update.favorite_beer = beer || null;
   }
 
+  for (const [input, column] of [["chartFrom", "chart_from"], ["chartTo", "chart_to"]] as const) {
+    if (!Object.prototype.hasOwnProperty.call(body ?? {}, input)) continue;
+    const value = body[input];
+    if (value !== null && !isProfileDate(value)) return NextResponse.json({ error: "invalid_chart_range" }, { status: 400 });
+    update[column] = value;
+  }
+  if (Object.prototype.hasOwnProperty.call(body ?? {}, "rankPanel")) {
+    if (body.rankPanel !== null && !isPanelRank(body.rankPanel)) return NextResponse.json({ error: "invalid_rank_panel" }, { status: 400 });
+    update.rank_panel = body.rankPanel;
+  }
+
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ error: "no_profile_settings" }, { status: 400 });
   }
@@ -193,14 +214,34 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 });
   if (!player) return NextResponse.json({ error: "player_not_found" }, { status: 404 });
 
+  try {
+    if (update.chart_from !== undefined || update.chart_to !== undefined) {
+      const existing = await readProfilePreferences(playerId);
+      const from = update.chart_from === undefined ? existing.chart_from : update.chart_from;
+      const to = update.chart_to === undefined ? existing.chart_to : update.chart_to;
+      if (!validChartRange(from, to)) return NextResponse.json({ error: "invalid_chart_range" }, { status: 400 });
+    }
+    if (update.rank_panel) {
+      const performance = (await loadPlayerPerformance([playerId])).get(playerId);
+      if (!performance) return NextResponse.json({ error: "player_rank_unavailable" }, { status: 503 });
+      const rank = displayRankFromProgress(canShowRankFromMmr(performance.hasFinishedMatch, performance.mmrManualOverride), performance.effectiveMmr, performance.prestigePoints);
+      if (!availablePanels(rank).includes(update.rank_panel as ReturnType<typeof displayRankFromProgress>)) {
+        return NextResponse.json({ error: "rank_panel_not_unlocked" }, { status: 400 });
+      }
+    }
+  } catch { return NextResponse.json({ error: "profile_preferences_unavailable" }, { status: 503 }); }
+
   const { data: updated, error: uErr } = await supabaseServer
     .from("players")
     .update(update)
     .eq("id", playerId)
-    .select("id,rank_frame_enabled,profile_color,favorite_beer")
+    .select("id,rank_frame_enabled,profile_color,favorite_beer,chart_from,chart_to,rank_panel")
     .single();
 
   if (uErr) {
+    if (["chart_from", "chart_to", "rank_panel"].some(column => uErr.message.includes(column))) {
+      return NextResponse.json({ error: "missing_profile_chart_preferences" }, { status: 500 });
+    }
     if (uErr.message.includes("rank_frame_enabled")) {
       return NextResponse.json({ error: "missing_rank_frame_enabled_column" }, { status: 500 });
     }
@@ -216,6 +257,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       rankFrameEnabled: updated.rank_frame_enabled === true,
       profileColor: updated.profile_color ?? null,
       favoriteBeer: updated.favorite_beer ?? null,
+      chartFrom: updated.chart_from ?? null,
+      chartTo: updated.chart_to ?? null,
+      rankPanel: updated.rank_panel ?? null,
     },
   });
 }

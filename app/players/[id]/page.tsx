@@ -15,6 +15,9 @@ import { loadPlayerPerformance } from "@/lib/playerPerformance";
 import { rankingCompare, type RankingComparable } from "@/lib/ranking";
 import { playerToneStyle } from "@/lib/ui/playerProfile";
 import ProfileRankPanel from "@/app/components/ProfileRankPanel";
+import ProfileMmrChart from "@/app/components/ProfileMmrChart";
+import { readProfileHistory, readProfilePreferences } from "@/lib/profileHistoryServer";
+import { resolvePanelRank } from "@/lib/profilePreferences";
 import {
   FRAME_BY_RANK,
   canShowRankFromMmr,
@@ -38,28 +41,6 @@ type HistoryEntry = {
   teamRoster: PlayerBrief[];
 };
 
-type MmrPoint = {
-  mmr: number;
-  prestigePoints: number;
-  createdAt: string | null;
-};
-
-type SparkPoint = {
-  x: number;
-  y: number;
-  mmr: number;
-  prestigePoints: number;
-  value: number;
-  createdAt: string | null;
-};
-
-type SparkData = {
-  points: SparkPoint[];
-  gridValues: number[];
-  minValue: number;
-  maxValue: number;
-};
-
 type RankingPlayerRow = {
   id: string;
   name: string;
@@ -69,11 +50,6 @@ type RankingPlayerRow = {
   rating_override?: number | null;
   mmr_manual_override?: boolean | null;
 };
-
-const CHART_WIDTH = 220;
-const CHART_HEIGHT = 88;
-const CHART_PAD_X = 10;
-const CHART_PAD_Y = 8;
 
 function formatShortDate(iso: string | null): string {
   if (!iso) return "--.--";
@@ -118,65 +94,6 @@ function prestigeColor(tier: number): string {
   if (tier <= 0) return "rgba(80, 48, 8, 0.24)";
   const tones = ["#059669", "#0284c7", "#7c3aed", "#d97706", "#e11d48", "#65a30d"];
   return tones[(tier - 1) % tones.length];
-}
-
-function formatChartTooltipDateTime(iso: string | null): string {
-  if (!iso) return "--.-- --:--";
-  const parsed = new Date(iso);
-  if (Number.isNaN(parsed.getTime())) return "--.-- --:--";
-  return new Intl.DateTimeFormat("pl-PL", {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "Europe/Warsaw",
-  })
-    .format(parsed)
-    .replace(",", "");
-}
-
-function rankedChartValue(point: MmrPoint): number {
-  return Number(point.mmr) + Math.max(0, Number(point.prestigePoints ?? 0)) / PRESTIGE_POINTS_PER_MMR;
-}
-
-function buildSparkData(points: MmrPoint[]): SparkData {
-  if (points.length === 0) return { points: [], gridValues: [], minValue: 0, maxValue: 10 };
-
-  const values = points.map(rankedChartValue).filter(Number.isFinite);
-  const minRaw = Math.min(...values);
-  const maxRaw = Math.max(...values);
-  const spread = maxRaw - minRaw;
-  const padding = Math.max(0.2, spread * 0.2);
-  let minValue = Math.max(0, Math.floor((minRaw - padding) * 2) / 2);
-  let maxValue = Math.ceil((maxRaw + padding) * 2) / 2;
-
-  if (maxValue - minValue < 1) {
-    const center = (minRaw + maxRaw) / 2;
-    minValue = Math.max(0, Math.floor((center - 0.5) * 10) / 10);
-    maxValue = Math.ceil((center + 0.5) * 10) / 10;
-  }
-
-  const range = Math.max(0.1, maxValue - minValue);
-  const drawableWidth = CHART_WIDTH - CHART_PAD_X * 2;
-  const drawableHeight = CHART_HEIGHT - CHART_PAD_Y * 2;
-  const step = points.length > 1 ? drawableWidth / (points.length - 1) : 0;
-  const sparkPoints = points.map((point, index) => {
-    const value = rankedChartValue(point);
-    const x = CHART_PAD_X + step * index;
-    const y = CHART_PAD_Y + drawableHeight - ((value - minValue) / range) * drawableHeight;
-    return {
-      x,
-      y,
-      mmr: Number(point.mmr ?? 0),
-      prestigePoints: Math.max(0, Math.floor(Number(point.prestigePoints ?? 0))),
-      value,
-      createdAt: point.createdAt,
-    };
-  });
-
-  const gridValues = Array.from({ length: 5 }, (_, idx) => minValue + (range * idx) / 4);
-  return { points: sparkPoints, gridValues, minValue, maxValue };
 }
 
 export default async function PlayerPage({
@@ -527,24 +444,11 @@ export default async function PlayerPage({
     const index = ranking.findIndex((row) => row.id === playerId);
     playerRankingPlace = index >= 0 ? index + 1 : null;
   }
-  const historyRes = await supabaseServer
-    .from("player_mmr_history")
-    .select("mmr,prestige_points,created_at")
-    .eq("player_id", playerId)
-    .order("created_at", { ascending: true })
-    .limit(80);
-
-  let mmrHistoryPoints: MmrPoint[] = [];
-  if (!historyRes.error) {
-    mmrHistoryPoints = (historyRes.data ?? []).map((row) => ({
-      mmr: Number(row.mmr ?? 0),
-      prestigePoints: Math.max(0, Math.floor(Number(row.prestige_points ?? 0))),
-      createdAt: typeof row.created_at === "string" ? row.created_at : null,
-    }));
-  }
-  const sparkData = buildSparkData(mmrHistoryPoints);
-  const sparkPoints = sparkData.points;
-  const sparkline = sparkPoints.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
+  const [preferences, chartHistory] = await Promise.all([
+    readProfilePreferences(playerId),
+    readProfileHistory(playerId).then(points => ({ points, error: false })).catch(() => ({ points: [], error: true })),
+  ]);
+  const panelRank = resolvePanelRank(preferences.rank_panel, currentRank);
 
   return (
     <main className="player-profile-root">
@@ -559,6 +463,8 @@ export default async function PlayerPage({
             initialRankFrameEnabled={rankFrameEnabled}
             initialProfileColor={profileColor}
             initialFavoriteBeer={favoriteBeer}
+            currentRank={currentRank}
+            initialPreferences={preferences}
           />
           <div className="profile-hero-top">
             <div className="profile-avatar-awards">
@@ -593,7 +499,7 @@ export default async function PlayerPage({
 
           <UploadAvatar playerId={playerId} className="mt-4" />
 
-          <ProfileRankPanel rank={currentRank}>
+          <ProfileRankPanel rank={panelRank}>
             <div className="profile-rating-layout">
               <div className="profile-rating-copy">
                 <div className="profile-rating-head">
@@ -606,70 +512,8 @@ export default async function PlayerPage({
                     <p className="profile-muted mt-1">Liczba ocen: {ratingValues.length}</p>
                   </div>
 
-                  <div className="profile-mmr-chart">
-                    <p className="profile-muted">Historia MMR</p>
-                    {sparkline ? (
-                      <svg
-                        viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
-                        preserveAspectRatio="none"
-                        className="profile-mmr-chart-svg"
-                      >
-                        <g className="profile-mmr-chart-grid-wrap">
-                          {sparkData.gridValues.map((gridValue, idx) => {
-                            const drawableHeight = CHART_HEIGHT - CHART_PAD_Y * 2;
-                            const range = Math.max(0.1, sparkData.maxValue - sparkData.minValue);
-                            const y = CHART_PAD_Y + drawableHeight - ((gridValue - sparkData.minValue) / range) * drawableHeight;
-                            return (
-                              <line
-                                key={`${idx}-${gridValue.toFixed(2)}`}
-                                x1={CHART_PAD_X}
-                                y1={y}
-                                x2={CHART_WIDTH - CHART_PAD_X}
-                                y2={y}
-                                className="profile-mmr-chart-grid"
-                              />
-                            );
-                          })}
-                        </g>
-                        <polyline points={sparkline} className="profile-mmr-chart-line" />
-                        <g className="profile-mmr-chart-dots">
-                          {sparkPoints.map((point, idx) => {
-                            const prestigeLabel = point.prestigePoints > 0 ? ` | PP ${point.prestigePoints}` : "";
-                            const label = `MMR ${point.mmr.toFixed(1)}${prestigeLabel} | ${formatChartTooltipDateTime(point.createdAt)}`;
-                            const tooltipW = point.prestigePoints > 0 ? 152 : 126;
-                            const tooltipH = 20;
-                            const tooltipX = Math.max(
-                              2,
-                              Math.min(CHART_WIDTH - tooltipW - 2, point.x - tooltipW / 2)
-                            );
-                            const tooltipY = point.y < 26 ? point.y + 8 : point.y - 24;
-
-                            return (
-                              <g key={`${idx}-${point.x}-${point.y}`} className="profile-mmr-chart-point">
-                                <circle
-                                  cx={point.x}
-                                  cy={point.y}
-                                  r={idx === sparkPoints.length - 1 ? 3.1 : 2.5}
-                                  className="profile-mmr-chart-dot"
-                                />
-                                <g
-                                  className="profile-mmr-chart-tooltip"
-                                  transform={`translate(${tooltipX.toFixed(1)},${tooltipY.toFixed(1)})`}
-                                >
-                                  <rect width={tooltipW} height={tooltipH} rx={6} ry={6} />
-                                  <text x={tooltipW / 2} y={14} textAnchor="middle">
-                                    {label}
-                                  </text>
-                                </g>
-                              </g>
-                            );
-                          })}
-                        </g>
-                      </svg>
-                    ) : (
-                      <p className="profile-muted">Brak historii ranked.</p>
-                    )}
-                  </div>
+                  <ProfileMmrChart points={chartHistory.points} error={chartHistory.error}
+                    from={preferences.chart_from} to={preferences.chart_to} />
                 </div>
 
                 <div className="mt-2 flex flex-wrap items-center gap-2">

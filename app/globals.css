@@ -3399,8 +3399,26 @@ body {
 
 .profile-mmr-chart {
   width: 100%;
-  max-width: 246px;
+  max-width: 320px;
 }
+
+.profile-chart-heading, .profile-chart-controls, .profile-chart-dates { display: flex; align-items: center; justify-content: space-between; gap: 0.3rem; }
+.profile-chart-controls button { min-width: 30px; min-height: 32px; border: 1px solid rgba(85,61,23,0.2); border-radius: 7px; background: rgba(255,255,255,0.6); padding: 0.1rem 0.35rem; cursor: pointer; font-size: 0.75rem; }
+.profile-chart-controls button:disabled { opacity: 0.4; cursor: default; }
+.profile-chart-viewport { touch-action: none; overflow: hidden; border-radius: 10px; cursor: grab; }
+.profile-chart-viewport:active { cursor: grabbing; }
+.profile-chart-viewport:focus-visible { outline: 2px solid #825413; outline-offset: 2px; }
+.profile-chart-viewport .profile-mmr-chart-svg { height: 112px; padding: 0; overflow: hidden; user-select: none; }
+.profile-chart-dates { font-size: 0.65rem; margin-top: 0.2rem; }
+.profile-chart-detail { min-height: 2.6em; margin-top: 0.3rem; font-size: 0.72rem; line-height: 1.3; overflow-wrap: anywhere; }
+.profile-chart-settings { display: grid; gap: 0.6rem; }
+.profile-chart-settings legend { margin-bottom: 0.5rem; font-weight: 700; }
+.profile-chart-date-inputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
+.profile-chart-date-inputs input { min-width: 0; }
+.profile-panel-preview { max-width: 300px; margin: 0 auto; text-align: center; }
+.profile-panel-preview .profile-rating-box { margin-top: 0.6rem; }
+.profile-panel-preview .profile-rating-layout { display: block; padding: 0.5rem 2rem; }
+.profile-chart-controls button { color: #2c1902; }
 
 .profile-mmr-chart-svg {
   display: block;
