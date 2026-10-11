@@ -1,4 +1,3 @@
-import Link from "next/link";
 import BackNavButton from "@/app/components/BackNavButton";
 import { supabaseServer } from "@/lib/supabaseServer";
 import BracketTree, { type BracketTreeRound } from "@/app/components/BracketTree";
@@ -305,9 +304,6 @@ export default async function MatchesPage({
           })}
       </div>
 
-      <Link href={`/tournaments/${id}/admin-matches`} className="admin-fab" aria-label="Panel lokalnego admina meczow">
-        Admin
-      </Link>
     </main>
   );
 }
