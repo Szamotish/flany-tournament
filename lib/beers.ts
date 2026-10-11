@@ -11,6 +11,7 @@ export type BeerOfTheDay = {
 export const BEER_LIST: BeerOfTheDay[] = [
   { name: "Tatra" },
   { name: "\u017Bywiec" },
+  { name: "\u017Bywiec Bia\u0142e" },
   { name: "Warka" },
   { name: "Lech" },
   { name: "\u0141om\u017Ca" },

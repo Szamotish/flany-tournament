@@ -40,6 +40,7 @@ const READY_LABEL_DIR = "/models/etykiety clean";
 const LABEL_FILE_BY_KEY: Record<string, string> = {
   tatra: "tatra.png",
   zywiec: "zywiec.png",
+  zywiecbiale: "zywiec biale.png",
   warka: "warka.png",
   lech: "lech.png",
   lomza: "lomza.png",
