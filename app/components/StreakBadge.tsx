@@ -17,7 +17,7 @@ export default function StreakBadge({ kind, tier, count, description }: StreakBa
         alt=""
         width={2172}
         height={724}
-        sizes="251px"
+        sizes="213px"
         aria-hidden="true"
       />
       <strong className={`${styles.count} ${styles[kind]}`} aria-hidden="true">{count}</strong>
