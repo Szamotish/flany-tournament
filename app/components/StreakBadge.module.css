@@ -4,6 +4,7 @@
   flex: 0 0 auto;
   width: 180px;
   height: 60px;
+  margin-inline: 10px;
   vertical-align: middle;
 }
 
@@ -34,3 +35,53 @@
 
 .winstreak { color: #fff2ba; }
 .losestreak { color: #e4f7ff; }
+
+/* The PNG canvases match, but their visible frames have different margins. */
+.badge[data-kind="winstreak"] .artwork {
+  width: 139%;
+  left: -19.5%;
+  top: -22%;
+}
+
+.badge[data-kind="winstreak"] .count { left: 73%; }
+.badge[data-kind="losestreak"][data-tier="low"] .count { top: 35%; }
+
+.badge[data-kind="losestreak"][data-tier="high"] .artwork {
+  width: 129%;
+  left: -14.5%;
+  top: -14.5%;
+}
+
+/* Animate light only: the artwork and counter stay in place. */
+.badge[data-kind="winstreak"] {
+  --glow-color: #ff791b70;
+  --glow-min: 1px;
+  --glow-max: 3px;
+}
+
+.badge[data-kind="losestreak"] {
+  --glow-color: #53caff70;
+  --glow-min: 1px;
+  --glow-max: 3px;
+}
+
+.badge[data-tier="high"] {
+  --glow-min: 2px;
+  --glow-max: 5px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .badge[data-kind="winstreak"] .artwork { animation: ember-glow 3.2s ease-in-out infinite; }
+  .badge[data-kind="losestreak"] .artwork { animation: frost-glow 4.8s ease-in-out infinite; }
+}
+
+@keyframes ember-glow {
+  0%, 100% { filter: brightness(1) drop-shadow(0 0 var(--glow-min) var(--glow-color)); }
+  35%, 65% { filter: brightness(1.07) drop-shadow(0 0 var(--glow-max) var(--glow-color)); }
+  50% { filter: brightness(1.025) drop-shadow(0 0 var(--glow-min) var(--glow-color)); }
+}
+
+@keyframes frost-glow {
+  0%, 65%, 100% { filter: brightness(1) drop-shadow(0 0 var(--glow-min) var(--glow-color)); }
+  35% { filter: brightness(1.1) drop-shadow(0 0 var(--glow-max) var(--glow-color)); }
+}

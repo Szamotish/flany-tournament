@@ -40,8 +40,5 @@ Testy przeglądarkowe są opcjonalne. Wskaż zainstalowany `playwright-core` prz
 - `lib/` — logika domenowa i odczyty serwerowe; `lib/ui/` — mapowania wyglądu, `lib/matches/` — drabinki i rozstrzyganie meczów.
 - `public/` — grafiki i modele. Nowe plakietki serii są w `public/streaks/`.
 - `tests/` — testy logiki, kontraktów API oraz opcjonalne testy bazy i przeglądarki.
-- `docs/` — opis architektury i ustalenia z przeglądu.
 
 Piwo dodaje się w `lib/beers.ts`: nazwa i `labelFile` w jednym wpisie. Etykietę umieść w `public/models/etykiety clean/`. Wspólny katalog obsługuje ulubione piwo, piwo dnia, panel admina i model puszki.
-
-Szczegóły: [architektura i przegląd projektu](docs/architecture.md).

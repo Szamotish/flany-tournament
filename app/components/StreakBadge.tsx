@@ -10,14 +10,14 @@ type StreakBadgeProps = {
 
 export default function StreakBadge({ kind, tier, count, description }: StreakBadgeProps) {
   return (
-    <span className={`${styles.badge} ${kind}-badge`} title={description} role="img" aria-label={description}>
+    <span className={`${styles.badge} ${kind}-badge`} data-kind={kind} data-tier={tier} title={description} role="img" aria-label={description}>
       <Image
         className={styles.artwork}
         src={`/streaks/${kind}-${tier}.png`}
         alt=""
         width={2172}
         height={724}
-        sizes="225px"
+        sizes="251px"
         aria-hidden="true"
       />
       <strong className={`${styles.count} ${styles[kind]}`} aria-hidden="true">{count}</strong>

@@ -70,6 +70,8 @@ test('streak artwork fits player rows and profiles at mobile/desktop sizes', {
   t.after(() => browser.close());
   const page = await browser.newPage();
   await page.goto(`http://127.0.0.1:${server.address().port}`);
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  assert.notEqual(await page.locator(`.${styles.artwork}`).first().evaluate(el => getComputedStyle(el).animationName), 'none');
   for (const width of [1440, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${width}px overflow`);
@@ -79,5 +81,9 @@ test('streak artwork fits player rows and profiles at mobile/desktop sizes', {
       assert.ok(Math.abs(box.width / box.height - 3) < 0.02);
     }
     if (process.env.PROFILE_SCREENSHOT_DIR) await page.screenshot({ path: path.join(process.env.PROFILE_SCREENSHOT_DIR, `streak-badges-${width}.png`), fullPage: true });
+  }
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  for (const img of await page.locator(`.${styles.artwork}`).all()) {
+    assert.equal(await img.evaluate(el => getComputedStyle(el).animationName), 'none');
   }
 });
