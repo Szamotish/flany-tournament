@@ -147,7 +147,7 @@ export default function AdminMatchesPanel({ tournamentId }: { tournamentId: stri
   async function resetTournament() {
     if (
       !window.confirm(
-        "Zresetowac turniej do stanu sprzed startu? Aktualna drabinka, wyniki meczow i skutki ranked zostana cofniete, ale druzyny i sklady zostana bez zmian."
+        "Zresetowac turniej do stanu sprzed startu? Aktualna drabinka, wyniki meczow i skutki ranked zostana cofniete. Notatniki tych meczow zostana usuniete. Druzyny i sklady zostana bez zmian."
       )
     ) {
       return;
@@ -260,6 +260,7 @@ export default function AdminMatchesPanel({ tournamentId }: { tournamentId: stri
               <button className="tour-action-btn" onClick={start}>
                 Start turnieju
               </button>
+              <Link className="tour-action-btn" href={`/tournaments/${tournamentId}/admin/notebook`}>Notatnik</Link>
               <button
                 className="tour-action-btn tour-action-danger"
                 type="button"
@@ -377,6 +378,7 @@ export default function AdminMatchesPanel({ tournamentId }: { tournamentId: stri
                       {(rounds[String(roundNo)] ?? []).map((m) => (
                         <AdminMatchRow
                           key={m.id}
+                          tournamentId={tournamentId}
                           m={m}
                           disabled={false}
                           onReport={report}
@@ -396,11 +398,13 @@ export default function AdminMatchesPanel({ tournamentId }: { tournamentId: stri
 }
 
 function AdminMatchRow({
+  tournamentId,
   m,
   onReport,
   disabled,
   teamDetailsById,
 }: {
+  tournamentId: string;
   m: Match;
   onReport: (matchId: string, scoreA: number, scoreB: number) => Promise<void>;
   disabled: boolean;
@@ -465,6 +469,7 @@ function AdminMatchRow({
       )}
 
       {winnerName && <p className="tour-winner-line">Zwyciezca: {winnerName}</p>}
+      {m.teamA && m.teamB && <Link className="tour-action-btn" href={`/tournaments/${tournamentId}/admin/notebook?match=${m.id}`}>Notatnik meczu</Link>}
     </article>
   );
 }

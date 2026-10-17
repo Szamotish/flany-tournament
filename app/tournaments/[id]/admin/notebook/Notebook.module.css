@@ -1,0 +1,37 @@
+.heading { margin-top: 16px; padding: 20px; }
+.heading p { margin-top: 12px; }
+.selectors, .actions, .checks, .counter { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.selectors { margin-top: 16px; align-items: end; }
+.selectors label:first-child { flex: 1 1 260px; }
+.selectors label, .playerFields label, .player details label { display: grid; gap: 5px; min-width: 0; }
+.heading select, .notebook select { min-width: 0; width: 100%; min-height: 44px; padding: 8px; border: 1px solid #657c7155; border-radius: 9px; background: #ffffffcf; color: #302b1d; }
+.notebook { margin-top: 16px; }
+.toolbar { position: sticky; top: 8px; z-index: 5; padding: 12px; background: #e0f0e8f5; }
+.toolbar p { margin: 8px 0; font-size: 0.85rem; }
+.rotation { display: flex; align-items: center; gap: 6px; }
+.rotation select { width: 64px; }
+.notebook button, .heading button { min-height: 44px; padding: 8px 12px; border: 1px solid #657c7155; border-radius: 9px; background: #ffffffd9; color: #302b1d; font-weight: 650; cursor: pointer; }
+.notebook button:disabled { opacity: 0.45; cursor: default; }
+.notebook :is(button, input, select, summary):focus-visible { outline: 3px solid #397d69; outline-offset: 2px; }
+.teams { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+.team { min-width: 0; padding: 16px; }
+.team h2 { font-size: 1.2rem; font-weight: 750; margin-bottom: 12px; overflow-wrap: anywhere; }
+.team h2 small { display: block; font-size: 0.8rem; font-weight: 500; }
+.player { min-width: 0; margin: 12px 0; padding: 12px; border: 1px solid #657c7144; border-radius: 12px; background: #ffffff70; }
+.player legend { max-width: 100%; padding: 0 6px; font-weight: 750; overflow-wrap: anywhere; }
+.shot { margin-bottom: 8px; }
+.shotLabel { font-size: 0.78rem; font-weight: 650; }
+.checks { gap: 5px; }
+.checks label { display: flex; gap: 6px; align-items: center; min-height: 48px; padding: 7px; border-radius: 8px; background: #ffffff8a; cursor: pointer; font-size: 0.8rem; }
+.checks input { width: 22px; height: 22px; accent-color: #21815d; flex-shrink: 0; }
+.checks label:has(input:checked) { background: #b4e9cb; }
+.playerFields { display: grid; gap: 10px; margin-top: 12px; }
+.counter button { min-width: 44px; }
+.counter output { min-width: 20px; text-align: center; font-variant-numeric: tabular-nums; }
+.player details { margin-top: 12px; font-size: 0.82rem; }
+.player details label, .player details p { margin-top: 10px; }
+.notebook summary { min-height: 36px; padding-block: 8px; cursor: pointer; }
+.hitOrder li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.hitOrder li span { flex: 1 1 100px; }
+@media (max-width: 850px) { .teams { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 420px) { .heading, .team { padding: 10px; } .player { padding: 8px; } .actions { gap: 6px; } .notebook button { padding-inline: 8px; } }

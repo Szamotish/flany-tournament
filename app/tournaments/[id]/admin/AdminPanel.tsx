@@ -665,6 +665,9 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
               <Link className="tour-action-btn" href={`/tournaments/${tournamentId}/admin-matches`}>
                 Admin mecze
               </Link>
+              <Link className="tour-action-btn" href={`/tournaments/${tournamentId}/admin/notebook`}>
+                Notatnik
+              </Link>
             </div>
 
             {msg && (

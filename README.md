@@ -32,7 +32,7 @@ npm run build  # produkcyjny build; next/font pobiera fonty Google
 
 Testy przeglądarkowe są opcjonalne. Wskaż zainstalowany `playwright-core` przez `PROFILE_PLAYWRIGHT_PATH` i Chrome przez `PROFILE_CHROME_PATH`; testy kuli korzystają z analogicznych zmiennych `ORACLE_PLAYWRIGHT_PATH` i `ORACLE_CHROME_PATH`. Zmienne nie są potrzebne aplikacji w produkcji.
 
-**Baza danych:** obecny checkout nie zawiera migracji SQL. Testy migracji odwołują się do `supabase/migrations/` i domyślnie są pomijane. Do odtworzenia nowej bazy lub uruchomienia tych testów potrzebne są oryginalne migracje i PGlite, wskazany przez zmienne opisane w odpowiednich testach. Nie uruchamiaj testów na bazie produkcyjnej.
+**Baza danych:** notatnik wymaga migracji `supabase/migrations/20261017_match_notebooks.sql`; instrukcja i zasady zapisu są w [docs/notebook.md](docs/notebook.md). Checkout nie zawiera starszych migracji potrzebnych do odtworzenia całej bazy. Testy bazy wymagają PGlite wskazanego przez zmienne opisane w odpowiednich testach (dla notatnika: `NOTEBOOK_PGLITE_PATH`); bez nich są pomijane. Nie uruchamiaj testów na bazie produkcyjnej.
 
 ## Organizacja
 
