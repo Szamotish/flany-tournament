@@ -1,6 +1,5 @@
 import Link from "next/link";
 import RatePlayer from "./RatePlayer";
-import UploadAvatar from "./UploadAvatar";
 import ProfileSettingsButton from "./ProfileSettingsButton";
 import BeerCan3D from "@/app/components/BeerCan3D";
 import { trimmedMean } from "@/lib/rating";
@@ -500,7 +499,6 @@ export default async function PlayerPage({
             </div>
           </div>
 
-          <UploadAvatar playerId={playerId} className="mt-4" />
 
           <ProfileRankPanel rank={panelRank}>
             <div className="profile-rating-layout">

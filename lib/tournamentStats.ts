@@ -10,7 +10,7 @@ export function tournamentStats(snapshot: StatsSnapshot, tournamentId: string) {
     const roster = new Map(snapshot.notebooks.filter(n => n.match_id === match.id).flatMap(n => n.roster).map(p => [p.id, p]));
     const bracket = match.bracket === "winners" ? "Winners · " : match.bracket === "losers" ? "Losers · " : match.bracket === "grand_final" ? "Finał · " : "";
     return { id: match.id, label: `${bracket}R${match.round_no} · Mecz ${match.match_no}`, expectedGames: match.score_a + match.score_b,
-      players: [...roster.values()].map(p => ({ playerId: p.id, name: players.get(p.id)?.name ?? p.name,
+      players: [...roster.values()].sort((a, b) => (players.get(a.id)?.name ?? a.name).localeCompare(players.get(b.id)?.name ?? b.name, "pl")).map(p => ({ playerId: p.id, name: players.get(p.id)?.name ?? p.name,
         summary: summarizeStats(recorded.filter(g => g.playerId === p.id), [match]),
         games: recorded.filter(g => g.playerId === p.id).sort((a, b) => a.game - b.game).map(({ game, throws: attempts, hits, opponentHits, penaltyHits, cheats, finish, beer }) =>
           ({ game, throws: attempts, hits, opponentHits, penaltyHits, cheats, finish, beer })) })),

@@ -30,7 +30,7 @@ export default async function TournamentPage({
   const players = (tp ?? [])
     .map((x) => x.players as unknown)
     .filter(isPlayerRef)
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => a.name.localeCompare(b.name, "pl"));
 
   return (
     <main className="p-6">

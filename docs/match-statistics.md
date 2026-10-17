@@ -11,7 +11,7 @@ Uruchom w Supabase SQL Editor `supabase/migrations/20261017_stats_view.sql`, a n
 - Ostatni mecz i ostatnie 10 meczów dotyczą faktycznie rozegranych meczów zawodnika, także tych bez notatek. Nie zastępujemy ich starszymi meczami z wpisami. Średnie liczymy tylko z zapisanych danych, pokazując pokrycie meczów i gier. Pusta rubryka zawodnika nie oznacza zerowego występu.
 - Liczniki średnie są sumą podzieloną przez liczbę meczów z wpisami danego gracza. Celność to suma trafień środka / suma rzutów, a nie średnia procentów. Trafienia karne są podzbiorem wszystkich trafień; próby bonusowe wliczają się do rzutów.
 - Tempo picia to średni numer trafienia drużyny, przy którym ukończono piwo, z podaniem liczby zapisanych ukończeń. Brak zaznaczenia nie oznacza zera ani nieukończenia.
-- Dotychczasowy licznik „Wypite piwa” zachowuje dotychczasowe naliczanie i występuje jako „Wypite piwa · łącznie” w każdym widoku. Pozostałe liczby dotyczą wybranego zakresu rankingowego. Lista marek pokazuje piwo przypisane do zapisanej gry, nie deklaruje jego ukończenia.
+- Dotychczasowy licznik „Wypite piwa” zachowuje dotychczasowe naliczanie i występuje jako „Wypite piwa · łącznie” w każdym widoku. Pozostałe liczby dotyczą wybranego zakresu rankingowego. Kafelek „Ulubione piwo” pokazuje najczęściej zapisaną markę w tym zakresie, pomijając nieznane piwa i zachowując remisy. Nie zmienia ulubionego piwa wybranego ręcznie w ustawieniach profilu.
 
 ## Widoki
 

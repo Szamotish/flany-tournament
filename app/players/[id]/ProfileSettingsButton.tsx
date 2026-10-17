@@ -10,6 +10,7 @@ import { availablePanels, resolvePanelRank, validChartRange, type ProfilePrefere
 import { rankLabel, type DisplayRank } from "@/lib/playerRank";
 import ProfileRankPanel from "@/app/components/ProfileRankPanel";
 import { STAT_VIEWS, STAT_VIEW_LABELS, type StatView } from "@/lib/matchStats";
+import UploadAvatar from "./UploadAvatar";
 
 type ProfileSettingsButtonProps = {
   playerId: string;
@@ -122,6 +123,7 @@ export default function ProfileSettingsButton({
               </button>
             </div>
             <div className="auth-modal-body profile-settings-body">
+              <UploadAvatar playerId={playerId} />
               <label className="profile-frame-toggle-row">
                 <input
                   type="checkbox"

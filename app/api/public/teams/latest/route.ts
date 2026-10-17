@@ -60,7 +60,7 @@ export async function GET() {
   const result = (teams ?? []).map((t) => ({
     id: t.id,
     name: t.name,
-    players: (grouped[t.id] ?? []).sort((a, b) => a.name.localeCompare(b.name)),
+    players: (grouped[t.id] ?? []).sort((a, b) => a.name.localeCompare(b.name, "pl")),
   }));
 
   return NextResponse.json({ batch, teams: result });

@@ -10,7 +10,7 @@ export type BeerOfTheDay = {
 
 type BeerDefinition = BeerOfTheDay & { labelFile: string };
 
-export const BEER_LIST: BeerDefinition[] = [
+const BEER_CATALOG: BeerDefinition[] = [
   { name: "Tatra", labelFile: "tatra.png" },
   { name: "\u017Bywiec", labelFile: "zywiec.png" },
   { name: "\u017Bywiec Bia\u0142e", labelFile: "zywiec biale.png" },
@@ -49,6 +49,8 @@ export const BEER_LIST: BeerDefinition[] = [
   { name: "Brok", labelFile: "brok.png" },
 ];
 
+export const BEER_LIST: BeerDefinition[] = [...BEER_CATALOG].sort((a, b) => a.name.localeCompare(b.name, "pl"));
+
 function normalizeBeerKey(value: string): string {
   return value
     .replace(/[łŁ]/g, "l")
@@ -76,7 +78,7 @@ export function beerOfTheDay(dayKey: string): BeerOfTheDay {
   for (let i = 0; i < dayKey.length; i++) {
     hash = (hash * 33 + dayKey.charCodeAt(i)) >>> 0;
   }
-  return BEER_LIST[hash % BEER_LIST.length];
+  return BEER_CATALOG[hash % BEER_CATALOG.length];
 }
 
 export function isKnownBeerName(value: string): boolean {

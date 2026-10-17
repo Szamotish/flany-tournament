@@ -14,6 +14,7 @@
 .values > div { border: 1px solid #64726336; background: #ffffff74; border-radius: 12px; padding: 12px; display: flex; flex-direction: column-reverse; justify-content: end; }
 .values dt { font-size: .8rem; color: #5f573f; overflow-wrap: anywhere; }
 .values dd { font-size: 1.8rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.values dd.beerName, .profile .values dd.beerName { font-size: 1rem; overflow-wrap: anywhere; }
 .coverage { color: #655e48; font-size: .8rem; margin-top: 8px; }
 .empty { padding: 24px 0; opacity: .7; }
 .event { display: inline-block; margin-top: 6px; text-decoration: underline; }

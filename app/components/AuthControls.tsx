@@ -431,6 +431,7 @@ export default function AuthControls() {
   if (!auth.authenticated) {
     return (
       <div className="auth-controls">
+        <Link href="/" className="auth-chip">Strona główna</Link>
         <Link href="/auth" className="auth-chip auth-chip-login">
           Logowanie
         </Link>
@@ -447,6 +448,9 @@ export default function AuthControls() {
 
         {menuOpen ? (
           <div className="auth-menu-popover">
+            <Link className="auth-menu-item" href="/" onClick={() => setMenuOpen(false)}>
+              Strona główna
+            </Link>
             {auth.playerId ? (
               <Link className="auth-menu-item" href={`/players/${auth.playerId}`} onClick={() => setMenuOpen(false)}>
                 Moj profil

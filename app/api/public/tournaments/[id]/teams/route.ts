@@ -101,7 +101,7 @@ export async function GET(
     .sort((a, b) => a.name.localeCompare(b.name, "pl"));
 
   const result = (teams ?? []).map((t) => {
-    const roster = (grouped[t.id] ?? []).sort((a, b) => a.name.localeCompare(b.name));
+    const roster = (grouped[t.id] ?? []).sort((a, b) => a.name.localeCompare(b.name, "pl"));
     const captainPlayerId = isOneVsOne ? null : pickTeamCaptainId(String(t.id), roster.map((player) => player.id));
     return {
       id: t.id,

@@ -72,6 +72,7 @@ export default async function PlayersPage() {
     }));
     error = fallback.error;
   }
+  players.sort((a, b) => a.name.localeCompare(b.name, "pl"));
   const playerIds = players.map((player) => player.id);
 
   const averageRatingByPlayer = new Map<string, number | null>();

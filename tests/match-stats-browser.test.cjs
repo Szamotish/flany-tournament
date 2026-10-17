@@ -63,6 +63,9 @@ test('statistics panels fit the beer tile, switch by controls/touch, autoplay an
   const home = page.getByRole('region',{name:'Wyróżnienia ligi'}), profile = page.getByRole('region',{name:'Statystyki gry'});
   await profile.getByText('Wszystkie mecze',{exact:false}).first().waitFor();
   assert.match(await profile.innerText(), /Wypite piwa · łącznie/);
+  assert.match(await profile.innerText(), /Ulubione piwo/);
+  assert.equal(await profile.getByText('Piwo w zapisanych grach', { exact: true }).count(), 0);
+  assert.equal(await profile.getByText(/Tempo picia:/).count(), 0);
   await page.clock.runFor(8100);
   await home.getByRole('heading',{name:'Najcelniejsi'}).waitFor();
   await home.getByRole('button',{name:'Wstrzymaj zmianę paneli'}).click();

@@ -83,8 +83,8 @@ test('leaders preserve ties and enforce accuracy sample; penalty award appears o
 test('tournament detail separates games and keeps players without entries explicit', () => {
   const data = tournamentStats.tournamentStats(fixture(), id(100));
   assert.equal(data.matches.length, 1); assert.equal(data.matches[0].players.length, 2);
-  assert.equal(data.matches[0].players[0].games[0].penaltyHits, 1);
-  assert.equal(data.matches[0].players[1].summary.games, 0);
+  assert.equal(data.matches[0].players.find(p => p.playerId === id(1)).games[0].penaltyHits, 1);
+  assert.equal(data.matches[0].players.find(p => p.playerId === id(2)).summary.games, 0);
 });
 test('private tournament endpoint checks authorization before loading any statistics', async () => {
   for (const allowed of [false, true]) {

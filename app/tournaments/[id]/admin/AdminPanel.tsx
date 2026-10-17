@@ -108,7 +108,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
       setMsg(`Blad pobierania prosb: ${json.error ?? res.statusText}`);
       return;
     }
-    setRequests((json.requests ?? []) as JoinRequestRow[]);
+    setRequests(((json.requests ?? []) as JoinRequestRow[]).sort((a, b) => (a.players?.name ?? "").localeCompare(b.players?.name ?? "", "pl")));
   }, [tournamentId]);
 
   const loadInvites = useCallback(async () => {
@@ -118,7 +118,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
       setMsg(`Blad pobierania zaproszen: ${json.error ?? res.statusText}`);
       return;
     }
-    setInvites((json.invites ?? []) as InviteRow[]);
+    setInvites(((json.invites ?? []) as InviteRow[]).sort((a, b) => (a.players?.name ?? "").localeCompare(b.players?.name ?? "", "pl")));
   }, [tournamentId]);
 
   useEffect(() => {
@@ -499,7 +499,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
       teamId: team.id,
       teamName: team.name,
     }))
-  );
+  ).sort((a, b) => a.name.localeCompare(b.name, "pl"));
   const swapPlayerA = activeTeamPlayers.find((player) => player.id === swapPlayerAId);
   const swapPlayerB = activeTeamPlayers.find((player) => player.id === swapPlayerBId);
   const swapOptionsA = activeTeamPlayers.filter((player) => player.teamId !== swapPlayerB?.teamId);
@@ -508,7 +508,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
   const movablePlayers = [
     ...activeTeamPlayers.map((player) => ({ ...player, statusLabel: player.teamName })),
     ...spectators.map((player) => ({ id: player.id, name: player.name, teamName: "Ogladajacy", statusLabel: "Ogladajacy" })),
-  ];
+  ].sort((a, b) => a.name.localeCompare(b.name, "pl"));
 
   if (!accessChecked) {
     return (

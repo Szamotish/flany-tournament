@@ -42,7 +42,7 @@ export async function GET(req: Request) {
     .from("players")
     .select(selectColumns)
     .eq("active", true)
-    .order("created_at", { ascending: true })
+    .order("name", { ascending: true })
     .limit(50);
 
   if (q) {
@@ -61,7 +61,7 @@ export async function GET(req: Request) {
       .from("players")
       .select("id,name,active,created_at,mmr,prestige_points")
       .eq("active", true)
-      .order("created_at", { ascending: true })
+      .order("name", { ascending: true })
       .limit(50);
 
     if (q) {
@@ -79,7 +79,7 @@ export async function GET(req: Request) {
       has_account: false,
     }));
 
-    return NextResponse.json({ players: fallbackRows });
+    return NextResponse.json({ players: fallbackRows.sort((a, b) => a.name.localeCompare(b.name, "pl")) });
   }
 
   if (primary.error) return NextResponse.json({ error: primary.error.message }, { status: 500 });
@@ -100,5 +100,5 @@ export async function GET(req: Request) {
       row.auth_user_id !== null,
   }));
 
-  return NextResponse.json({ players });
+  return NextResponse.json({ players: players.sort((a, b) => a.name.localeCompare(b.name, "pl")) });
 }

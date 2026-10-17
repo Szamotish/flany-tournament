@@ -63,22 +63,20 @@ export default function UploadAvatar({ playerId, className }: UploadAvatarProps)
     router.refresh();
   }
 
+  if (!canEdit) return null;
+
   return (
     <div className={className ?? ""}>
-      {canEdit ? (
-        <label className="profile-btn profile-btn-file profile-btn-primary">
-          {busy ? "Zapisywanie..." : "Zmien avatar"}
-          <input
-            className="sr-only"
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            disabled={busy}
-            onChange={(e) => onPick(e.target.files?.[0] ?? null)}
-          />
-        </label>
-      ) : (
-        <p className="profile-muted">Avatar moze zmienic tylko wlasciciel profilu.</p>
-      )}
+      <label className="profile-btn profile-btn-file profile-btn-primary">
+        {busy ? "Zapisywanie..." : "Zmień awatar"}
+        <input
+          className="sr-only"
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          disabled={busy}
+          onChange={(e) => onPick(e.target.files?.[0] ?? null)}
+        />
+      </label>
 
       {msg && <p className="profile-muted mt-2">{msg}</p>}
     </div>

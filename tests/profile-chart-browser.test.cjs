@@ -15,11 +15,11 @@ test('profile chart zoom, touch gestures, details and persisted customization', 
     ['react-dom', 'react-dom', 'react-dom.production.js'], ['react-dom/client', 'react-dom', 'react-dom-client.production.js'],
     ['scheduler', 'scheduler', 'scheduler.production.js'],
   ]) modules[name] = fs.readFileSync(path.join(path.dirname(require.resolve(pkg)), 'cjs', file), 'utf8');
-  for (const file of ['app/components/ProfileMmrChart.tsx', 'app/components/ProfileRankPanel.tsx', 'app/players/[id]/ProfileSettingsButton.tsx',
+  for (const file of ['app/components/ProfileMmrChart.tsx', 'app/components/ProfileRankPanel.tsx', 'app/players/[id]/ProfileSettingsButton.tsx', 'app/players/[id]/UploadAvatar.tsx',
     'lib/profileHistory.ts', 'lib/profilePreferences.ts', 'lib/playerRank.ts', 'lib/ranked.ts', 'lib/beers.ts', 'lib/ui/playerProfile.ts']) {
     modules[`@/${file.replace(/\.tsx?$/, '')}`] = ts.transpileModule(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'), {
       compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 },
-    }).outputText;
+    }).outputText.replace(/require\("(\.[^"]+)"\)/g, (_, rel) => `require(${JSON.stringify(path.posix.join('@', path.posix.dirname(file), rel))})`);
   }
   modules['@/lib/authClient'] = 'exports.authedFetch = (url, options) => fetch(url, options);';
   modules['@/lib/matchStats'] = 'exports.STAT_VIEWS=["last","recent","all"];exports.STAT_VIEW_LABELS={last:"Ostatni mecz",recent:"Ostatnie 10 meczów",all:"Wszystkie mecze"};';
@@ -89,9 +89,11 @@ test('profile chart zoom, touch gestures, details and persisted customization', 
   await page.keyboard.press('ArrowRight');
   assert.match(await page.locator('.profile-chart-detail').innerText(), /MMR/);
   if (process.env.PROFILE_SCREENSHOT_DIR) await page.screenshot({ path: path.join(process.env.PROFILE_SCREENSHOT_DIR, 'profile-chart-mobile.png'), fullPage: true });
+  assert.equal(await page.getByLabel('Zmień awatar', { exact: true }).count(), 0);
   await page.getByRole('button', { name: 'Ustawienia profilu' }).click();
   const dialog = page.getByRole('dialog');
   await dialog.waitFor();
+  await dialog.getByLabel('Zmień awatar', { exact: true }).waitFor({ state: 'attached' });
   const choices = await page.locator('#profile-rank-panel option').allTextContents();
   assert.ok(choices.includes('Platyna') && choices.includes('Gold') && !choices.includes('Master'));
   await page.getByLabel('Od', { exact: true }).fill('2026-08-01');
