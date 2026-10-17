@@ -1,7 +1,8 @@
 import type { DisplayRank } from "@/lib/playerRank";
+import type { StatView } from "./matchStats";
 
 export const PANEL_RANKS: DisplayRank[] = ["unranked", "bronze", "silver", "gold", "platinum", "emerald", "diamond", "master", "grandmaster", "challenger"];
-export type ProfilePreferences = { chart_from: string | null; chart_to: string | null; rank_panel: DisplayRank | null };
+export type ProfilePreferences = { chart_from: string | null; chart_to: string | null; rank_panel: DisplayRank | null; stats_view?: StatView };
 export const DEFAULT_PROFILE_PREFERENCES: ProfilePreferences = { chart_from: null, chart_to: null, rank_panel: null };
 export function isPanelRank(value: unknown): value is DisplayRank {
   return typeof value === "string" && PANEL_RANKS.includes(value as DisplayRank);

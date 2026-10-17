@@ -36,6 +36,8 @@ Testy przeglądarkowe są opcjonalne. Wskaż zainstalowany `playwright-core` prz
 
 ## Organizacja
 
+Prezentacja statystyk z notatnika, zasady średnich i wdrożenie ustawienia profilu: [docs/match-statistics.md](docs/match-statistics.md).
+
 - `app/` — strony i endpointy Next.js; `app/components/` — wspólne elementy interfejsu.
 - `lib/` — logika domenowa i odczyty serwerowe; `lib/ui/` — mapowania wyglądu, `lib/matches/` — drabinki i rozstrzyganie meczów.
 - `public/` — grafiki i modele. Nowe plakietki serii są w `public/streaks/`.

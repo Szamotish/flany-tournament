@@ -6,7 +6,8 @@ import { readConfiguredBeerOfDay } from "@/lib/appBackground";
 import BeerCan3D from "@/app/components/BeerCan3D";
 import NearbyLiquorCompassCard from "@/app/components/NearbyLiquorCompassCard";
 import MagicOracle from "@/app/components/MagicOracle";
-import BestPerformance from "@/app/components/BestPerformance";
+import HomeStatsCarousel from "@/app/components/stats/HomeStatsCarousel";
+import { readHomeMatchStats } from "@/lib/matchStatsServer";
 import { readBestPerformance } from "@/lib/bestPerformanceServer";
 
 export const dynamic = "force-dynamic";
@@ -106,12 +107,13 @@ export default async function HomePage() {
   const beer = configuredBeer ? { name: configuredBeer } : beerOfTheDay(warsawDay);
   const degree = "\u00B0C";
 
-  const [playersRes, tournamentsCountRes, finishedMatchesRes, weather, bestPerformance] = await Promise.all([
+  const [playersRes, tournamentsCountRes, finishedMatchesRes, weather, bestPerformance, matchStats] = await Promise.all([
     supabaseServer.from("players").select("id", { count: "exact", head: true }).eq("active", true),
     supabaseServer.from("tournaments").select("id", { count: "exact", head: true }),
     supabaseServer.from("tournament_matches").select("team_a_id,team_b_id,status").eq("status", "finished"),
     fetchSarbskWeather(),
     readBestPerformance().catch(() => null),
+    readHomeMatchStats().catch(() => null),
   ]);
 
   const playersCount = playersRes.count ?? playersRes.data?.length ?? 0;
@@ -211,7 +213,7 @@ export default async function HomePage() {
 
           <NearbyLiquorCompassCard />
 
-          <BestPerformance data={bestPerformance} />
+          <HomeStatsCarousel performance={bestPerformance} stats={matchStats} />
 
           <article className="glass-card landing-weather">
             <div className="card-head">

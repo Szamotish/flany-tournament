@@ -2,6 +2,7 @@ import BackNavButton from "@/app/components/BackNavButton";
 import { supabaseServer } from "@/lib/supabaseServer";
 import BracketTree, { type BracketTreeRound } from "@/app/components/BracketTree";
 import { pickTeamCaptainId } from "@/lib/teamCaptain";
+import TournamentMatchStats from "@/app/components/stats/TournamentMatchStats";
 
 export const dynamic = "force-dynamic";
 
@@ -302,6 +303,7 @@ export default async function MatchesPage({
               </section>
             );
           })}
+        <TournamentMatchStats tournamentId={id} />
       </div>
 
     </main>

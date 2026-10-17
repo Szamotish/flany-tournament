@@ -18,6 +18,8 @@ import ProfileRankPanel from "@/app/components/ProfileRankPanel";
 import ProfileMmrChart from "@/app/components/ProfileMmrChart";
 import { readProfileHistory, readProfilePreferences } from "@/lib/profileHistoryServer";
 import { resolvePanelRank } from "@/lib/profilePreferences";
+import PlayerMatchStats from "@/app/components/stats/PlayerMatchStats";
+import { readPlayerMatchStats } from "@/lib/matchStatsServer";
 import {
   FRAME_BY_RANK,
   canShowRankFromMmr,
@@ -444,9 +446,10 @@ export default async function PlayerPage({
     const index = ranking.findIndex((row) => row.id === playerId);
     playerRankingPlace = index >= 0 ? index + 1 : null;
   }
-  const [preferences, chartHistory] = await Promise.all([
+  const [preferences, chartHistory, matchStats] = await Promise.all([
     readProfilePreferences(playerId),
     readProfileHistory(playerId).then(points => ({ points, error: false })).catch(() => ({ points: [], error: true })),
+    readPlayerMatchStats(playerId).catch(() => null),
   ]);
   const panelRank = resolvePanelRank(preferences.rank_panel, currentRank);
 
@@ -612,10 +615,7 @@ export default async function PlayerPage({
           )}
         </article>
 
-        <article className="profile-card profile-beers">
-          <p className="profile-section-title">Wypite piwa</p>
-          <p className="profile-beers-value">{beers}</p>
-        </article>
+        <PlayerMatchStats data={matchStats} initial={preferences.stats_view ?? "last"} totalBeers={beers} />
 
         <article className="profile-card profile-rate">
           <RatePlayer playerId={playerId} />

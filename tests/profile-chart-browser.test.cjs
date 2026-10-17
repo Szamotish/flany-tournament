@@ -22,6 +22,7 @@ test('profile chart zoom, touch gestures, details and persisted customization', 
     }).outputText;
   }
   modules['@/lib/authClient'] = 'exports.authedFetch = (url, options) => fetch(url, options);';
+  modules['@/lib/matchStats'] = 'exports.STAT_VIEWS=["last","recent","all"];exports.STAT_VIEW_LABELS={last:"Ostatni mecz",recent:"Ostatnie 10 meczów",all:"Wszystkie mecze"};';
   modules['next/navigation'] = 'exports.useRouter = () => ({ refresh: () => window.location.reload() });';
   const bundle = `const process={env:{NODE_ENV:'production'}}; const modules={${Object.entries(modules).map(([name, code]) => `${JSON.stringify(name)}:function(require,module,exports){\n${code}\n}`).join(',')}};
     const cache={}; function require(name){if(cache[name])return cache[name].exports;const mod=cache[name]={exports:{}};modules[name](require,mod,mod.exports);return mod.exports;}

@@ -6,6 +6,7 @@ import { isKnownBeerName } from "@/lib/beers";
 import { normalizeProfileColor } from "@/lib/ui/playerProfile";
 import { availablePanels, isPanelRank, isProfileDate, validChartRange } from "@/lib/profilePreferences";
 import { readProfilePreferences } from "@/lib/profileHistoryServer";
+import { isStatView, type StatView } from "@/lib/matchStats";
 import { loadPlayerPerformance } from "@/lib/playerPerformance";
 import { canShowRankFromMmr, displayRankFromProgress } from "@/lib/playerRank";
 
@@ -165,6 +166,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     chart_from?: string | null;
     chart_to?: string | null;
     rank_panel?: string | null;
+    stats_view?: StatView;
   } = {};
 
   if (Object.prototype.hasOwnProperty.call(body ?? {}, "rankFrameEnabled")) {
@@ -201,6 +203,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     update.rank_panel = body.rankPanel;
   }
 
+  if (Object.prototype.hasOwnProperty.call(body ?? {}, "statsView")) {
+    if (!isStatView(body.statsView)) return NextResponse.json({ error: "invalid_stats_view" }, { status: 400 });
+    update.stats_view = body.statsView;
+  }
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ error: "no_profile_settings" }, { status: 400 });
   }
@@ -239,6 +245,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     .single();
 
   if (uErr) {
+    if (uErr.message.includes("stats_view")) return NextResponse.json({ error: "missing_stats_preferences" }, { status: 500 });
     if (["chart_from", "chart_to", "rank_panel"].some(column => uErr.message.includes(column))) {
       return NextResponse.json({ error: "missing_profile_chart_preferences" }, { status: 500 });
     }
@@ -260,6 +267,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       chartFrom: updated.chart_from ?? null,
       chartTo: updated.chart_to ?? null,
       rankPanel: updated.rank_panel ?? null,
+      ...(update.stats_view ? { statsView: update.stats_view } : {}),
     },
   });
 }

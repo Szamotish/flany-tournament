@@ -88,6 +88,7 @@ function api(options = {}) {
     '@/lib/rating': {}, '@/lib/beers': { isKnownBeerName: () => true }, '@/lib/ui/playerProfile': { normalizeProfileColor: x => x },
     '@/app/api/admin/_auth': { readAuthContext: async () => options.auth ?? { ok: true, ctx: { playerId: 'p', isMainAdmin: false } } },
     '@/lib/profilePreferences': prefs, '@/lib/playerRank': rank,
+    '@/lib/matchStats': { isStatView: v => ['last', 'recent', 'all'].includes(v) },
     '@/lib/profileHistoryServer': { readProfilePreferences: async () => ({ chart_from: null, chart_to: '2026-10-10', rank_panel: null }) },
     '@/lib/playerPerformance': { loadPlayerPerformance: async () => new Map([['p', { hasFinishedMatch: true, mmrManualOverride: false, effectiveMmr: 5.5, prestigePoints: 0 }]]) },
   });
@@ -113,6 +114,15 @@ test('profile API merges partial date updates before validation and supports cle
   assert.equal(route.saved().chart_from, '2026-09-01');
   assert.equal(route.saved().chart_to, null);
   assert.equal(route.saved().rank_panel, null);
+});
+test('profile statistics default is validated and saved only by owner or main admin', async () => {
+  const route = api();
+  assert.equal((await route.patch({ statsView: 'all' })).status, 200);
+  assert.equal(route.saved().stats_view, 'all');
+  assert.equal((await route.patch({ statsView: 'forged' })).status, 400);
+  const other = api({ auth: { ok: true, ctx: { playerId: 'other', isMainAdmin: false } } });
+  assert.equal((await other.patch({ statsView: 'recent' })).status, 403);
+  assert.equal(other.saved(), undefined);
 });
 test('profile preferences SQL constraints and idempotent migration', { skip: !process.env.PROFILE_PGLITE_PATH }, async t => {
   const { PGlite } = require(process.env.PROFILE_PGLITE_PATH);

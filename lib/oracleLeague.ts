@@ -13,7 +13,7 @@ export type LeagueSnapshot = {
   members: { player_id: string; team_id: string }[];
   matches: { id: string; tournament_id: string; team_a_id: string | null; team_b_id: string | null;
     winner_team_id: string | null; status: string; created_at: string }[];
-  tournaments: { id: string; name: string; mode: string; started_at: string | null; created_at: string }[];
+  tournaments: { id: string; name: string; mode: string; started_at: string | null; created_at: string; is_private?: boolean | null }[];
   results: { tournament_id: string; team_id: string; placement: number }[];
 };
 
@@ -97,9 +97,9 @@ export function oracleLeagueFacts(snapshot: LeagueSnapshot, question: string, as
     const wins = meetings.filter(match => match.winner_team_id && askingProfile.teams.has(match.winner_team_id)).length;
     facts.push(`${name(asking.name)} vs ${name(opponent.name)}: ${wins} wygranych/${meetings.length} meczów (ranked+casual).`);
   }
-  const mentionedTournament = snapshot.tournaments.find(tournament =>
+  const mentionedTournament = snapshot.tournaments.filter(t => !t.is_private).find(tournament =>
     ` ${q} `.includes(` ${normalized(tournament.name)} `));
-  const lastFinished = snapshot.tournaments.filter(tournament => snapshot.results.some(result => result.tournament_id === tournament.id))
+  const lastFinished = snapshot.tournaments.filter(tournament => !tournament.is_private && snapshot.results.some(result => result.tournament_id === tournament.id))
     .sort((a, b) => Date.parse(b.started_at ?? b.created_at) - Date.parse(a.started_at ?? a.created_at))[0];
   const requestedTournament = mentionedTournament ?? (/kto.*wygral|ostatni turniej\b/.test(q) ? lastFinished : undefined);
   if (requestedTournament) {
@@ -113,14 +113,14 @@ export function oracleLeagueFacts(snapshot: LeagueSnapshot, question: string, as
     return `${name(player.name)}: wygrane mecze ${won}/${player.matches.length} (ranked+casual); winstreak${player.ranked_win_streak ?? 0}, losestreak${player.ranked_loss_streak ?? 0} (ranked).`;
   });
   const history = focused.flatMap(player => {
-    const played = snapshot.results.filter(result => player.teams.has(result.team_id) && tournaments.has(result.tournament_id))
+    const played = snapshot.results.filter(result => player.teams.has(result.team_id) && tournaments.has(result.tournament_id) && !tournaments.get(result.tournament_id)?.is_private)
       .sort((a, b) => {
         const ta = tournaments.get(a.tournament_id)!, tb = tournaments.get(b.tournament_id)!;
         return Date.parse(tb.started_at ?? tb.created_at) - Date.parse(ta.started_at ?? ta.created_at);
       }).slice(0, 2);
     return played.map(result => `${name(player.name)}: ${name(tournaments.get(result.tournament_id)!.name)}, miejsce${result.placement}.`);
   });
-  const recent = focused.flatMap(player => player.matches.slice().sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 2)
+  const recent = focused.flatMap(player => player.matches.filter(m => !tournaments.get(m.tournament_id)?.is_private).sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 2)
     .map(match => `${name(player.name)}: ${name(tournaments.get(match.tournament_id)?.name ?? "turniej")}, ${match.winner_team_id ? (player.teams.has(match.winner_team_id) ? "wygrany mecz" : "przegrany mecz") : "wynik nieznany"}.`));
   // Complete facts are packed in priority order. Nothing is cut in the middle of a value.
   if (/histori|ostatni|turniej|puchar/.test(q)) facts.push(...history, ...recent);

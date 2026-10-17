@@ -4,7 +4,7 @@
 
 W Supabase SQL Editor wykonaj `supabase/migrations/20261017_match_notebooks.sql`, następnie wdróż aplikację. Migracja dodaje jedną tabelę; nie zmienia rankingu, wyników ani istniejących graczy. Można wykonać ją ponownie.
 
-Wejście: turniej → lokalny admin → **Notatnik** lub **Admin mecze → Notatnik meczu**. Dostęp ma main admin i administrator przypisany do konkretnego turnieju. Notatniki prywatnych turniejów nie są dostępne publicznie. W tej wersji nie ma publicznych rankingów tych statystyk.
+Wejście: turniej → lokalny admin → **Notatnik** lub **Admin mecze → Notatnik meczu**. Dostęp do edycji ma main admin i administrator przypisany do konkretnego turnieju. Zapisane dane zakończonych meczów są prezentowane według zasad opisanych w [match-statistics.md](match-statistics.md); szczegóły prywatnych turniejów wymagają dostępu do turnieju.
 
 ## Wpisy
 

@@ -16,7 +16,7 @@ function winsLabel(wins: number) {
   return wins === 1 ? "zwycięstwo" : wins >= 2 && wins <= 4 ? "zwycięstwa" : "zwycięstw";
 }
 
-export default function BestPerformance({ data }: { data: BestPerformanceData | null }) {
+export default function BestPerformance({ data, embedded = false }: { data: BestPerformanceData | null; embedded?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const [selected, setSelected] = useState<{ playerId: string; index: number } | null>(null);
   const leaders = data?.leaders ?? [];
@@ -26,9 +26,9 @@ export default function BestPerformance({ data }: { data: BestPerformanceData | 
   const selectedTournament = selected ? tournaments[selected.index] : null;
   const selectedOutcome = selectedPlayer && selected ? MARKERS[selectedPlayer.outcomes[selected.index]] : null;
 
-  return <article className="glass-card landing-performance" aria-label="Best Performance">
+  return <article className={embedded ? "" : "glass-card landing-performance"} aria-label="Best Performance">
     <div className="best-performance-heading">
-      <h2>Best Performance</h2>
+      <h2 className={embedded ? "sr-only" : undefined}>Best Performance</h2>
       {tournaments.length > 0 ? <p>{tournaments.length === 1 ? "Ostatni turniej rankingowy" : `${tournaments.length} ostatnich turniejów rankingowych`}</p> : null}
     </div>
     {!data ? <p className="best-performance-empty">Nie udało się wczytać wyników.</p>

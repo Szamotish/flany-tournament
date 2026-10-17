@@ -101,6 +101,8 @@ function dbReader(data, { fail = false, capExceeded = false } = {}) {
     tournament_matches: data.matches, tournaments: data.tournaments, tournament_results: data.results };
   const reader = load('lib/oracleLeagueServer.ts', {
     '@/lib/oracleLeague': league,
+    '@/lib/matchStatsServer': { readMatchStatsSnapshot: async () => { throw new Error('unavailable'); } },
+    '@/lib/oracleMatchStats': { oracleMatchStatsFacts: () => [] },
     '@/lib/supabaseServer': { supabaseServer: { from(table) { return {
       select(columns) { selections.push([table, columns]); return this; }, order() { return this; },
       range(from, to) { return { async abortSignal() { return { data: tables[table].slice(from, to + 1), count: capExceeded ? 999999 : tables[table].length,

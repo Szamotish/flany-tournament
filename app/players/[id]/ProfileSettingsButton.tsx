@@ -9,6 +9,7 @@ import { PLAYER_PROFILE_COLORS } from "@/lib/ui/playerProfile";
 import { availablePanels, resolvePanelRank, validChartRange, type ProfilePreferences } from "@/lib/profilePreferences";
 import { rankLabel, type DisplayRank } from "@/lib/playerRank";
 import ProfileRankPanel from "@/app/components/ProfileRankPanel";
+import { STAT_VIEWS, STAT_VIEW_LABELS, type StatView } from "@/lib/matchStats";
 
 type ProfileSettingsButtonProps = {
   playerId: string;
@@ -37,6 +38,7 @@ export default function ProfileSettingsButton({
   const [chartTo, setChartTo] = useState(initialPreferences.chart_to ?? "");
   const [rankPanel, setRankPanel] = useState(initialPreferences.rank_panel === null ? "" : resolvePanelRank(initialPreferences.rank_panel, currentRank));
   const [saving, setSaving] = useState(false);
+  const [statsView, setStatsView] = useState<StatView>(initialPreferences.stats_view ?? "last");
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -72,12 +74,14 @@ export default function ProfileSettingsButton({
           chartFrom: chartFrom || null,
           chartTo: chartTo || null,
           rankPanel: rankPanel || null,
+          statsView,
         }),
       });
       const json = await res.json().catch(() => ({}));
 
       if (!res.ok) {
         const errors: Record<string, string> = {
+          missing_stats_preferences: "Domyślny widok statystyk wymaga nowej migracji bazy: 20261017_stats_view.sql.",
           missing_profile_chart_preferences: "Nowe ustawienia wymagają aktualizacji bazy danych przez administratora.",
           rank_panel_not_unlocked: "Ten panel nie jest dostępny przy Twojej aktualnej randze. Odśwież profil i wybierz ponownie.",
           invalid_chart_range: "Data końcowa nie może być wcześniejsza niż początkowa.",
@@ -171,6 +175,11 @@ export default function ProfileSettingsButton({
                 </select>
               </div>
 
+              <label className="tour-admin-label">Pierwszy widok statystyk gry
+                <select className="tour-admin-input" value={statsView} disabled={saving} onChange={e => setStatsView(e.target.value as StatView)}>
+                  {STAT_VIEWS.map(view => <option key={view} value={view}>{STAT_VIEW_LABELS[view]}</option>)}
+                </select>
+              </label>
               <fieldset className="profile-chart-settings" disabled={saving}>
                 <legend>Okres historii MMR</legend>
                 <div className="profile-chart-date-inputs">

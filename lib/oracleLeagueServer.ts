@@ -1,5 +1,7 @@
 import { supabaseServer } from "@/lib/supabaseServer";
 import { oracleLeagueFacts, type LeagueSnapshot } from "@/lib/oracleLeague";
+import { readMatchStatsSnapshot } from "@/lib/matchStatsServer";
+import { oracleMatchStatsFacts } from "@/lib/oracleMatchStats";
 
 // Shared across questions on this instance, never used by availability polling.
 // Only explicitly listed public fields are selected; no auth data or profile settings.
@@ -31,7 +33,7 @@ async function readSnapshot(): Promise<LeagueSnapshot> {
     readRows("ratings", "rated_player_id,value", ["id"], 5000),
     readRows("team_members", "player_id,team_id", ["player_id", "team_id"], 2000),
     readRows("tournament_matches", "id,tournament_id,team_a_id,team_b_id,winner_team_id,status,created_at", ["id"], 2000),
-    readRows("tournaments", "id,name,mode,started_at,created_at", ["id"], 500),
+    readRows("tournaments", "id,name,mode,started_at,created_at,is_private", ["id"], 500),
     readRows("tournament_results", "tournament_id,team_id,placement", ["tournament_id", "team_id"], 2000),
   ];
   const results = await Promise.allSettled(queries);
@@ -48,5 +50,9 @@ export async function readOracleLeagueFacts(question: string, askingPlayerId: st
     await pending;
   }
   if (!cached) throw new Error("context_unavailable");
-  return oracleLeagueFacts(cached.snapshot, question, askingPlayerId);
+  const league = oracleLeagueFacts(cached.snapshot, question, askingPlayerId);
+  const stats = await readMatchStatsSnapshot().then(snapshot => oracleMatchStatsFacts(snapshot, question, askingPlayerId))
+    .catch(() => ["Statystyki z notatników są chwilowo niedostępne; nie zgaduj wyników."]);
+  const relevant = /stat|rzut|traf|celno|skutecz|puszk|karn|piw|pij|pic|oszu|kombin/i.test(question);
+  return relevant ? [league[0], ...stats, ...league.slice(1)] : [...league.slice(0, 2), ...stats, ...league.slice(2)];
 }

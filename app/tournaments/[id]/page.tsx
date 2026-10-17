@@ -8,6 +8,7 @@ import { playerToneStyle } from "@/lib/ui/playerProfile";
 import { computeBeersFromFinishedMatches } from "@/lib/beers";
 import { pickTeamCaptainId } from "@/lib/teamCaptain";
 import TournamentJoinActions from "./TournamentJoinActions";
+import TournamentMatchStats from "@/app/components/stats/TournamentMatchStats";
 
 export const dynamic = "force-dynamic";
 
@@ -482,6 +483,7 @@ export default async function TournamentPage({
             </section>
           </>
         )}
+        {t?.mode === "ranked" && <TournamentMatchStats tournamentId={id} compact />}
       </div>
 
     </main>

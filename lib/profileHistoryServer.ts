@@ -3,7 +3,12 @@ import { buildProfileHistory, type MmrHistoryRow, type HistoryTournament } from 
 import { DEFAULT_PROFILE_PREFERENCES, type ProfilePreferences } from "@/lib/profilePreferences";
 
 export async function readProfilePreferences(playerId: string): Promise<ProfilePreferences> {
-  const { data, error } = await supabaseServer.from("players").select("chart_from,chart_to,rank_panel").eq("id", playerId).maybeSingle();
+  let { data, error } = await supabaseServer.from("players").select("chart_from,chart_to,rank_panel,stats_view").eq("id", playerId).maybeSingle();
+  if (error && ["42703", "PGRST204"].includes(error.code)) {
+    const fallback = await supabaseServer.from("players").select("chart_from,chart_to,rank_panel").eq("id", playerId).maybeSingle();
+    data = fallback.data ? { ...fallback.data, stats_view: "last" } : null;
+    error = fallback.error;
+  }
   // Old deployments can still display profiles before the new migration is run.
   if (error && !["42703", "PGRST204"].includes(error.code)) throw new Error("profile_preferences_read_failed");
   return data ?? { ...DEFAULT_PROFILE_PREFERENCES };
