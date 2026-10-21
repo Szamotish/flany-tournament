@@ -62,7 +62,7 @@ function GameNotebook({ tournamentId, matchId, game, viewerId, roster, teams }: 
   tournamentId: string; matchId: string; game: number; viewerId: string; roster: NotebookPlayer[]; teams: NotebookTeam[];
 }) {
   const editor = useNotebook(tournamentId, matchId, game, viewerId, roster);
-  const [rotation, setRotation] = useState(0);
+  const [teamRotations, setTeamRotations] = useState<Record<string, number>>({});
   const { state } = editor;
   const doc = state?.document;
   const hits = useMemo(() => doc ? notebookHits(doc, roster) : [], [doc, roster]);
@@ -70,7 +70,7 @@ function GameNotebook({ tournamentId, matchId, game, viewerId, roster, teams }: 
     if (!doc) return;
     const next = structuredClone(doc); edit(next); editor.update(next);
   }
-  function setThrow(playerId: string, index: number, field: "thrown" | "center" | "opponent", checked: boolean) {
+  function setThrow(rotation: number, playerId: string, index: number, field: "thrown" | "center" | "opponent", checked: boolean) {
     if (!doc) return;
     const next = editThrow(doc, rotation, playerId, index, field, checked);
     const before = doc.rotations[rotation].entries[playerId].throws;
@@ -82,7 +82,7 @@ function GameNotebook({ tournamentId, matchId, game, viewerId, roster, teams }: 
   }
   function reload() {
     if (!window.confirm("Wczytać wersję z serwera zamiast lokalnych zmian? Możesz najpierw pobrać kopię.")) return;
-    setRotation(0); void editor.load(true);
+    setTeamRotations({}); void editor.load(true);
   }
   if (editor.error) return <section className={`glass-card ${styles.heading}`}><p role="alert">{editor.error}</p>
     <div className={styles.actions}><button onClick={() => void editor.load()}>Spróbuj ponownie</button><button onClick={editor.download}>Pobierz kopię</button><button onClick={reload}>Wczytaj zapis z serwera</button></div>
@@ -90,16 +90,6 @@ function GameNotebook({ tournamentId, matchId, game, viewerId, roster, teams }: 
   if (!doc || !state) return <p className={styles.heading}>Wczytywanie wpisów…</p>;
   return <div className={styles.notebook}>
     <div className={`glass-card ${styles.toolbar}`}>
-      <div className={styles.actions}>
-        <button disabled={rotation === 0} onClick={() => setRotation(r => r - 1)}>Poprzednia</button>
-        <label className={styles.rotation}>Rotacja<select aria-label="Rotacja" value={rotation} onChange={e => setRotation(Number(e.target.value))}>
-          {doc.rotations.map((_, i) => <option key={i} value={i}>{i + 1}</option>)}
-        </select></label>
-        <button disabled={state.blocked || rotation === MAX_ROTATIONS - 1} onClick={() => {
-          if (rotation === doc.rotations.length - 1) change(d => { d.rotations.push(newRotation(roster)); });
-          setRotation(r => r + 1);
-        }}>Następna</button>
-      </div>
       <p role="status">{state.status}</p>
       {editor.localWarning && <p role="alert">Przeglądarka nie zapisała kopii lokalnej. Nie zamykaj tej strony, dopóki wpisy nie zostaną zapisane na serwerze.</p>}
       <div className={styles.actions}>
@@ -109,10 +99,23 @@ function GameNotebook({ tournamentId, matchId, game, viewerId, roster, teams }: 
       </div>
     </div>
     <div className={styles.teams}>{teams.map(team => {
+      const rotation = Math.min(teamRotations[team.id] ?? 0, doc.rotations.length - 1);
+      const selectRotation = (value: number) => setTeamRotations(current => ({ ...current, [team.id]: value }));
       const teamHits = hits.filter(h => h.teamId === team.id);
       const rotationHits = teamHits.filter(h => h.rotation === rotation);
-      return <section key={team.id} className={`glass-card ${styles.team}`}>
+      return <section key={team.id} className={`glass-card ${styles.team}`} aria-label={team.name}>
         <h2>{team.name}<small>Trafienia środka: {teamHits.length}</small></h2>
+        <div className={styles.actions}>
+          <button disabled={rotation === 0} onClick={() => selectRotation(rotation - 1)}>Poprzednia</button>
+          <label className={styles.rotation}>Rotacja<select aria-label={`Rotacja: ${team.name}`} value={rotation} onChange={e => selectRotation(Number(e.target.value))}>
+            {doc.rotations.map((_, i) => <option key={i} value={i}>{i + 1}</option>)}
+          </select></label>
+          <button disabled={state.blocked || rotation === MAX_ROTATIONS - 1} onClick={() => {
+            // Slots store each team's nth rotation; blank opponent entries are not attempts.
+            if (rotation === doc.rotations.length - 1) change(d => { d.rotations.push(newRotation(roster)); });
+            selectRotation(rotation + 1);
+          }}>Następna</button>
+        </div>
         {roster.filter(p => p.teamId === team.id).map(player => {
           const entry = doc.rotations[rotation].entries[player.id];
           const totals = playerNotebookTotals(doc, player.id);
@@ -124,7 +127,7 @@ function GameNotebook({ tournamentId, matchId, game, viewerId, roster, teams }: 
               <div className={styles.checks}>
                 {([['thrown', 'Rzucił'], ['center', 'Środek'], ['opponent', 'Puszka przeciwnika']] as const).map(([field, label]) =>
                   <label key={field}><input type="checkbox" aria-label={`${player.name}, ${index ? `bonus ${index}` : "rzut"}, ${label}`}
-                    checked={shot[field]} onChange={e => setThrow(player.id, index, field, e.target.checked)} />{label}
+                    checked={shot[field]} onChange={e => setThrow(rotation, player.id, index, field, e.target.checked)} />{label}
                     {field === "center" && shot.center && <strong>#{teamHits.find(h => h.id === shot.id)?.number}</strong>}
                   </label>)}
               </div>

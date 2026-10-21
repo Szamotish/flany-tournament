@@ -9,7 +9,8 @@ Wejście: turniej → lokalny admin → **Notatnik** lub **Admin mecze → Notat
 ## Wpisy
 
 - Wybierz mecz i pojedynczą grę w BO1/BO3/BO5. Każda gra ma osobne wpisy, liczniki trafień i ukończenia piwa.
-- Każda rotacja ma osobne rzuty zawodników. Następna rotacja zachowuje historię; można wrócić do poprzedniej.
+- Każda drużyna ma własny wybór rotacji i przyciski „Poprzednia” / „Następna”. Mniejszy skład może rozpocząć kolejną rotację, gdy przeciwnicy nadal są w poprzedniej — także po ukończeniu piwa przez jednego z graczy. Przełączenie drużyny zachowuje wpisy i widok przeciwników. Można wracać do wcześniejszych rotacji, aby poprawić dane.
+- Dotychczasowe notatniki zachowują format zapisu: pozycja w tablicy oznacza numer rotacji każdej drużyny, a nie wspólny przedział czasu. Nowe, puste rubryki przeciwników nie dodają rzutów. Zmiana nie wymaga migracji SQL.
 - Trafienie puszki przeciwnika otwiera kolejny rzut tego samego gracza w tej samej rotacji. Kolejne takie trafienie również daje bonus. Limit techniczny: 10 rzutów na gracza i rotację, 100 rotacji na grę.
 - Trafienie środka i puszki przeciwnika automatycznie oznacza wykonanie rzutu. Puste pola nie dodają rzutów do statystyk.
 - Celny rzut bonusowy zwiększa **łączną liczbę rzutów i trafień**, a dodatkowo jest wyliczany jako celny rzut karny. `playerNotebookTotals` udostępnia `penaltyHits` do przyszłej prezentacji. Nie dodawaj tej wartości ponownie do `hits`.

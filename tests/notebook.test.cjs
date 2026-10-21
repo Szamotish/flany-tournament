@@ -75,6 +75,34 @@ test('corrections remove dependent bonuses and finishes, preserve unrelated even
   assert.ok(notebook.parseNotebook(corrected, roster));
 });
 
+test('independent team rotations preserve totals and finish hits when one player finishes early', () => {
+  const equalRoster = [...roster, { id: id(4), name: 'Ania', teamId: id(20) }];
+  let doc = shot(notebook.newNotebook(equalRoster), 1, 'center');
+  const finish = doc.rotations[0].entries[id(1)].throws[0].id;
+  doc.players[id(1)].finishedAt = finish;
+  doc = shot(doc, 2, 'center');
+  doc.rotations.push(notebook.newRotation(equalRoster));
+  doc = shot(doc, 2, 'opponent', true, 0, 1);
+  doc = shot(doc, 2, 'center', true, 1, 1);
+  doc.rotations.push(notebook.newRotation(equalRoster));
+  doc = shot(doc, 2, 'center', true, 0, 2);
+  // Opponents are still entering their first rotation while Franek is in his third.
+  doc = shot(doc, 3, 'center', true, 0, 0);
+  doc = shot(doc, 4, 'center', true, 0, 0);
+  doc.players[id(4)].finishedAt = doc.rotations[0].entries[id(4)].throws[0].id;
+  const restored = notebook.parseNotebook(JSON.parse(JSON.stringify(doc)), equalRoster);
+  assert.ok(restored);
+  const hits = notebook.notebookHits(restored, equalRoster);
+  assert.deepEqual(Array.from(hits.filter(h => h.teamId === id(10)), h => h.number), [1, 2, 3, 4]);
+  assert.deepEqual(Array.from(hits.filter(h => h.teamId === id(20)), h => h.number), [1, 2]);
+  assert.equal(restored.players[id(1)].finishedAt, finish);
+  assert.equal(hits.find(h => h.id === restored.players[id(4)].finishedAt).number, 2);
+  assert.equal(notebook.playerNotebookTotals(restored, id(1)).throws, 1);
+  assert.equal(notebook.playerNotebookTotals(restored, id(2)).throws, 4);
+  assert.equal(notebook.playerNotebookTotals(restored, id(2)).penaltyHits, 1);
+  assert.equal(notebook.playerNotebookTotals(restored, id(3)).throws, 1);
+});
+
 test('reordering hits updates their numbers without losing finish attribution', () => {
   let doc = shot(notebook.newNotebook(roster), 1, 'center');
   doc = shot(doc, 2, 'center');

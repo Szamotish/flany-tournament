@@ -29,7 +29,8 @@ test('notebook UI records bonus hits, finishes, rotations, offline drafts and co
   const id = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
   const catalog = { viewerId: id(90), teams: [{ id: id(10), name: 'Pierwsza' }, { id: id(20), name: 'Druga' }],
     matches: [{ id: id(100), bo: 3, round_no: 1, match_no: 1, status: 'pending', team_a_id: id(10), team_b_id: id(20) }],
-    players: [{ id: id(1), name: 'Maciek', teamId: id(10) }, { id: id(2), name: 'Franek', teamId: id(10) }, { id: id(3), name: 'Kasia', teamId: id(20) }] };
+    players: [{ id: id(1), name: 'Maciek', teamId: id(10) }, { id: id(2), name: 'Franek', teamId: id(10) }, { id: id(3), name: 'Kasia', teamId: id(20) },
+      { id: id(4), name: 'Olek', teamId: id(10) }, { id: id(5), name: 'Ania', teamId: id(20) }] };
   const bundle = `const process={env:{NODE_ENV:'production'}};const modules={${Object.entries(modules).map(([name, code]) => `${JSON.stringify(name)}:function(require,module,exports){\n${code}\n}`).join(',')}};
     const cache={};function require(name){if(cache[name])return cache[name].exports;const mod=cache[name]={exports:{}};modules[name](require,mod,mod.exports);return mod.exports;}
     require('react-dom/client').createRoot(document.querySelector('#root')).render(require('react').createElement(require('@/${folder}/NotebookClient').default,{tournamentId:${JSON.stringify(id(200))},initialMatch:''}));`;
@@ -61,21 +62,38 @@ test('notebook UI records bonus hits, finishes, rotations, offline drafts and co
   const context = await browser.newContext({ viewport: { width: 390, height: 850 }, hasTouch: true });
   const page = await context.newPage(); const errors = []; page.on('pageerror', e => errors.push(e.message));
   await page.goto(`http://127.0.0.1:${server.address().port}`);
+  const first = page.getByRole('region', { name: 'Pierwsza', exact: true });
+  const second = page.getByRole('region', { name: 'Druga', exact: true });
   await page.getByLabel('Maciek, rzut, Puszka przeciwnika', { exact: true }).check();
   assert.equal(await page.getByLabel('Maciek, rzut, Rzucił', { exact: true }).isChecked(), true);
   await page.getByLabel('Maciek, bonus 1, Środek', { exact: true }).check();
   await page.getByLabel('Franek, rzut, Środek', { exact: true }).check();
   await page.getByLabel('Maciek, skończył przy trafieniu', { exact: true }).selectOption({ index: 2 });
   const finishId = await page.getByLabel('Maciek, skończył przy trafieniu', { exact: true }).inputValue();
-  await page.getByRole('button', { name: 'Następna', exact: true }).click();
+  await page.getByLabel('Kasia, rzut, Środek', { exact: true }).check();
+  await first.getByRole('button', { name: 'Następna', exact: true }).click();
   assert.equal(await page.getByLabel('Maciek, rzut, Rzucił', { exact: true }).isChecked(), false);
+  assert.equal(await page.getByLabel('Rotacja: Druga', { exact: true }).inputValue(), '0');
+  assert.equal(await page.getByLabel('Kasia, rzut, Środek', { exact: true }).isChecked(), true);
   assert.equal(await page.getByLabel('Maciek, skończył przy trafieniu', { exact: true }).inputValue(), finishId);
   await page.getByLabel('Franek, rzut, Środek', { exact: true }).check();
   await page.getByLabel('Franek, skończył przy trafieniu', { exact: true }).selectOption({ index: 3 });
+  await second.getByRole('button', { name: 'Następna', exact: true }).click();
+  await page.getByLabel('Kasia, rzut, Środek', { exact: true }).check();
+  await second.getByRole('button', { name: 'Następna', exact: true }).click();
+  await page.getByLabel('Kasia, rzut, Puszka przeciwnika', { exact: true }).check();
+  await page.getByLabel('Kasia, bonus 1, Środek', { exact: true }).check();
+  assert.equal(await page.getByLabel('Rotacja: Pierwsza', { exact: true }).inputValue(), '1');
+  assert.equal(await page.getByLabel('Franek, rzut, Środek', { exact: true }).isChecked(), true);
+  assert.equal(await page.getByLabel('Olek, rzut, Rzucił', { exact: true }).isChecked(), false);
+  assert.equal(await page.getByLabel('Maciek, skończył przy trafieniu', { exact: true }).inputValue(), finishId);
   await page.getByRole('button', { name: 'Zapisz teraz', exact: true }).click();
   await page.getByRole('status').filter({ hasText: /^Zapisane$/ }).waitFor();
-  assert.equal(records.get(1).document.rotations.length, 2);
+  assert.equal(records.get(1).document.rotations.length, 3);
+  assert.equal(records.get(1).document.rotations[2].entries[id(1)].throws[0].thrown, false);
+  assert.equal(records.get(1).document.rotations[2].entries[id(3)].throws[1].center, true);
   await context.setOffline(true);
+  await second.getByRole('button', { name: 'Następna', exact: true }).click();
   await page.getByLabel('Kasia, rzut, Środek', { exact: true }).check();
   await page.getByRole('status').filter({ hasText: 'Brak połączenia' }).waitFor();
   const dirtyKey = await page.evaluate(() => Object.keys(localStorage).find(k => k.startsWith('flanki-notebook:')));
@@ -83,9 +101,10 @@ test('notebook UI records bonus hits, finishes, rotations, offline drafts and co
   await context.setOffline(false);
   await page.reload();
   await page.getByRole('status').filter({ hasText: /^Zapisane$/ }).waitFor();
-  await page.getByLabel('Rotacja', { exact: true }).selectOption({ value: '1' });
+  await page.getByLabel('Rotacja: Druga', { exact: true }).selectOption({ value: '3' });
   await page.waitForFunction(() => document.querySelector('[aria-label="Kasia, rzut, Środek"]')?.checked);
   assert.equal(await page.getByLabel('Kasia, rzut, Środek', { exact: true }).isChecked(), true);
+  assert.equal(await page.getByLabel('Rotacja: Pierwsza', { exact: true }).inputValue(), '0');
   await page.getByLabel('Gra', { exact: true }).selectOption('2');
   assert.equal(await page.getByLabel('Maciek, skończył przy trafieniu', { exact: true }).inputValue(), '');
   await page.getByLabel('Gra', { exact: true }).selectOption('1');
