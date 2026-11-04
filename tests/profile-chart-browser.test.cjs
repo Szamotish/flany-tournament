@@ -27,7 +27,7 @@ test('profile chart zoom, touch gestures, details and persisted customization', 
   const bundle = `const process={env:{NODE_ENV:'production'}}; const modules={${Object.entries(modules).map(([name, code]) => `${JSON.stringify(name)}:function(require,module,exports){\n${code}\n}`).join(',')}};
     const cache={}; function require(name){if(cache[name])return cache[name].exports;const mod=cache[name]={exports:{}};modules[name](require,mod,mod.exports);return mod.exports;}
     const h=require('react').createElement, prefs=window.initialPreferences;
-    const points=Array.from({length:100},(_,i)=>({id:String(i),mmr:5+Math.sin(i/5)/2,prestigePoints:0,playedAt:new Date(Date.UTC(2026,6,1+i)).toISOString(),tournamentName:i===99?null:'FL #fixture'+i,eventLabel:i===99?'Premia za performance':null}));
+    const points=Array.from({length:100},(_,i)=>({id:String(i),mmr:5+Math.sin(i/5)/2,prestigePoints:0,playedAt:new Date(Date.UTC(2026,6,1+i)).toISOString(),tournamentName:i===99?null:'FL #fixture'+i,eventLabel:i===99?'Premia za performance':null,changeLabel:i===99?'+7 PP':'+4 PP (mecze +1 PP, wygrana turnieju +3 PP)'}));
     const panel=require('@/app/components/ProfileRankPanel').default;
     require('react-dom/client').createRoot(document.getElementById('root')).render(h('article',{className:'profile-card profile-hero'},
       h(require('@/app/players/[id]/ProfileSettingsButton').default,{playerId:'p',currentRank:'platinum',initialPreferences:prefs,initialRankFrameEnabled:true,initialProfileColor:null,initialFavoriteBeer:null}),
@@ -64,6 +64,7 @@ test('profile chart zoom, touch gestures, details and persisted customization', 
   assert.equal(await dots.count(), 100);
   await plot.click({ position: { x: (await plot.boundingBox()).width - 2, y: 40 } });
   assert.match(await page.locator('.profile-chart-detail').innerText(), /Premia za performance/);
+  assert.match(await page.locator('.profile-chart-detail').innerText(), /\+7 PP/);
   await plot.hover(); await page.mouse.wheel(0, -500);
   await page.waitForFunction(() => document.querySelectorAll('.profile-mmr-chart-dot').length < 100);
   const zoomed = await dots.count();
@@ -75,6 +76,7 @@ test('profile chart zoom, touch gestures, details and persisted customization', 
   assert.notEqual(await page.locator('.profile-chart-dates').innerText(), dates);
   await plot.click();
   assert.match(await page.locator('.profile-chart-detail').innerText(), /MMR.*PP.*FL #fixture/);
+  assert.match(await page.locator('.profile-chart-detail').innerText(), /\+4 PP \(mecze \+1 PP, wygrana turnieju \+3 PP\)/);
   await page.getByRole('button', { name: 'Pokaż cały wybrany okres' }).click();
   assert.equal(await dots.count(), 100);
   await page.setViewportSize({ width: 390, height: 844 });

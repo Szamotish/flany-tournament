@@ -437,7 +437,8 @@ export default async function PlayerPage({
   }
   const [preferences, chartHistory, matchStats] = await Promise.all([
     readProfilePreferences(playerId),
-    readProfileHistory(playerId).then(points => ({ points, error: false })).catch(() => ({ points: [], error: true })),
+    readProfileHistory(playerId, { mmr: rankedMmr, prestigePoints: rankedPrestigePoints })
+      .then(points => ({ points, error: false })).catch(() => ({ points: [], error: true })),
     readPlayerMatchStats(playerId).catch(() => null),
   ]);
   const panelRank = resolvePanelRank(preferences.rank_panel, currentRank);

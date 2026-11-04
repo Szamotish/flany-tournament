@@ -24,7 +24,7 @@ test('chart uses the scheduled event date and chronological order for backfilled
     { id: 'late', name: 'FL #0910261', event_at: '2026-10-09T18:00:00Z', started_at: '2026-10-11T18:00:00Z', created_at: '2026-10-11T17:00:00Z' },
     { id: 'early', name: 'FL #0110261', event_at: '2026-10-01T18:00:00Z', started_at: null, created_at: '2026-10-11T17:00:00Z' },
   ]);
-  assert.equal(points.map(p => p.id).join(','), 'b,a,bonus');
+  assert.equal(points.map(p => p.id).join(','), 'tournament:early,tournament:late,bonus');
   assert.equal(points[0].playedAt, '2026-10-01T18:00:00Z');
   assert.equal(points[2].playedAt, rows[2].created_at);
   assert.equal(points[0].mmr, rows[1].mmr, 'display dates must not recalculate MMR');
@@ -48,6 +48,65 @@ test('backfilled November tournament shares its date with history while a separa
   assert.equal(history.profileHistoryDay(points[1].playedAt), '2026-11-04');
   assert.equal(points[1].eventLabel, 'Premia za performance');
   assert.equal(points[1].tournamentName, null);
+});
+
+test('backfilled wins and same-time champion rewards form a chronological ledger ending at the actual 33 PP', () => {
+  const tournament = (id, date, number) => ({ id, name: id, event_at: date, started_at: date, created_at: date, name_day_number: number });
+  const tournaments = [tournament('FL #3110261', '2026-10-31T19:23:50Z', 1), tournament('FL #3110262', '2026-10-31T20:01:04Z', 2),
+    tournament('FL #0111262', '2026-11-01T02:30:15Z', 2), tournament('FL #0111263', '2026-11-01T14:50:00Z', 3)];
+  const entry = (id, tournament_id, reason, pp, at) => ({ id, tournament_id, reason, mmr: 10, prestige_points: pp, created_at: at });
+  const rows = [
+    entry('a-champion', tournaments[0].id, 'tournament_win', 27, '2026-10-31T19:55:34Z'),
+    entry('z-match', tournaments[0].id, 'match_win', 24, '2026-10-31T19:55:34Z'),
+    entry('match2', tournaments[1].id, 'match_win', 28, '2026-10-31T20:12:58Z'),
+    entry('champion2', tournaments[1].id, 'tournament_win', 31, '2026-10-31T20:12:58Z'),
+    entry('loss', tournaments[2].id, 'match_loss', 22, '2026-11-04T14:49:30Z'),
+    entry('bonus', null, 'performance_bonus', 29, '2026-11-04T14:53:35Z'),
+    entry('a-champion3', tournaments[3].id, 'tournament_win', 33, '2026-11-04T15:00:56Z'),
+    entry('z-match3', tournaments[3].id, 'match_win', 30, '2026-11-04T15:00:56Z'),
+  ];
+  const options = { baseline: { mmr: 10, prestigePoints: 23 }, current: { mmr: 10, prestigePoints: 33 } };
+  const points = history.buildProfileHistory(rows, tournaments, options);
+  assert.equal(points.length, 5, 'match + champion must be one point per tournament');
+  assert.equal(points.map(p => p.prestigePoints).join(','), '27,31,22,26,33');
+  assert.equal(points[0].changeLabel, '+4 PP (mecze +1 PP, wygrana turnieju +3 PP)');
+  assert.equal(points[1].changeLabel, points[0].changeLabel);
+  assert.equal(points[2].changeLabel, '-9 PP');
+  assert.equal(points[3].changeLabel, points[0].changeLabel);
+  assert.equal(points[4].changeLabel, '+7 PP');
+  assert.equal(points[4].eventLabel, 'Premia za performance');
+  assert.equal(history.profileHistoryDay(points[3].playedAt), '2026-11-01');
+  assert.equal(history.profileHistoryDay(points[4].playedAt), '2026-11-04');
+  assert.equal(history.filterProfileHistory(points, '2026-11-01', null)[0].prestigePoints, 22, 'date filtering must not reset the balance');
+  assert.equal(JSON.stringify(history.buildProfileHistory(rows.slice().reverse(), tournaments, options)), JSON.stringify(points));
+  assert.equal(rows[0].prestige_points, 27, 'building a chart never changes stored awards');
+  assert.throws(() => history.buildProfileHistory(rows, tournaments, { ...options, current: { mmr: 10, prestigePoints: 34 } }), /current_mismatch/);
+});
+
+test('actual movements preserve cap transitions, clipped prestige losses, and manual changes', () => {
+  const rows = [
+    { ...row('win', 't', '2026-10-01T12:00:00Z'), reason: 'match_win', mmr: 10, prestige_points: 1 },
+    { ...row('loss', 'u', '2026-10-02T12:00:00Z'), reason: 'match_loss', mmr: 10, prestige_points: 0 },
+    { ...row('manual', null, '2026-10-03T12:00:00Z'), reason: 'admin_set_mmr', mmr: 8, prestige_points: 0 },
+    { ...row('bonus', null, '2026-10-04T12:00:00Z'), reason: 'performance_bonus', mmr: 8.5, prestige_points: 0 },
+  ];
+  const points = history.buildProfileHistory(rows, [], { baseline: { mmr: 9.9, prestigePoints: 0 }, current: { mmr: 8.5, prestigePoints: 0 } });
+  assert.equal(points.map(p => `${p.mmr}:${p.prestigePoints}`).join(','), '10:1,10:0,8:0,8.5:0');
+  assert.equal(points[1].changeLabel, '-1 PP', 'use the one point actually lost, not the nominal -9 PP penalty');
+  assert.equal(points[2].eventLabel, 'Ręczna zmiana MMR');
+});
+
+test('same-time rounds follow match order, and equal event dates use the daily tournament number', () => {
+  const at = '2026-10-05T12:00:00Z';
+  const rows = [
+    { ...row('a', 'second', at), match_id: 'a-match', reason: 'match_loss', mmr: 10, prestige_points: 2 },
+    { ...row('z', 'first', at), match_id: 'z-match', reason: 'match_win', mmr: 10, prestige_points: 11 },
+  ];
+  const tournaments = ['second', 'first'].map((id, i) => ({ id, name: id, event_at: at, name_day_number: 2 - i }));
+  const points = history.buildProfileHistory(rows, tournaments, { baseline: { mmr: 10, prestigePoints: 10 },
+    matches: [{ id: 'z-match', round_no: 1, match_no: 1 }, { id: 'a-match', round_no: 2, match_no: 1 }] });
+  assert.equal(points.map(p => p.tournamentName).join(','), 'first,second');
+  assert.equal(points.map(p => p.changeLabel).join(','), '+1 PP,-9 PP');
 });
 test('date bounds are inclusive Polish calendar days, including open-ended and empty ranges', () => {
   const points = ['2026-10-01T21:59:59Z', '2026-10-01T22:00:00Z', '2026-10-02T21:59:59Z', '2026-10-02T22:00:00Z'].map((playedAt, i) => ({ id: i, playedAt }));
@@ -74,21 +133,24 @@ test('zoom is anchored and bounded; panning cannot escape history', () => {
   assert.equal(history.clampChartWindow({ start: -10, span: 10 }, 100).start, 0);
 });
 test('history loader reads beyond both 80 entries and the database page limit', async () => {
-  const all = Array.from({ length: 1201 }, (_, i) => row(String(i), 't'));
+  const all = Array.from({ length: 1201 }, (_, i) => ({ ...row(String(i), 't', new Date(Date.UTC(2026, 9, 11, 0, 0, i)).toISOString()),
+    reason: 'match_win', mmr: 10, prestige_points: i + 1 }));
   const ranges = [];
   const { readProfileHistory } = load('lib/profileHistoryServer.ts', {
     '@/lib/profileHistory': history, '@/lib/profilePreferences': prefs,
     '@/lib/supabaseServer': { supabaseServer: { from(table) {
       const query = { select() { return this; }, eq() { return this; }, order() { return this; },
+        maybeSingle() { assert.equal(table, 'player_ranked_baselines'); return { data: { baseline_mmr: 10, baseline_prestige_points: 0 }, error: null }; },
         range(start, end) { ranges.push(start); return { data: all.slice(start, end + 1), error: null }; },
         in() { assert.equal(table, 'tournaments'); return { data: [{ id: 't', event_at: '2026-09-01T12:00:00Z', name: 'T' }], error: null }; } };
       return query;
     } } },
   });
   const points = await readProfileHistory('player');
-  assert.equal(points.length, 1201);
+  assert.equal(points.length, 1);
   assert.deepEqual(ranges, [0, 500, 1000]);
-  assert.equal(points[1200].playedAt, '2026-09-01T12:00:00Z');
+  assert.equal(points[0].playedAt, '2026-09-01T12:00:00Z');
+  assert.equal(points[0].prestigePoints, 1201);
 });
 
 function api(options = {}) {
