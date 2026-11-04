@@ -12,7 +12,7 @@ export type StatsSnapshot = { tournaments: StatsTournament[]; matches: StatsMatc
 export type GameStats = ReturnType<typeof playerNotebookTotals> & { playerId: string; matchId: string; game: number; finish: number | null; beer: string | null };
 export type StatsSummary = {
   matches: number; expectedMatches: number; games: number; expectedGames: number;
-  throws: number; hits: number; opponentHits: number; penaltyHits: number; cheats: number;
+  throws: number; hits: number; opponentHits: number; penaltyHits: number; penaltyThrows: number; cheats: number;
   accuracy: number | null; finishAverage: number | null; finishes: number;
   beers: { name: string; count: number }[];
 };
@@ -50,7 +50,8 @@ export function summarizeStats(games: GameStats[], matches: StatsMatch[]): Stats
   const ids = new Set(matches.map(m => m.id));
   const rows = games.filter(g => ids.has(g.matchId));
   const totals = rows.reduce((a, g) => ({ throws: a.throws + g.throws, hits: a.hits + g.hits, opponentHits: a.opponentHits + g.opponentHits,
-    penaltyHits: a.penaltyHits + g.penaltyHits, cheats: a.cheats + g.cheats }), { throws: 0, hits: 0, opponentHits: 0, penaltyHits: 0, cheats: 0 });
+    penaltyHits: a.penaltyHits + g.penaltyHits, penaltyThrows: a.penaltyThrows + g.penaltyThrows,
+    cheats: a.cheats + g.cheats }), { throws: 0, hits: 0, opponentHits: 0, penaltyHits: 0, penaltyThrows: 0, cheats: 0 });
   const finishes = rows.flatMap(g => g.finish === null ? [] : [g.finish]);
   const beers = new Map<string, number>();
   for (const g of rows) { const name = g.beer ?? "Nieznane"; beers.set(name, (beers.get(name) ?? 0) + 1); }

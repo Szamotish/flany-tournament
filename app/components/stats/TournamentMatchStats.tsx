@@ -34,11 +34,11 @@ export default function TournamentMatchStats({ tournamentId, compact = false }: 
         {!compact && <div id="statystyki">{data.matches.map(match => <details key={match.id} className={styles.match}>
           <summary>{match.label} · {match.players.some(p => p.games.length) ? "Statystyki graczy" : "Brak wpisów"}</summary>
           <div className={styles.tableWrap}><table><caption className={styles.coverage}>Suma meczu · zapisane gry / rozegrane gry</caption>
-            <thead><tr><th>Gracz</th><th>Gry</th><th>Rzuty</th><th>Środek</th><th>Celność</th><th>Piwo przy trafieniu (śr.)</th><th>Puszki przeciwnika</th><th>Oszustwa</th>{match.players.some(p => p.summary.penaltyHits) && <th>Karne (w trafieniach)</th>}</tr></thead>
+            <thead><tr><th>Gracz</th><th>Gry</th><th>Rzuty</th><th>Środek</th><th>Celność</th><th>Piwo przy trafieniu (śr.)</th><th>Puszki przeciwnika</th><th>Oszustwa</th>{match.players.some(p => p.summary.penaltyThrows) && <th>Karne · trafione / rzucone</th>}</tr></thead>
             <tbody>{match.players.map(p => <tr key={p.playerId}><th><Link href={`/players/${p.playerId}`}>{p.name}</Link></th><td>{p.summary.games}/{match.expectedGames}</td>
               <td>{p.summary.games ? p.summary.throws : "—"}</td><td>{p.summary.games ? p.summary.hits : "—"}</td><td>{statNumber(p.summary.accuracy)}{p.summary.accuracy !== null ? "%" : ""}</td>
               <td>{statNumber(p.summary.finishAverage)} ({p.summary.finishes})</td><td>{p.summary.games ? p.summary.opponentHits : "—"}</td><td>{p.summary.games ? p.summary.cheats : "—"}</td>
-              {match.players.some(p => p.summary.penaltyHits) && <td>{p.summary.games ? p.summary.penaltyHits : "—"}</td>}</tr>)}</tbody>
+              {match.players.some(p => p.summary.penaltyThrows) && <td>{p.summary.penaltyThrows ? `${p.summary.penaltyHits}/${p.summary.penaltyThrows}` : "—"}</td>}</tr>)}</tbody>
           </table></div>
           <details className={styles.beers}><summary>Poszczególne gry i piwa</summary><div className={styles.tableWrap}><table>
             <thead><tr><th>Gra</th><th>Gracz</th><th>Rzuty</th><th>Środek</th><th>Piwo przy trafieniu</th><th>Marka piwa</th></tr></thead>

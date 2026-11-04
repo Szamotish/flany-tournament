@@ -16,6 +16,7 @@ import { playerToneStyle } from "@/lib/ui/playerProfile";
 import ProfileRankPanel from "@/app/components/ProfileRankPanel";
 import ProfileMmrChart from "@/app/components/ProfileMmrChart";
 import { readProfileHistory, readProfilePreferences } from "@/lib/profileHistoryServer";
+import { tournamentHistoryDate } from "@/lib/profileHistory";
 import { resolvePanelRank } from "@/lib/profilePreferences";
 import PlayerMatchStats from "@/app/components/stats/PlayerMatchStats";
 import { readPlayerMatchStats } from "@/lib/matchStatsServer";
@@ -220,20 +221,20 @@ export default async function PlayerPage({
         {
           name: string;
           event_location: string | null;
+          event_at: string | null;
           created_at: string | null;
           started_at: string | null;
           format: string | null;
           mode: string | null;
         }
       >();
-      const firstMatchAtByTournament = new Map<string, string>();
       const teamsMap = new Map<string, string>();
       const rosterMap = new Map<string, PlayerBrief[]>();
 
       if (tournamentIds.length > 0) {
         const primaryTournaments = await supabaseServer
           .from("tournaments")
-          .select("id,name,event_location,created_at,started_at,format,mode")
+          .select("id,name,event_location,event_at,created_at,started_at,format,mode")
           .in("id", tournamentIds);
 
         let tournaments = primaryTournaments.data as
@@ -241,6 +242,7 @@ export default async function PlayerPage({
               id: string;
               name: string | null;
               event_location?: string | null;
+              event_at?: string | null;
               created_at: string | null;
               started_at?: string | null;
               format?: string | null;
@@ -257,7 +259,7 @@ export default async function PlayerPage({
         ) {
           const fallbackTournaments = await supabaseServer
             .from("tournaments")
-            .select("id,name,created_at")
+            .select("id,name,event_at,created_at")
             .in("id", tournamentIds);
           tournaments = (fallbackTournaments.data ?? []).map((row) => ({
             ...row,
@@ -271,24 +273,12 @@ export default async function PlayerPage({
           tournamentsMap.set(String(t.id), {
             name: String(t.name ?? "(unknown)"),
             event_location: t.event_location ?? null,
+            event_at: t.event_at ?? null,
             created_at: t.created_at ? String(t.created_at) : null,
             started_at: t.started_at ? String(t.started_at) : null,
             format: typeof t.format === "string" ? t.format : null,
             mode: typeof t.mode === "string" ? t.mode : null,
           });
-        }
-
-        const { data: matchStarts } = await supabaseServer
-          .from("tournament_matches")
-          .select("tournament_id,created_at")
-          .in("tournament_id", tournamentIds)
-          .order("created_at", { ascending: true });
-
-        for (const row of matchStarts ?? []) {
-          const tournamentId = String(row.tournament_id ?? "");
-          const createdAt = typeof row.created_at === "string" ? row.created_at : null;
-          if (!tournamentId || !createdAt || firstMatchAtByTournament.has(tournamentId)) continue;
-          firstMatchAtByTournament.set(tournamentId, createdAt);
         }
       }
 
@@ -332,7 +322,7 @@ export default async function PlayerPage({
           tournamentName: t?.name ?? "(unknown)",
           tournamentLocation: t?.event_location ?? null,
           tournamentTypeLabel: formatTournamentHistoryType(t?.format, t?.mode),
-          tournamentPlayedAt: t?.started_at ?? firstMatchAtByTournament.get(tournamentId) ?? t?.created_at ?? null,
+          tournamentPlayedAt: tournamentHistoryDate(t),
           teamId,
           teamName: teamsMap.get(teamId) ?? "Druzyna",
           placement: Number(r.placement ?? 0),

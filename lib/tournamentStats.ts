@@ -12,8 +12,8 @@ export function tournamentStats(snapshot: StatsSnapshot, tournamentId: string) {
     return { id: match.id, label: `${bracket}R${match.round_no} · Mecz ${match.match_no}`, expectedGames: match.score_a + match.score_b,
       players: [...roster.values()].sort((a, b) => (players.get(a.id)?.name ?? a.name).localeCompare(players.get(b.id)?.name ?? b.name, "pl")).map(p => ({ playerId: p.id, name: players.get(p.id)?.name ?? p.name,
         summary: summarizeStats(recorded.filter(g => g.playerId === p.id), [match]),
-        games: recorded.filter(g => g.playerId === p.id).sort((a, b) => a.game - b.game).map(({ game, throws: attempts, hits, opponentHits, penaltyHits, cheats, finish, beer }) =>
-          ({ game, throws: attempts, hits, opponentHits, penaltyHits, cheats, finish, beer })) })),
+        games: recorded.filter(g => g.playerId === p.id).sort((a, b) => a.game - b.game).map(({ game, throws: attempts, hits, opponentHits, penaltyHits, penaltyThrows, cheats, finish, beer }) =>
+          ({ game, throws: attempts, hits, opponentHits, penaltyHits, penaltyThrows, cheats, finish, beer })) })),
     };
   }) };
 }

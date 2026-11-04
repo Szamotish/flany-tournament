@@ -76,9 +76,10 @@ export function playerNotebookTotals(doc: Notebook, playerId: string) {
       totals.hits += Number(shot.center);
       totals.opponentHits += Number(shot.opponent);
       totals.penaltyHits += Number(i > 0 && shot.center);
+      totals.penaltyThrows += Number(i > 0 && shot.thrown);
     });
     return totals;
-  }, { throws: 0, hits: 0, opponentHits: 0, penaltyHits: 0, cheats: 0 });
+  }, { throws: 0, hits: 0, opponentHits: 0, penaltyHits: 0, penaltyThrows: 0, cheats: 0 });
 }
 
 const record = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);

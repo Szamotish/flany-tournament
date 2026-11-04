@@ -35,6 +35,20 @@ test('missing tournament date uses started_at, then creation, then original entr
   assert.equal(history.buildProfileHistory([row('a', 't')], [{ ...t, started_at: null }])[0].playedAt, t.created_at);
   assert.equal(history.buildProfileHistory([row('a', 'deleted')], [])[0].playedAt, row('a', 'deleted').created_at);
 });
+
+test('backfilled November tournament shares its date with history while a separate bonus keeps its own date and label', () => {
+  const t = { id: 't', name: 'FL #0111263', event_at: '2026-11-01T14:50:00+00:00', started_at: '2026-11-04T14:55:20+00:00', created_at: '2026-11-04T14:51:09+00:00' };
+  const points = history.buildProfileHistory([
+    { ...row('match', 't', '2026-11-04T15:00:56Z'), reason: 'match_win' },
+    { ...row('bonus', null, '2026-11-04T14:53:35Z'), reason: 'performance_bonus' },
+  ], [t]);
+  assert.equal(history.tournamentHistoryDate(t), t.event_at);
+  assert.equal(history.profileHistoryDay(points[0].playedAt), '2026-11-01');
+  assert.equal(points[0].tournamentName, t.name);
+  assert.equal(history.profileHistoryDay(points[1].playedAt), '2026-11-04');
+  assert.equal(points[1].eventLabel, 'Premia za performance');
+  assert.equal(points[1].tournamentName, null);
+});
 test('date bounds are inclusive Polish calendar days, including open-ended and empty ranges', () => {
   const points = ['2026-10-01T21:59:59Z', '2026-10-01T22:00:00Z', '2026-10-02T21:59:59Z', '2026-10-02T22:00:00Z'].map((playedAt, i) => ({ id: i, playedAt }));
   assert.equal(history.filterProfileHistory(points, '2026-10-02', '2026-10-02').map(p => p.id).join(','), '1,2');

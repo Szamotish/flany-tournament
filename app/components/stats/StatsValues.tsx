@@ -9,12 +9,12 @@ export default function StatsValues({ data, average = false, totalBeers }: { dat
     [average ? "Trafienia / mecz" : "Trafienia środka", statNumber(data.hits / divisor)],
     ["Celność", data.accuracy === null ? "—" : `${statNumber(data.accuracy)}%`],
     ["Ukończenie piwa przy trafieniu", statNumber(data.finishAverage)],
-    [average ? "Puszki przeciwnika / mecz" : "Puszki przeciwnika", statNumber(data.opponentHits / divisor)],
+    ["Puszki przeciwnika · suma", statNumber(data.opponentHits)],
     [average ? "Oszustwa / mecz" : "Oszustwa", statNumber(data.cheats / divisor)],
   ];
   if (!data.games) values.length = 0;
   if (totalBeers !== undefined) values.unshift(["Wypite piwa · łącznie", statNumber(totalBeers)]);
-  if (data.penaltyHits) values.push([average ? "Trafione karne / mecz" : "Trafione karne", statNumber(data.penaltyHits / divisor)]);
+  if (data.penaltyThrows) values.push(["Karne · trafione / rzucone", `${data.penaltyHits}/${data.penaltyThrows}`]);
   const knownBeers = data.beers.filter(b => b.name !== "Nieznane");
   const mostPlayed = Math.max(0, ...knownBeers.map(b => b.count));
   values.push(["Ulubione piwo", knownBeers.filter(b => b.count === mostPlayed).map(b => b.name).sort((a, b) => a.localeCompare(b, "pl")).join(" / ") || "—"]);

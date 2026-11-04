@@ -17,7 +17,7 @@ export async function readProfileHistory(playerId: string) {
   const rows: MmrHistoryRow[] = [];
   for (let offset = 0; ; offset += 500) {
     const { data, error } = await supabaseServer.from("player_mmr_history")
-      .select("id,tournament_id,mmr,prestige_points,created_at").eq("player_id", playerId)
+      .select("id,tournament_id,mmr,prestige_points,created_at,reason").eq("player_id", playerId)
       .order("created_at").order("id").range(offset, offset + 499);
     if (error) throw new Error("profile_history_read_failed");
     rows.push(...data);

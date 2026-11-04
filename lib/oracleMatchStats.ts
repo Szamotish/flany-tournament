@@ -24,7 +24,7 @@ export function oracleMatchStatsFacts(snapshot: StatsSnapshot, question: string,
     const s = playerStats(snapshot, id, games).views[view];
     const scope = view === "last" ? "ostatni mecz" : view === "recent" ? "ostatnie 10 meczów" : "cała historia";
     if (!s.games) { facts.push(`${safe(p.name)}: ${scope}, brak wpisanych statystyk.`); continue; }
-    const throwing = `${safe(p.name)} (${scope}; dane ${s.matches}/${s.expectedMatches} meczów): rzuty ${s.throws}, środek ${s.hits}, celność ${fmt(s.accuracy)}%, karne ${s.penaltyHits} (w trafieniach), puszki przeciwnika ${s.opponentHits}, oszustwa ${s.cheats}.`;
+    const throwing = `${safe(p.name)} (${scope}; dane ${s.matches}/${s.expectedMatches} meczów): rzuty ${s.throws}, środek ${s.hits}, celność ${fmt(s.accuracy)}%, karne ${s.penaltyHits}/${s.penaltyThrows} (trafione/rzucone, trafienia wliczone w środek), puszki przeciwnika łącznie ${s.opponentHits}, oszustwa ${s.cheats}.`;
     const drinking = `${safe(p.name)} (${scope}): piwo kończy przy trafieniu drużyny śr.${fmt(s.finishAverage)} (${s.finishes} ukończeń; nie sekundy); marki ${s.beers.slice(0, 3).map(b => `${safe(b.name)}:${b.count}`).join(", ")}.`;
     facts.push(...(/pij|pic|piw|szybk/.test(q) ? [drinking, throwing] : [throwing, drinking]));
   }

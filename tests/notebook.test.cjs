@@ -22,12 +22,14 @@ test('opponent hit grants a separate bonus; penalty success counts in total thro
   doc = shot(doc, 1, 'opponent');
   assert.equal(doc.rotations[0].entries[id(1)].throws.length, 2);
   assert.equal(notebook.notebookHits(doc, roster).length, 0);
+  assert.equal(notebook.playerNotebookTotals(doc, id(1)).penaltyThrows, 0, 'awarded but unused bonus is not an attempt');
   doc = shot(doc, 1, 'center', true, 1);
   const totals = notebook.playerNotebookTotals(doc, id(1));
   assert.equal(totals.throws, 2);
   assert.equal(totals.hits, 1);
   assert.equal(totals.opponentHits, 1);
   assert.equal(totals.penaltyHits, 1);
+  assert.equal(totals.penaltyThrows, 1);
   assert.equal(notebook.notebookHits(doc, roster)[0].number, 1);
   assert.ok(notebook.parseNotebook(doc, roster));
 });
@@ -41,6 +43,7 @@ test('bonus misses count as throws; another opponent hit can grant another bonus
   assert.equal(totals.opponentHits, 2);
   assert.equal(totals.hits, 0);
   assert.equal(totals.penaltyHits, 0);
+  assert.equal(totals.penaltyThrows, 2);
   assert.ok(notebook.parseNotebook(doc, roster));
 });
 

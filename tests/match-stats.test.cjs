@@ -36,6 +36,7 @@ test('BO games aggregate once per match; penalty hits are included, beer finishe
   assert.equal(summary.matches, 1); assert.equal(summary.expectedMatches, 2);
   assert.equal(summary.games, 2); assert.equal(summary.expectedGames, 6);
   assert.equal(summary.throws, 4); assert.equal(summary.hits, 2); assert.equal(summary.penaltyHits, 2);
+  assert.equal(summary.penaltyThrows, 2); assert.equal(summary.opponentHits, 2);
   assert.equal(summary.accuracy, 50); assert.equal(summary.finishAverage, 1); assert.equal(summary.finishes, 2);
   assert.equal(summary.beers[0].count, 2);
   const last = stats.playerStats(s, id(1)).views.last;
@@ -49,6 +50,21 @@ test('unfinished matches, unplayed BO games and untouched rows are not zero resu
   assert.equal(stats.buildGameStats(s).length, 1);
   s.matches[0].status = 'pending';
   assert.equal(stats.buildGameStats(s).length, 0);
+});
+
+test('penalty denominator counts executed bonuses across games, including misses, not matches or awarded bonuses', () => {
+  const s = fixture();
+  let missed = notebook.editThrow(notebook.newNotebook(roster), 0, id(1), 0, 'opponent', true);
+  missed = notebook.editThrow(missed, 0, id(1), 1, 'thrown', true);
+  const unused = notebook.editThrow(notebook.newNotebook(roster), 0, id(1), 0, 'opponent', true);
+  s.notebooks.push({ ...s.notebooks[0], game_no: 2, document: missed }, { ...s.notebooks[0], game_no: 3, document: unused });
+  const summary = stats.playerStats(s, id(1)).views.all;
+  assert.equal(summary.opponentHits, 3);
+  assert.equal(summary.penaltyHits, 1);
+  assert.equal(summary.penaltyThrows, 2);
+  assert.equal(summary.matches, 1);
+  assert.equal(summary.throws, 5);
+  assert.equal(summary.hits, 1);
 });
 test('last ten uses actual event date and retains missing coverage; accuracy is weighted by attempts', () => {
   const s = fixture();
