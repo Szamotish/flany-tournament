@@ -4,6 +4,7 @@ import { supabaseServer } from "@/lib/supabaseServer";
 import { isNotebookId, parseNotebook, type NotebookPlayer } from "@/lib/notebook";
 import { NotebookError, notebookStorageError, readNotebookCatalog, rosterForMatch, sameNotebookRoster } from "@/lib/notebookServer";
 import { rateLimit, rateLimitResponse } from "@/lib/rateLimit";
+import { recalculateRankedMmr } from "@/lib/rankedRecalculate";
 
 type Context = { params: Promise<{ id: string }> };
 const json = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { "Cache-Control": "private, no-store" } });
@@ -51,12 +52,29 @@ export async function PUT(req: Request, { params }: Context) {
     const roster = rosterForMatch(catalog, body.matchId, body.game);
     const document = parseNotebook(body.document, roster);
     if (!document) return json({ error: "invalid_notebook" }, 400);
+    const finishSave = async (revision: number) => {
+      let finished = catalog.matches.find(m => m.id === body.matchId)?.status === "finished";
+      if (!finished) {
+        // A result may have been reported while this autosave was in flight.
+        // Read after the write so either this request or reporting the result
+        // necessarily replays the newly saved notebook.
+        const latest = await supabaseServer.from("tournament_matches").select("status")
+          .eq("id", body.matchId).eq("tournament_id", id).maybeSingle();
+        if (latest.error || !latest.data) return json({ error: "hit_rewards_recalculate_failed", revision }, 503);
+        finished = latest.data.status === "finished";
+      }
+      if (finished) {
+        try { await recalculateRankedMmr(); }
+        catch { return json({ error: "hit_rewards_recalculate_failed", revision }, 503); }
+      }
+      return json({ revision });
+    };
     const { data: existing, error: readError } = await supabaseServer.from("match_notebooks").select("revision,roster,document")
       .eq("tournament_id", id).eq("match_id", body.matchId).eq("game_no", body.game).maybeSingle();
     if (readError) throw notebookStorageError(readError);
     if (existing && !sameNotebookRoster(existing.roster as NotebookPlayer[], roster)) throw new NotebookError("roster_changed", 409);
     // A lost response can cause the same draft to be retried. Accept it without another write.
-    if (existing && JSON.stringify(parseNotebook(existing.document, roster)) === JSON.stringify(document)) return json({ revision: existing.revision });
+    if (existing && JSON.stringify(parseNotebook(existing.document, roster)) === JSON.stringify(document)) return await finishSave(existing.revision);
     if ((existing?.revision ?? 0) !== body.revision) throw new NotebookError("revision_conflict", 409);
     const values = { document, roster, revision: body.revision + 1, updated_by: auth.ctx.userId, updated_at: new Date().toISOString() };
     const result = existing
@@ -66,6 +84,6 @@ export async function PUT(req: Request, { params }: Context) {
         .select("revision").single();
     if (result.error?.code === "23505" || !result.error && !result.data) throw new NotebookError("revision_conflict", 409);
     if (result.error) throw notebookStorageError(result.error);
-    return json({ revision: result.data!.revision });
+    return await finishSave(result.data!.revision);
   } catch (e) { return fail(e); }
 }

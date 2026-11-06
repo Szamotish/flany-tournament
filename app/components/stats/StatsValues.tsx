@@ -10,6 +10,7 @@ export default function StatsValues({ data, average = false, totalBeers }: { dat
     ["Celność", data.accuracy === null ? "—" : `${statNumber(data.accuracy)}%`],
     ["Ukończenie piwa przy trafieniu", statNumber(data.finishAverage)],
     ["Puszki przeciwnika · suma", statNumber(data.opponentHits)],
+    ["Punkty za trafienia", statNumber(data.hitPoints)],
     [average ? "Oszustwa / mecz" : "Oszustwa", statNumber(data.cheats / divisor)],
   ];
   if (!data.games) values.length = 0;

@@ -136,12 +136,13 @@ test('validation rejects invented players, bonus throws, duplicate IDs, wrong-te
 });
 
 function api(options = {}) {
-  let stored = options.stored ?? null, writes = 0;
-  const server = { from() {
+  let stored = options.stored ?? null, writes = 0, replays = 0;
+  const server = { from(table) {
     let kind = 'read', values;
     const filters = {};
     const query = { select() { return this; }, eq(k, v) { filters[k] = v; return this; }, update(v) { kind = 'update'; values = v; return this; },
       insert(v) { kind = 'insert'; values = v; return this; }, single() { return this.maybeSingle(); }, maybeSingle() {
+        if (table === 'tournament_matches') return { data: { status: options.finishedAfterSave ? 'finished' : 'pending' }, error: null };
         if (kind === 'read') return { data: stored, error: options.schemaMissing ? { code: 'PGRST205' } : null };
         writes++;
         if (options.race) return kind === 'insert' ? { error: { code: '23505' }, data: null } : { error: null, data: null };
@@ -151,15 +152,16 @@ function api(options = {}) {
     return query;
   } };
   const domain = load('lib/notebookServer.ts', { './supabaseServer': { supabaseServer: {} } });
-  const catalog = { matches: [{ id: id(100), bo: 3, team_a_id: id(10), team_b_id: id(20) }], players: roster };
+  const catalog = { matches: [{ id: id(100), bo: 3, status: options.finished ? 'finished' : 'pending', team_a_id: id(10), team_b_id: id(20) }], players: roster };
   const route = load('app/api/admin/tournaments/[id]/notebook/route.ts', {
     'next/server': { NextResponse: { json: (body, init) => Response.json(body, init) } },
     '@/app/api/admin/tournaments/_auth': { assertTournamentAdmin: async () => options.auth ?? { ok: true, ctx: { userId: id(90) } } },
     '@/lib/supabaseServer': { supabaseServer: server }, '@/lib/notebook': notebook,
+    '@/lib/rankedRecalculate': { recalculateRankedMmr: async () => { replays++; if (options.replayFails) throw new Error('failed'); } },
     '@/lib/notebookServer': { ...domain, readNotebookCatalog: async () => catalog },
     '@/lib/rateLimit': { rateLimit: () => ({ ok: true }), rateLimitResponse: () => Response.json({}, { status: 429 }) },
   });
-  return { stored: () => stored, writes: () => writes,
+  return { stored: () => stored, writes: () => writes, replays: () => replays,
     get: () => route.GET(new Request(`https://example.test/notebook?matchId=${id(100)}&game=1`), { params: Promise.resolve({ id: id(200) }) }),
     put: body => route.PUT(new Request('https://example.test/notebook', { method: 'PUT', body: JSON.stringify({ matchId: id(100), game: 1, revision: 0, document: notebook.newNotebook(roster), ...body }) }), { params: Promise.resolve({ id: id(200) }) }),
   };
@@ -180,6 +182,24 @@ test('API authorizes read/write, validates match/game/roster and stores bonus pr
   assert.equal((await service.put({ document })).status, 200);
   assert.equal(service.stored().document.totals, undefined);
   assert.equal(notebook.playerNotebookTotals(service.stored().document, id(1)).penaltyHits, 1);
+});
+
+test('finished notebook writes and identical retries recalculate rewards; failures preserve the saved document', async () => {
+  const document = shot(notebook.newNotebook(roster), 1, 'center');
+  const options = { finished: true, replayFails: true };
+  const service = api(options);
+  assert.equal((await service.put({ document })).status, 503);
+  assert.equal(service.stored().revision, 1);
+  options.replayFails = false;
+  assert.equal((await service.put({ document })).status, 200);
+  assert.equal(service.writes(), 1);
+  assert.equal(service.replays(), 2);
+  const pending = api();
+  await pending.put({ document });
+  assert.equal(pending.replays(), 0);
+  const race = api({ finishedAfterSave: true });
+  assert.equal((await race.put({ document })).status, 200);
+  assert.equal(race.replays(), 1, 'a result reported during the notebook write must include the new hits');
 });
 
 test('optimistic saves reject stale/racing updates, accept lost-response retries and report missing migrations', async () => {

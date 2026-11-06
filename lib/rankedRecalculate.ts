@@ -4,16 +4,20 @@ import { isOneVsOneFormat } from "@/lib/tournamentFormat";
 import { ensureRankedBaselines, inferRankedBaselinesFromHistory, loadRankedBaselines } from "@/lib/rankedBaseline";
 import { replayRanked, type RankedEvent } from "@/lib/rankedReplay";
 import type { RankedState } from "@/lib/ranked";
+import { buildHitRewards } from "@/lib/hitRewards";
+import type { NotebookPlayer } from "@/lib/notebook";
+import { invalidateMatchStatsCache } from "@/lib/matchStatsServer";
 
 type PlayerRow = {
   id: string; mmr: number | null; prestige_points: number | null;
   rating_override: number | null; mmr_manual_override: boolean | null;
 };
-type TournamentRow = { id: string; format: string; mode: string; created_at: string };
+type TournamentRow = { id: string; format: string; mode: string; created_at: string; event_at: string | null; started_at: string | null; name_day_number: number | null };
 type MatchRow = {
   id: string; tournament_id: string; team_a_id: string | null; team_b_id: string | null;
   winner_team_id: string | null; status: string; created_at: string; updated_at: string | null;
   ranked_finished_at: string | null; round_no: number; match_no: number;
+  score_a: number; score_b: number;
 };
 type BonusRow = { id: string; player_id: string; delta: number; created_at: string };
 
@@ -39,10 +43,10 @@ function clampMmr(value: number) {
 async function recalculateAttempt(targetPlayerId: string | null) {
   const revision = await supabaseServer.from("ranked_replay_revision").select("revision").eq("id", 1).single();
   if (revision.error) throw new Error(`ranked_schema_required: ${revision.error.message}`);
-  const [players, tournaments, matches, members, results, bonuses, ratings, manualHistory] = await Promise.all([
+  const [players, tournaments, matches, members, results, bonuses, ratings, manualHistory, notebooks] = await Promise.all([
     readAll<PlayerRow>("players", "id,mmr,prestige_points,rating_override,mmr_manual_override"),
-    readAll<TournamentRow>("tournaments", "id,format,mode,created_at"),
-    readAll<MatchRow>("tournament_matches", "id,tournament_id,team_a_id,team_b_id,winner_team_id,status,created_at,updated_at,ranked_finished_at,round_no,match_no"),
+    readAll<TournamentRow>("tournaments", "id,format,mode,created_at,event_at,started_at,name_day_number"),
+    readAll<MatchRow>("tournament_matches", "id,tournament_id,team_a_id,team_b_id,winner_team_id,status,created_at,updated_at,ranked_finished_at,round_no,match_no,score_a,score_b"),
     readAll<{ team_id: string; player_id: string }>("team_members", "team_id,player_id", ["team_id", "player_id"]),
     readAll<{ tournament_id: string; team_id: string; placement: number }>("tournament_results", "tournament_id,team_id,placement", ["tournament_id", "placement", "team_id"]),
     readAll<BonusRow>("player_performance_bonuses", "id,player_id,delta,created_at"),
@@ -50,6 +54,8 @@ async function recalculateAttempt(targetPlayerId: string | null) {
     readAll<{ id: string; player_id: string; reason: string; mmr: number; prestige_points: number; created_at: string }>(
       "player_mmr_history", "id,player_id,reason,mmr,prestige_points,created_at", ["id"],
       { column: "reason", values: ["admin_set_mmr", "admin_reset_mmr"] }),
+    readAll<{ tournament_id: string; match_id: string; game_no: number; document: unknown; roster: NotebookPlayer[] }>(
+      "match_notebooks", "tournament_id,match_id,game_no,document,roster", ["match_id", "game_no"]),
   ]);
   if (targetPlayerId && !players.some((p) => p.id === targetPlayerId)) throw new Error("player_not_found");
   const ranked = new Map(tournaments.filter((t) => t.mode === "ranked").map((t) => [t.id, t]));
@@ -83,6 +89,24 @@ async function recalculateAttempt(targetPlayerId: string | null) {
   for (const bonus of bonuses) {
     events.push({ kind: "performance", id: bonus.id, at: bonus.created_at, playerId: bonus.player_id, delta: Number(bonus.delta) });
   }
+  const hitPlan = buildHitRewards(tournaments, matches.filter(m => m.winner_team_id &&
+    (m.winner_team_id === m.team_a_id || m.winner_team_id === m.team_b_id)), notebooks);
+  // Historical roster snapshots can retain a player deleted from the league.
+  // Their notes remain valid, but cannot award points to a nonexistent account.
+  const knownPlayers = new Set(players.map(p => p.id));
+  const hitRewards = { ...hitPlan, entries: hitPlan.entries.filter(e => knownPlayers.has(e.player_id)) };
+  const rewardsByTournament = new Map<string, { tournamentId: string; playerId: string; points: number }>();
+  for (const entry of hitRewards.entries) {
+    if (!entry.points) continue;
+    const key = `${entry.tournament_id}:${entry.player_id}`;
+    const reward = rewardsByTournament.get(key) ?? { tournamentId: entry.tournament_id, playerId: entry.player_id, points: 0 };
+    reward.points += entry.points;
+    rewardsByTournament.set(key, reward);
+  }
+  for (const [id, reward] of rewardsByTournament) {
+    const at = lastMatch.get(reward.tournamentId);
+    if (at) events.push({ kind: "hits", id, at, ...reward });
+  }
   for (const row of manualHistory) {
     if (row.reason !== "admin_set_mmr" && row.reason !== "admin_reset_mmr") continue;
     events.push({ kind: "manual", id: row.id, at: row.created_at, playerId: row.player_id,
@@ -98,9 +122,10 @@ async function recalculateAttempt(targetPlayerId: string | null) {
   }
   const affected = new Set(saved.keys()); // Includes players whose last tournament was reset/deleted.
   for (const event of events) {
-    const ids = event.kind === "performance" || event.kind === "manual" ? [event.playerId] : event.kind === "champion" ? event.players : [...event.winners, ...event.losers];
+    const ids = event.kind === "performance" || event.kind === "manual" || event.kind === "hits" ? [event.playerId] : event.kind === "champion" ? event.players : [...event.winners, ...event.losers];
     ids.forEach((id) => affected.add(id));
   }
+  hitRewards.entries.forEach(e => affected.add(e.player_id));
   if (targetPlayerId) affected.add(targetPlayerId);
   const baselines = players.map((player) => saved.get(player.id) ?? inferred.get(player.id) ?? {
     playerId: player.id,
@@ -120,14 +145,17 @@ async function recalculateAttempt(targetPlayerId: string | null) {
     ranked_win_streak: replay.streaks.get(id)?.wins ?? 0,
     ranked_loss_streak: replay.lossStreaks.get(id) ?? 0,
     ranked_duel_wins: replay.streaks.get(id)?.duelWins ?? 0,
+    ranked_hit_remainder: hitRewards.remainder.get(id) ?? 0,
   }));
   const history = replay.history.filter((row) => persist(row.player_id));
   // History and player totals commit together; retry if a result or bonus arrived during replay.
-  const commit = await supabaseServer.rpc("persist_ranked_replay", {
+  const commit = await supabaseServer.rpc("persist_ranked_replay_with_hit_rewards", {
     expected_revision: revision.data.revision, player_updates: updates, history_rows: history,
+    hit_rewards: hitRewards.entries.filter(e => persist(e.player_id)),
   });
   if (commit.error) throw new Error(`ranked_commit_failed: ${commit.error.message}`);
   if (commit.data !== true) return null;
+  invalidateMatchStatsCache();
   return {
     playersUpdated: updates.length, historyRows: history.length, eventsApplied: history.length,
     rankedTournaments: ranked.size, ...(targetPlayerId ? { playerId: targetPlayerId } : {}),

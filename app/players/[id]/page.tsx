@@ -519,6 +519,7 @@ export default async function PlayerPage({
                     PP {Math.floor(rankedPrestigePoints)}
                   </span>
                   <span className="profile-rating-chip">Ranga: {currentRankLabel}</span>
+                  {matchStats && <span className="profile-rating-chip">Trafienia do premii: {matchStats.hitProgress}/3</span>}
                   <WinstreakBadge wins={perf?.rankedWinStreak ?? 0} duelWins={perf?.rankedDuelWins ?? 0} />
                   <LosestreakBadge losses={perf?.rankedLossStreak ?? 0} />
                 </div>

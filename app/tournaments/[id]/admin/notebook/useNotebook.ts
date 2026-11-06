@@ -14,6 +14,7 @@ export function notebookMessage(code: string) {
     roster_changed: "Skład drużyn zmienił się od zapisania notatnika. Zachowano poprzednie wpisy; nie można przypisać ich do nowego składu.",
     revision_conflict: "Inny administrator lub karta przeglądarki zapisała nowszą wersję. Twoja kopia pozostaje na urządzeniu. Pobierz kopię, zanim wczytasz zapis z serwera.",
     invalid_notebook: "Wpisy wymagają sprawdzenia. Nie zapisano niepoprawnych danych.",
+    hit_rewards_recalculate_failed: "Notatnik zapisany. Przeliczenie punktów nie powiodło się — ponowię próbę.",
     local_draft_invalid: "Kopia robocza nie pasuje do obecnego składu lub formatu. Pobierz ją przed wczytaniem zapisu z serwera.",
   };
   return messages[code] ?? "Nie udało się połączyć z notatnikiem. Spróbuj ponownie.";
@@ -67,7 +68,9 @@ export default function useNotebook(tournamentId: string, matchId: string, game:
           } catch { setError(notebookMessage("local_draft_invalid")); return; }
         }
       }
-      if (draft && JSON.stringify(draft.document) === JSON.stringify(server)) draft = null;
+      // Retry identical drafts too: their document may be saved while the
+      // ranking transaction failed or its response was lost.
+      if (draft && JSON.stringify(draft.document) === JSON.stringify(server)) draft.revision = data.revision;
       const conflict = draft !== null && draft.revision !== data.revision;
       commit({ ...(draft ?? { document: server, revision: data.revision, dirty: false }), blocked: conflict,
         status: conflict ? notebookMessage("revision_conflict") : draft ? "Przywrócono kopię z urządzenia. Oczekuje na zapis." : "Zapisane" });
@@ -91,6 +94,10 @@ export default function useNotebook(tournamentId: string, matchId: string, game:
       const data = await res.json();
       if (!alive.current || !current.current) return;
       if (!res.ok) {
+        if (data.error === "hit_rewards_recalculate_failed") {
+          commit({ ...current.current, revision: data.revision, dirty: true, status: notebookMessage(data.error) });
+          return;
+        }
         const blocked = [400, 401, 403, 404, 409, 413].includes(res.status);
         commit({ ...current.current, blocked, status: blocked ? notebookMessage(data.error) : "Brak zapisu na serwerze. Ponowię próbę; kopia pozostaje na urządzeniu." });
         return;

@@ -12,3 +12,5 @@ Wykres przedstawia sumę faktycznie przyznanych zmian według dat rozegrania tur
 - Filtrowanie dat i przybliżanie następują po zbudowaniu pełnej historii; nie zerują punktów na początku wybranego okresu.
 
 To prezentacja zaksięgowanych zmian według dat wydarzeń, a nie symulacja alternatywnego naliczenia rankingu przy innej kolejności wprowadzania meczów. Nie modyfikuje tabel ani nie wymaga migracji SQL.
+
+Premie `hit_bonus` mają osobny punkt po turnieju, z tą samą datą wydarzenia i opisem „Premia za trafienia”. W kolejności naliczania wypadają po meczach i premii turniejowej, przed premią performance przy tym samym czasie zapisu. Ich uruchomienie wymaga migracji opisanej w [hit-rewards.md](hit-rewards.md).

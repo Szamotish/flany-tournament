@@ -9,6 +9,7 @@ export function tournamentHistoryDate(t: { event_at?: string | null; started_at?
 }
 const HISTORY_LABELS: Record<string, string> = {
   performance_bonus: "Premia za performance",
+  hit_bonus: "Premia za trafienia",
   admin_set_mmr: "Ręczna zmiana MMR",
   admin_reset_mmr: "Reset MMR",
 };
@@ -19,8 +20,8 @@ export function profileHistoryDay(iso: string) {
 }
 // Match and champion records share a timestamp. Their generated UUIDs do not
 // describe the calculation order; mirror rankedReplay's event order instead.
-const reasonPriority = (reason?: string) => reason === "tournament_win" ? 1 : reason === "performance_bonus" ? 2
-  : reason === "admin_set_mmr" || reason === "admin_reset_mmr" ? 3 : 0;
+const reasonPriority = (reason?: string) => reason === "tournament_win" ? 1 : reason === "hit_bonus" ? 2 : reason === "performance_bonus" ? 3
+  : reason === "admin_set_mmr" || reason === "admin_reset_mmr" ? 4 : 0;
 const score = (state: HistoryState) => Math.round(state.mmr * 10) + state.prestigePoints;
 const rowState = (row: MmrHistoryRow): HistoryState => ({ mmr: Number(row.mmr), prestigePoints: Number(row.prestige_points) });
 const difference = (after: HistoryState, before: HistoryState) => ({ mmr: Math.round((after.mmr - before.mmr) * 10) / 10, prestigePoints: after.prestigePoints - before.prestigePoints });
@@ -42,7 +43,7 @@ export function buildProfileHistory(rows: MmrHistoryRow[], tournaments: HistoryT
   const recorded = [...rows].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at)
     || reasonPriority(a.reason) - reasonPriority(b.reason)
     || matchOrder(a) - matchOrder(b)
-    || (a.reason === "tournament_win" && b.reason === "tournament_win"
+    || ((a.reason === "tournament_win" && b.reason === "tournament_win" || a.reason === "hit_bonus" && b.reason === "hit_bonus")
       ? (a.tournament_id ?? "").localeCompare(b.tournament_id ?? "")
       : a.reason === "performance_bonus" && b.reason === "performance_bonus"
         ? score(rowState(a)) - score(rowState(b)) // same-time positive bonuses
@@ -51,7 +52,7 @@ export function buildProfileHistory(rows: MmrHistoryRow[], tournaments: HistoryT
   if (!Number.isFinite(initial.mmr) || !Number.isFinite(initial.prestigePoints)) throw new Error("invalid_profile_history_baseline");
   let previous = initial;
   type Group = { id: string; playedAt: string; tournamentName: string | null; eventLabel: string | null;
-    dayNumber: number; recordedAt: string; change: HistoryState; matchChange: HistoryState; championChange: HistoryState; hasMatch: boolean; hasChampion: boolean; complete: boolean };
+    dayNumber: number; tournamentKey: string; phase: number; recordedAt: string; change: HistoryState; matchChange: HistoryState; championChange: HistoryState; hasMatch: boolean; hasChampion: boolean; complete: boolean };
   const groups = new Map<string, Group>();
   for (const row of recorded) {
     const state = rowState(row);
@@ -61,9 +62,11 @@ export function buildProfileHistory(rows: MmrHistoryRow[], tournaments: HistoryT
     const change = difference(state, previous);
     previous = state;
     const t = row.tournament_id ? byId.get(row.tournament_id) : undefined;
-    const key = row.tournament_id ? `tournament:${row.tournament_id}` : row.id;
+    const hitBonus = row.reason === "hit_bonus";
+    const key = row.tournament_id ? `${hitBonus ? "hits" : "tournament"}:${row.tournament_id}` : row.id;
     const group = groups.get(key) ?? { id: key, playedAt: tournamentHistoryDate(t, row.created_at)!,
-      tournamentName: t?.name ?? null, eventLabel: t ? null : HISTORY_LABELS[row.reason ?? ""] ?? "Zmiana MMR",
+      tournamentName: t?.name ?? null, eventLabel: hitBonus ? HISTORY_LABELS.hit_bonus : t ? null : HISTORY_LABELS[row.reason ?? ""] ?? "Zmiana MMR",
+      tournamentKey: row.tournament_id ?? row.id, phase: hitBonus ? 1 : 0,
       dayNumber: t?.name_day_number ?? 0, recordedAt: row.created_at, change: { mmr: 0, prestigePoints: 0 },
       matchChange: { mmr: 0, prestigePoints: 0 }, championChange: { mmr: 0, prestigePoints: 0 }, hasMatch: false, hasChampion: false, complete: true };
     if (!options.baseline && row === recorded[0]) group.complete = false;
@@ -76,7 +79,8 @@ export function buildProfileHistory(rows: MmrHistoryRow[], tournaments: HistoryT
   if (options.current && score(previous) !== score(options.current)) throw new Error("profile_history_current_mismatch");
   let total = score(initial);
   const ordered = [...groups.values()].sort((a, b) => Date.parse(a.playedAt) - Date.parse(b.playedAt)
-    || a.dayNumber - b.dayNumber || Date.parse(a.recordedAt) - Date.parse(b.recordedAt) || a.id.localeCompare(b.id));
+    || a.dayNumber - b.dayNumber || a.tournamentKey.localeCompare(b.tournamentKey) || a.phase - b.phase
+    || Date.parse(a.recordedAt) - Date.parse(b.recordedAt) || a.id.localeCompare(b.id));
   return ordered.map((group, i) => {
     total += score(group.change);
     // Impossible reordered histories must not silently invent or clamp points.

@@ -27,6 +27,7 @@ export function oracleMatchStatsFacts(snapshot: StatsSnapshot, question: string,
     const throwing = `${safe(p.name)} (${scope}; dane ${s.matches}/${s.expectedMatches} meczów): rzuty ${s.throws}, środek ${s.hits}, celność ${fmt(s.accuracy)}%, karne ${s.penaltyHits}/${s.penaltyThrows} (trafione/rzucone, trafienia wliczone w środek), puszki przeciwnika łącznie ${s.opponentHits}, oszustwa ${s.cheats}.`;
     const drinking = `${safe(p.name)} (${scope}): piwo kończy przy trafieniu drużyny śr.${fmt(s.finishAverage)} (${s.finishes} ukończeń; nie sekundy); marki ${s.beers.slice(0, 3).map(b => `${safe(b.name)}:${b.count}`).join(", ")}.`;
     facts.push(...(/pij|pic|piw|szybk/.test(q) ? [drinking, throwing] : [throwing, drinking]));
+    facts.push(`${safe(p.name)} (${scope}): zdobyte punkty za trafienia ${s.hitPoints} (1 punkt = 0,1 MMR lub 1 PP; suma, nie średnia na mecz).`);
   }
   facts.push("Notatniki obejmują tylko wpisane dane; brak wpisu nie oznacza zera.");
   return facts;

@@ -4,6 +4,7 @@ import { writeAuditLog } from "@/lib/auditLog";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { parseTournamentDateTime } from "@/lib/tournamentDate";
 import { normalizeMode } from "@/lib/ranked";
+import { recalculateRankedMmr } from "@/lib/rankedRecalculate";
 import {
   normalizeTournamentFormat,
   ONE_V_ONE_PLAYER_LIMIT,
@@ -223,6 +224,10 @@ export async function PATCH(
     metadata: { started: started.started, playerCount: playerIds.length, localAdminCount: localAdminPlayerIds.length, isPrivate },
   });
 
+  if (started.started && mode === "ranked") {
+    try { await recalculateRankedMmr(); }
+    catch { return NextResponse.json({ error: "Zapisano turniej, ale przeliczenie rankingu nie powiodło się. Ponów zapis." }, { status: 503 }); }
+  }
   return NextResponse.json({ tournament: data, started: started.started });
 }
 
@@ -351,5 +356,7 @@ export async function DELETE(
     metadata: { batchCount: batchIds.length, teamCount: teamIds.length },
   });
 
+  try { await recalculateRankedMmr(); }
+  catch { return NextResponse.json({ error: "Usunięto turniej. Przelicz ranking w panelu administratora, aby zaktualizować punkty." }, { status: 503 }); }
   return NextResponse.json({ deleted: true, tournamentId });
 }

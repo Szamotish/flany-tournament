@@ -130,7 +130,7 @@ function ChartViewport({ points, error }: { points: MmrChartPoint[]; error: bool
       </div>
       <div className="profile-chart-dates"><span>{dateLabel(points[Math.ceil(view.start)]?.playedAt ?? points[0].playedAt)}</span><span>{dateLabel(points[Math.floor(view.start + view.span)]?.playedAt ?? points.at(-1)!.playedAt)}</span></div>
       <p className="profile-chart-detail" aria-live="polite">{detail
-        ? [`${dateLabel(detail.playedAt)} · MMR ${detail.mmr.toFixed(1)} · PP ${detail.prestigePoints}`, detail.tournamentName ?? detail.eventLabel, detail.changeLabel].filter(Boolean).join(" · ")
+        ? [`${dateLabel(detail.playedAt)} · MMR ${detail.mmr.toFixed(1)} · PP ${detail.prestigePoints}`, detail.tournamentName, detail.eventLabel, detail.changeLabel].filter(Boolean).join(" · ")
         : "Dotknij punktu, aby zobaczyć wynik."}</p>
     </>}
   </div>;

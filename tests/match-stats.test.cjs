@@ -129,7 +129,7 @@ test('oracle receives compact aggregate stats with no private event facts', () =
 test('stats reader paginates notebooks, shares concurrent loads and rejects read failures', async () => {
   const s = fixture();
   const tables = { tournaments: s.tournaments, tournament_matches: s.matches, players: s.players, team_members: s.members,
-    match_notebooks: Array.from({length:251}, () => s.notebooks[0]) };
+    match_notebooks: Array.from({length:251}, () => s.notebooks[0]), player_hit_rewards: [] };
   const reads=[];
   const reader = load('lib/matchStatsServer.ts', {
     './matchStats': stats, './playerPerformance': {}, './playerRank': {},
@@ -139,8 +139,8 @@ test('stats reader paginates notebooks, shares concurrent loads and rejects read
     }; } } },
   });
   const [a,b]=await Promise.all([reader.readMatchStatsSnapshot(),reader.readMatchStatsSnapshot()]);
-  assert.equal(a,b);assert.equal(a.notebooks.length,251);assert.equal(reads.length,6);
-  await reader.readMatchStatsSnapshot();assert.equal(reads.length,6);
+  assert.equal(a,b);assert.equal(a.notebooks.length,251);assert.equal(reads.length,7);
+  await reader.readMatchStatsSnapshot();assert.equal(reads.length,7);
   const failing = load('lib/matchStatsServer.ts', {
     './matchStats': stats, './playerPerformance': {}, './playerRank': {},
     './supabaseServer': { supabaseServer: { from() { return {select(){return this;},order(){return this;},range(){return this;},abortSignal(){return {data:null,error:{code:'42P01'}};}}; } } },

@@ -28,7 +28,7 @@ test('statistics panels fit the beer tile, switch by controls/touch, autoplay an
   modules['next/link'] = 'exports.default=props=>require("react").createElement("a",props);';
   modules['next/image'] = 'exports.default=props=>require("react").createElement("img",props);';
   modules['@/lib/authClient'] = 'exports.authedFetch=(url,init)=>fetch(url,init);';
-  const summary = { matches: 2, expectedMatches: 10, games: 3, expectedGames: 20, throws: 12, hits: 7, opponentHits: 2, penaltyHits: 1, penaltyThrows: 2, cheats: 3, accuracy: 7/12*100, finishAverage: 2.5, finishes: 2, beers: [{ name: 'Tatra', count: 3 }] };
+  const summary = { matches: 2, expectedMatches: 10, games: 3, expectedGames: 20, throws: 12, hits: 7, opponentHits: 2, penaltyHits: 1, penaltyThrows: 2, hitPoints: 3, cheats: 3, accuracy: 7/12*100, finishAverage: 2.5, finishes: 2, beers: [{ name: 'Tatra', count: 3 }] };
   const leader = { playerId: 'p1', name: 'Maciek', avatarUrl: null, rank: 'master', summary };
   const awards = [{ category: 'accuracy', value: summary.accuracy, leaders: [leader] }, { category: 'drinking', value: 2.5, leaders: [leader] }];
   const data = { views: { last: { ...summary, matches: 1, expectedMatches: 1, throws: 4 }, recent: summary, all: { ...summary, throws: 20 } }, last: { name: 'FL #1010261', href: '/tournaments/public' } };
@@ -68,6 +68,8 @@ test('statistics panels fit the beer tile, switch by controls/touch, autoplay an
   assert.equal(await profile.getByText(/Tempo picia:/).count(), 0);
   const opponentTile = profile.locator('dl > div').filter({ hasText: 'Puszki przeciwnika · suma' });
   const penaltyTile = profile.locator('dl > div').filter({ hasText: 'Karne · trafione / rzucone' });
+  const rewardTile = profile.locator('dl > div').filter({ hasText: 'Punkty za trafienia' });
+  assert.equal(await rewardTile.locator('dd').innerText(), '3');
   assert.equal(await opponentTile.locator('dd').innerText(), '2');
   assert.equal(await penaltyTile.locator('dd').innerText(), '1/2');
   await page.clock.runFor(8100);
@@ -79,6 +81,7 @@ test('statistics panels fit the beer tile, switch by controls/touch, autoplay an
   await profile.getByRole('link',{name:'FL #1010261'}).waitFor();
   await profile.getByRole('button',{name:'Pokaż: Ostatnie 10 meczów'}).click();
   assert.match(await profile.innerText(), /Rzuty \/ mecz/);
+  assert.equal(await rewardTile.locator('dd').innerText(), '3');
   assert.equal(await opponentTile.locator('dd').innerText(), '2');
   assert.equal(await penaltyTile.locator('dd').innerText(), '1/2');
   await page.getByText('R1 · Mecz 1 · Statystyki graczy',{exact:true}).click();
