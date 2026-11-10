@@ -24,10 +24,11 @@ test('profile chart zoom, touch gestures, details and persisted customization', 
   modules['@/lib/authClient'] = 'exports.authedFetch = (url, options) => fetch(url, options);';
   modules['@/lib/matchStats'] = 'exports.STAT_VIEWS=["last","recent","all"];exports.STAT_VIEW_LABELS={last:"Ostatni mecz",recent:"Ostatnie 10 meczów",all:"Wszystkie mecze"};';
   modules['next/navigation'] = 'exports.useRouter = () => ({ refresh: () => window.location.reload() });';
+  modules['next/link'] = 'exports.default=props=>require("react").createElement("a",props);';
   const bundle = `const process={env:{NODE_ENV:'production'}}; const modules={${Object.entries(modules).map(([name, code]) => `${JSON.stringify(name)}:function(require,module,exports){\n${code}\n}`).join(',')}};
     const cache={}; function require(name){if(cache[name])return cache[name].exports;const mod=cache[name]={exports:{}};modules[name](require,mod,mod.exports);return mod.exports;}
     const h=require('react').createElement, prefs=window.initialPreferences;
-    const points=Array.from({length:100},(_,i)=>({id:String(i),mmr:5+Math.sin(i/5)/2,prestigePoints:0,playedAt:new Date(Date.UTC(2026,6,1+i)).toISOString(),tournamentName:i===99?null:'FL #fixture'+i,eventLabel:i===99?'Premia za performance':i===98?'Premia za trafienia':null,changeLabel:i===99?'+7 PP':i===98?'+1 PP':'+4 PP (mecze +1 PP, wygrana turnieju +3 PP)'}));
+    const points=Array.from({length:100},(_,i)=>({id:String(i),mmr:5+Math.sin(i/5)/2,prestigePoints:0,playedAt:new Date(Date.UTC(2026,6,1+i)).toISOString(),tournamentName:i===99?null:'FL #fixture'+i,tournamentHref:i===99?null:'/tournaments/fixture'+i,eventLabel:i===99?'Premia za performance':i===98?'Premia za trafienia':null,changeLabel:i===99?'+7 PP':i===98?'+1 PP':'+4 PP'}));
     const panel=require('@/app/components/ProfileRankPanel').default;
     require('react-dom/client').createRoot(document.getElementById('root')).render(h('article',{className:'profile-card profile-hero'},
       h(require('@/app/players/[id]/ProfileSettingsButton').default,{playerId:'p',currentRank:'platinum',initialPreferences:prefs,initialRankFrameEnabled:true,initialProfileColor:null,initialFavoriteBeer:null}),
@@ -50,6 +51,7 @@ test('profile chart zoom, touch gestures, details and persisted customization', 
       preferences = { chart_from: body.chartFrom, chart_to: body.chartTo, rank_panel: body.rankPanel };
       res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ player: body }));
     } else if (req.url === '/') res.end(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/styles.css"><div id="root"></div><script>window.initialPreferences=${JSON.stringify(preferences)}</script><script src="/bundle.js"></script>`);
+    else if (req.url === '/tournaments/fixture50') res.end('<!doctype html><meta charset="utf-8"><h1>FL #fixture50</h1>');
     else { res.statusCode = 404; res.end(); }
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -64,9 +66,11 @@ test('profile chart zoom, touch gestures, details and persisted customization', 
   assert.equal(await dots.count(), 100);
   await plot.click({ position: { x: (await plot.boundingBox()).width - 2, y: 40 } });
   assert.match(await page.locator('.profile-chart-detail').innerText(), /Premia za performance/);
+  assert.equal(await page.locator('.profile-chart-detail a').count(), 0);
   assert.match(await page.locator('.profile-chart-detail').innerText(), /\+7 PP/);
   await plot.click({ position: { x: (await plot.boundingBox()).width * (10 + 98 / 99 * 280) / 300, y: 40 } });
   assert.match(await page.locator('.profile-chart-detail').innerText(), /FL #fixture98.*Premia za trafienia.*\+1 PP/);
+  assert.equal(await page.getByRole('link', { name: 'FL #fixture98', exact: true }).getAttribute('href'), '/tournaments/fixture98');
   await plot.hover(); await page.mouse.wheel(0, -500);
   await page.waitForFunction(() => document.querySelectorAll('.profile-mmr-chart-dot').length < 100);
   const zoomed = await dots.count();
@@ -78,7 +82,8 @@ test('profile chart zoom, touch gestures, details and persisted customization', 
   assert.notEqual(await page.locator('.profile-chart-dates').innerText(), dates);
   await plot.click();
   assert.match(await page.locator('.profile-chart-detail').innerText(), /MMR.*PP.*FL #fixture/);
-  assert.match(await page.locator('.profile-chart-detail').innerText(), /\+4 PP \(mecze \+1 PP, wygrana turnieju \+3 PP\)/);
+  assert.match(await page.locator('.profile-chart-detail').innerText(), /\+4 PP/);
+  assert.doesNotMatch(await page.locator('.profile-chart-detail').innerText(), /[()]/);
   await page.getByRole('button', { name: 'Pokaż cały wybrany okres' }).click();
   assert.equal(await dots.count(), 100);
   await page.setViewportSize({ width: 390, height: 844 });
@@ -120,5 +125,9 @@ test('profile chart zoom, touch gestures, details and persisted customization', 
   await page.waitForFunction(() => window.initialPreferences.chart_from === null);
   await plot.waitFor();
   assert.equal(await dots.count(), 100);
+  await plot.tap({ position: { x: (await plot.boundingBox()).width * (10 + 50 / 99 * 280) / 300, y: 40 } });
+  const tournamentLink = page.getByRole('link', { name: 'FL #fixture50', exact: true });
+  await tournamentLink.tap();
+  await page.waitForURL('**/tournaments/fixture50');
   assert.deepEqual(errors, []);
 });

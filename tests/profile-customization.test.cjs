@@ -18,6 +18,20 @@ const prefs = load('lib/profilePreferences.ts');
 const history = load('lib/profileHistory.ts');
 const row = (id, tournament, created = '2026-10-11T18:00:00Z') => ({ id, tournament_id: tournament, mmr: 5, prestige_points: 0, created_at: created });
 
+test('chart links resolved public tournaments, conceals private identities and leaves standalone changes unlinked', () => {
+  const rows = [row('public-match','public-id'), row('private-match','private-id'), row('deleted-match','deleted-id'),
+    {...row('bonus',null),reason:'performance_bonus'}];
+  const tournaments = [{id:'public-id',name:'FL #1011261',is_private:false}, {id:'private-id',name:'Secret name',is_private:true}];
+  const points = history.buildProfileHistory(rows,tournaments);
+  const publicPoint = points.find(p=>p.tournamentName==='FL #1011261');
+  assert.equal(publicPoint.tournamentHref,'/tournaments/public-id');
+  const privatePoint = points.find(p=>p.tournamentName==='Turniej prywatny');
+  assert.equal(privatePoint.tournamentHref,null);
+  assert.doesNotMatch(JSON.stringify(privatePoint),/private-id|Secret name/);
+  assert.equal(points.find(p=>p.id==='tournament:deleted-id').tournamentHref,null);
+  assert.equal(points.find(p=>p.id==='bonus').tournamentHref,null);
+});
+
 test('penalties are separate dated points with actual deductions and deterministic same-time order', () => {
   const at = '2026-11-10T12:00:00Z';
   const rows = [
@@ -84,7 +98,7 @@ test('backfilled wins and same-time champion rewards form a chronological ledger
   const points = history.buildProfileHistory(rows, tournaments, options);
   assert.equal(points.length, 5, 'match + champion must be one point per tournament');
   assert.equal(points.map(p => p.prestigePoints).join(','), '27,31,22,26,33');
-  assert.equal(points[0].changeLabel, '+4 PP (mecze +1 PP, wygrana turnieju +3 PP)');
+  assert.equal(points[0].changeLabel, '+4 PP');
   assert.equal(points[1].changeLabel, points[0].changeLabel);
   assert.equal(points[2].changeLabel, '-9 PP');
   assert.equal(points[3].changeLabel, points[0].changeLabel);

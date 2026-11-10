@@ -1,8 +1,8 @@
 export type MmrHistoryRow = { id: string; tournament_id: string | null; match_id?: string | null; mmr: number; prestige_points: number; created_at: string; reason?: string };
-export type HistoryTournament = { id: string; name: string; event_at: string | null; started_at: string | null; created_at: string; name_day_number?: number | null };
+export type HistoryTournament = { id: string; name: string; event_at: string | null; started_at: string | null; created_at: string; name_day_number?: number | null; is_private?: boolean | null };
 export type HistoryMatch = { id: string; round_no: number; match_no: number };
 export type HistoryState = { mmr: number; prestigePoints: number };
-export type MmrChartPoint = { id: string; mmr: number; prestigePoints: number; playedAt: string; tournamentName: string | null; eventLabel?: string | null; changeLabel?: string | null };
+export type MmrChartPoint = { id: string; mmr: number; prestigePoints: number; playedAt: string; tournamentName: string | null; tournamentHref?: string | null; eventLabel?: string | null; changeLabel?: string | null };
 export function tournamentHistoryDate(t: { event_at?: string | null; started_at?: string | null; created_at?: string | null } | undefined, fallback?: string | null): string | null {
   return [t?.event_at, t?.started_at, t?.created_at, fallback]
     .find(date => date && Number.isFinite(Date.parse(date))) ?? null;
@@ -54,8 +54,8 @@ export function buildProfileHistory(rows: MmrHistoryRow[], tournaments: HistoryT
   const initial = options.baseline ?? rowState(recorded[0]);
   if (!Number.isFinite(initial.mmr) || !Number.isFinite(initial.prestigePoints)) throw new Error("invalid_profile_history_baseline");
   let previous = initial;
-  type Group = { id: string; playedAt: string; tournamentName: string | null; eventLabel: string | null;
-    dayNumber: number; tournamentKey: string; phase: number; hasTournament: boolean; ledgerOrder: number; recordedAt: string; change: HistoryState; matchChange: HistoryState; championChange: HistoryState; hasMatch: boolean; hasChampion: boolean; complete: boolean };
+  type Group = { id: string; playedAt: string; tournamentName: string | null; tournamentHref: string | null; isPrivate: boolean; eventLabel: string | null;
+    dayNumber: number; tournamentKey: string; phase: number; hasTournament: boolean; ledgerOrder: number; recordedAt: string; change: HistoryState; complete: boolean };
   const groups = new Map<string, Group>();
   for (const row of recorded) {
     const state = rowState(row);
@@ -68,16 +68,17 @@ export function buildProfileHistory(rows: MmrHistoryRow[], tournaments: HistoryT
     const hitBonus = row.reason === "hit_bonus";
     const key = row.tournament_id ? `${hitBonus ? "hits" : "tournament"}:${row.tournament_id}` : row.id;
     const group = groups.get(key) ?? { id: key, playedAt: tournamentHistoryDate(t, row.created_at)!,
-      tournamentName: t?.name ?? null, eventLabel: hitBonus ? HISTORY_LABELS.hit_bonus : t ? null : HISTORY_LABELS[row.reason ?? ""] ?? "Zmiana MMR",
+      tournamentName: t?.is_private ? "Turniej prywatny" : t?.name ?? null,
+      tournamentHref: t && !t.is_private ? `/tournaments/${encodeURIComponent(t.id)}` : null,
+      isPrivate: t?.is_private === true,
+      eventLabel: hitBonus ? HISTORY_LABELS.hit_bonus : t ? null : HISTORY_LABELS[row.reason ?? ""] ?? "Zmiana MMR",
       tournamentKey: row.tournament_id ?? row.id, phase: hitBonus ? 1 : 0,
       hasTournament: Boolean(row.tournament_id), ledgerOrder: groups.size,
       dayNumber: t?.name_day_number ?? 0, recordedAt: row.created_at, change: { mmr: 0, prestigePoints: 0 },
-      matchChange: { mmr: 0, prestigePoints: 0 }, championChange: { mmr: 0, prestigePoints: 0 }, hasMatch: false, hasChampion: false, complete: true };
+      complete: true };
     if (!options.baseline && row === recorded[0]) group.complete = false;
     const add = (target: HistoryState) => { target.mmr = Math.round((target.mmr + change.mmr) * 10) / 10; target.prestigePoints += change.prestigePoints; };
     add(group.change);
-    if (row.reason === "match_win" || row.reason === "match_loss") { add(group.matchChange); group.hasMatch = true; }
-    if (row.reason === "tournament_win") { add(group.championChange); group.hasChampion = true; }
     groups.set(key, group);
   }
   if (options.current && score(previous) !== score(options.current)) throw new Error("profile_history_current_mismatch");
@@ -93,10 +94,9 @@ export function buildProfileHistory(rows: MmrHistoryRow[], tournaments: HistoryT
     if (total < 0) throw new Error("profile_history_negative_balance");
     const state = i === ordered.length - 1 ? options.current ?? previous
       : { mmr: Math.min(total, 100) / 10, prestigePoints: Math.max(0, total - 100) };
-    const breakdown = group.hasMatch && group.hasChampion
-      ? ` (mecze ${changeText(group.matchChange)}, wygrana turnieju ${changeText(group.championChange)})` : "";
-    return { id: group.id, ...state, playedAt: group.playedAt, tournamentName: group.tournamentName, eventLabel: group.eventLabel,
-      changeLabel: group.complete ? `${changeText(group.change)}${breakdown}` : null };
+    return { id: group.isPrivate ? `private:${i}` : group.id, ...state, playedAt: group.playedAt,
+      tournamentName: group.tournamentName, tournamentHref: group.tournamentHref, eventLabel: group.eventLabel,
+      changeLabel: group.complete ? changeText(group.change) : null };
   });
 }
 export function filterProfileHistory(points: MmrChartPoint[], from: string | null, to: string | null) {

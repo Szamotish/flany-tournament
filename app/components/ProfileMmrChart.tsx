@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { clampChartWindow, filterProfileHistory, zoomChartWindow, type MmrChartPoint } from "@/lib/profileHistory";
 import { PRESTIGE_POINTS_PER_MMR } from "@/lib/ranked";
 
@@ -129,9 +130,14 @@ function ChartViewport({ points, error }: { points: MmrChartPoint[]; error: bool
         </svg>
       </div>
       <div className="profile-chart-dates"><span>{dateLabel(points[Math.ceil(view.start)]?.playedAt ?? points[0].playedAt)}</span><span>{dateLabel(points[Math.floor(view.start + view.span)]?.playedAt ?? points.at(-1)!.playedAt)}</span></div>
-      <p className="profile-chart-detail" aria-live="polite">{detail
-        ? [`${dateLabel(detail.playedAt)} · MMR ${detail.mmr.toFixed(1)} · PP ${detail.prestigePoints}`, detail.tournamentName, detail.eventLabel, detail.changeLabel].filter(Boolean).join(" · ")
-        : "Dotknij punktu, aby zobaczyć wynik."}</p>
+      <p className="profile-chart-detail" aria-live="polite">{detail ? <>
+        {dateLabel(detail.playedAt)} · MMR {detail.mmr.toFixed(1)} · PP {detail.prestigePoints}
+        {detail.tournamentName ? <> · {detail.tournamentHref
+          ? <Link href={detail.tournamentHref} className="profile-chart-tournament-link">{detail.tournamentName}</Link>
+          : detail.tournamentName}</> : null}
+        {detail.eventLabel ? <> · {detail.eventLabel}</> : null}
+        {detail.changeLabel ? <> · {detail.changeLabel}</> : null}
+      </> : "Dotknij punktu, aby zobaczyć wynik."}</p>
     </>}
   </div>;
 }

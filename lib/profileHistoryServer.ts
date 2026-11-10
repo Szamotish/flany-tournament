@@ -27,7 +27,7 @@ export async function readProfileHistory(playerId: string, current?: HistoryStat
   const tournaments: HistoryTournament[] = [];
   for (let offset = 0; offset < ids.length; offset += 100) {
     const { data, error } = await supabaseServer.from("tournaments")
-      .select("id,name,event_at,started_at,created_at,name_day_number").in("id", ids.slice(offset, offset + 100));
+      .select("id,name,event_at,started_at,created_at,name_day_number,is_private").in("id", ids.slice(offset, offset + 100));
     if (error) throw new Error("profile_history_tournaments_read_failed");
     tournaments.push(...data);
   }

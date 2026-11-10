@@ -20,6 +20,7 @@ test('admin penalty form previews exact deductions and retries the same request 
     }).outputText;
   }
   modules['@/lib/authClient']='exports.authedFetch=(url,init)=>fetch(url,init);';
+  modules['next/link']='exports.default=props=>require("react").createElement("a",props);';
   const bundle=`const process={env:{NODE_ENV:'production'}};const modules={${Object.entries(modules).map(([name,code])=>`${JSON.stringify(name)}:function(require,module,exports){\n${code}\n}`).join(',')}};
     const cache={};function require(name){if(cache[name])return cache[name].exports;const mod=cache[name]={exports:{}};modules[name](require,mod,mod.exports);return mod.exports;}
     const React=require('react'),h=React.createElement;
