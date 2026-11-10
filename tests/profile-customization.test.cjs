@@ -18,6 +18,21 @@ const prefs = load('lib/profilePreferences.ts');
 const history = load('lib/profileHistory.ts');
 const row = (id, tournament, created = '2026-10-11T18:00:00Z') => ({ id, tournament_id: tournament, mmr: 5, prestige_points: 0, created_at: created });
 
+test('penalties are separate dated points with actual deductions and deterministic same-time order', () => {
+  const at = '2026-11-10T12:00:00Z';
+  const rows = [
+    {...row('b',null,at),reason:'admin_penalty',mmr:10,prestige_points:12},
+    {...row('a',null,at),reason:'admin_penalty',mmr:10,prestige_points:6},
+    {...row('bonus',null,at),reason:'performance_bonus',mmr:10,prestige_points:18},
+  ];
+  const options = {baseline:{mmr:10,prestigePoints:10},current:{mmr:10,prestigePoints:6}};
+  const points = history.buildProfileHistory(rows,[],options);
+  assert.equal(points.filter(p=>p.eventLabel==='Kara punktowa').length,2);
+  assert.ok(points.filter(p=>p.eventLabel==='Kara punktowa').every(p=>p.changeLabel==='-6 PP' && p.playedAt===at));
+  assert.equal(JSON.stringify(history.buildProfileHistory(rows.slice().reverse(),[],options)),JSON.stringify(points));
+  assert.equal(points.at(-1).prestigePoints,6);
+});
+
 test('chart uses the scheduled event date and chronological order for backfilled games', () => {
   const rows = [row('a', 'late'), row('b', 'early'), row('bonus', null)];
   const points = history.buildProfileHistory(rows, [

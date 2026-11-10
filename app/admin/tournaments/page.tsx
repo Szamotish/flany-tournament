@@ -7,6 +7,7 @@ import { authedFetch } from "@/lib/authClient";
 import { BEER_LIST } from "@/lib/beers";
 import { ONE_V_ONE_PLAYER_LIMIT } from "@/lib/tournamentFormat";
 import PerformanceBonusDialog from "./PerformanceBonusDialog";
+import RankedPenaltyDialog from "./RankedPenaltyDialog";
 import { tournamentDateTimeInput } from "@/lib/tournamentDate";
 
 type Player = {
@@ -113,6 +114,7 @@ export default function AdminTournamentsPage() {
   const [savingBeerOfDay, setSavingBeerOfDay] = useState(false);
   const [recalculatingRanked, setRecalculatingRanked] = useState(false);
   const [bonusPlayer, setBonusPlayer] = useState<Player | null>(null);
+  const [penaltyPlayer, setPenaltyPlayer] = useState<Player | null>(null);
 
   const selectedIds = useMemo(
     () => Object.entries(selected).filter(([, v]) => v).map(([id]) => id),
@@ -1213,6 +1215,13 @@ export default function AdminTournamentsPage() {
           void loadPlayers(q);
         }} />
       ) : null}
+      {penaltyPlayer && isMainAdmin ? (
+        <RankedPenaltyDialog player={penaltyPlayer} onClose={() => setPenaltyPlayer(null)} onSaved={() => {
+          setPenaltyPlayer(null);
+          setMsg("Kara punktowa zapisana i uwzględniona w rankingu.");
+          void loadPlayers(q);
+        }} />
+      ) : null}
       {playerActionMenu ? (
         <div
           className="tour-player-menu-backdrop"
@@ -1289,6 +1298,12 @@ export default function AdminTournamentsPage() {
                 setBonusPlayer(playerActionMenu.player);
                 setPlayerActionMenu(null);
               }}>Performance bonus</button>
+            ) : null}
+            {isMainAdmin ? (
+              <button className="tour-player-menu-item" type="button" onClick={() => {
+                setPenaltyPlayer(playerActionMenu.player);
+                setPlayerActionMenu(null);
+              }}>Kara punktowa</button>
             ) : null}
             <button
               className="tour-player-menu-item"

@@ -4,7 +4,7 @@ import { rankingCompare } from "@/lib/ranking";
 
 export type LeaguePlayer = {
   id: string; name: string; active: boolean; mmr: number | null; prestige_points: number | null;
-  rating_override: number | null; mmr_manual_override: boolean; performance_bonus_until: string | null;
+  rating_override: number | null; mmr_manual_override: boolean; performance_bonus_until: string | null; ranked_penalty_applied?: boolean;
   ranked_win_streak: number; ranked_loss_streak: number;
 };
 export type LeagueSnapshot = {
@@ -64,7 +64,7 @@ export function oracleLeagueFacts(snapshot: LeagueSnapshot, question: string, as
     const rating = player.rating_override ?? trimmedMean(snapshot.ratings.filter(row => row.rated_player_id === player.id).map(row => row.value));
     const canRank = canShowRankFromMmr(rankedPlayed, player.mmr_manual_override === true);
     const clamp = (n: number) => Math.round(Math.min(10, Math.max(0, n)) * 10) / 10;
-    const effectiveMmr = canRank || player.performance_bonus_until ? clamp(Number(player.mmr ?? 0)) : clamp(rating ?? 5);
+    const effectiveMmr = canRank || player.performance_bonus_until || player.ranked_penalty_applied ? clamp(Number(player.mmr ?? 0)) : clamp(rating ?? 5);
     const prestigePoints = Math.max(0, Math.floor(player.prestige_points ?? 0));
     const rank = displayRankFromProgress(canRank, effectiveMmr, prestigePoints);
     return { ...player, teams, matches: matches.filter(match => match.team_a_id && match.team_b_id),

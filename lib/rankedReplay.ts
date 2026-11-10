@@ -1,19 +1,20 @@
 import {
-  applyRankedDelta, PRESTIGE_POINTS_PER_MMR, RANKED_MATCH_LOSS_DELTA,
+  applyRankedDelta, applyRankedPenalty, PRESTIGE_POINTS_PER_MMR, RANKED_MATCH_LOSS_DELTA,
   RANKED_MATCH_WIN_DELTA, RANKED_TOURNAMENT_WIN_BONUS, type RankedState,
 } from "./ranked";
 import { advanceStreak, streakBonus, type RankedStreak } from "./rankedStreak";
 
 export type RankedEvent =
-  | { kind: "match"; id: string; at: string; tournamentId: string; winners: string[]; losers: string[]; oneVsOne: boolean; order: number }
+  | { kind: "match"; id: string; at: string; tournamentId: string; winners: string[]; losers: string[]; oneVsOne: boolean; order: number; prestigeLossPoints?: 6 | 9 }
   | { kind: "champion"; id: string; at: string; tournamentId: string; players: string[] }
   | { kind: "performance"; id: string; at: string; playerId: string; delta: number }
+  | { kind: "penalty"; id: string; at: string; playerId: string; points: number }
   | { kind: "hits"; id: string; at: string; tournamentId: string; playerId: string; points: number }
   | { kind: "manual"; id: string; at: string; playerId: string; state: RankedState };
 
 export type RankedHistoryRow = {
   player_id: string; tournament_id: string | null; match_id: string | null;
-  created_at: string; reason: "match_win" | "match_loss" | "tournament_win" | "performance_bonus" | "hit_bonus";
+  created_at: string; reason: "match_win" | "match_loss" | "tournament_win" | "performance_bonus" | "hit_bonus" | "admin_penalty";
   delta: number; mmr: number; prestige_points: number;
 };
 
@@ -22,7 +23,7 @@ export function replayRanked(baselines: Map<string, RankedState>, input: RankedE
   const streaks = new Map<string, RankedStreak>();
   const lossStreaks = new Map<string, number>();
   const history: RankedHistoryRow[] = [];
-  const priority = { match: 0, champion: 1, hits: 2, performance: 3, manual: 4 };
+  const priority = { match: 0, champion: 1, hits: 2, performance: 3, penalty: 4, manual: 5 };
   const events = [...input].sort((a, b) =>
     Date.parse(a.at) - Date.parse(b.at) || priority[a.kind] - priority[b.kind] ||
     (a.kind === "match" && b.kind === "match" ? a.order - b.order : 0) || a.id.localeCompare(b.id)
@@ -31,10 +32,12 @@ export function replayRanked(baselines: Map<string, RankedState>, input: RankedE
   const apply = (id: string, delta: number, event: RankedEvent, reason: RankedHistoryRow["reason"]) => {
     const current = states.get(id);
     if (!current) return;
-    const next = applyRankedDelta(current, delta);
+    const multiplier = event.kind === "match" && !event.oneVsOne
+      ? (event.prestigeLossPoints ?? 9) / 3 : undefined;
+    const next = event.kind === "penalty" ? applyRankedPenalty(current, event.points) : applyRankedDelta(current, delta, multiplier);
     states.set(id, next);
     history.push({
-      player_id: id, tournament_id: event.kind === "performance" || event.kind === "manual" ? null : event.tournamentId,
+      player_id: id, tournament_id: event.kind === "performance" || event.kind === "manual" || event.kind === "penalty" ? null : event.tournamentId,
       match_id: event.kind === "match" ? event.id : null, created_at: event.at, reason,
       delta: Math.round(delta * 10) / 10, mmr: next.mmr, prestige_points: next.prestigePoints,
     });
@@ -49,6 +52,8 @@ export function replayRanked(baselines: Map<string, RankedState>, input: RankedE
       if (states.has(event.playerId)) states.set(event.playerId, { ...event.state });
     } else if (event.kind === "performance") {
       apply(event.playerId, event.delta, event, "performance_bonus");
+    } else if (event.kind === "penalty") {
+      apply(event.playerId, -event.points / PRESTIGE_POINTS_PER_MMR, event, "admin_penalty");
     } else if (event.kind === "hits") {
       // Skill rewards neither advance streaks nor receive streak multipliers.
       if (!Number.isInteger(event.points) || event.points < 1) throw new Error("invalid_hit_reward_points");

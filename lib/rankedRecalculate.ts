@@ -18,6 +18,7 @@ type MatchRow = {
   winner_team_id: string | null; status: string; created_at: string; updated_at: string | null;
   ranked_finished_at: string | null; round_no: number; match_no: number;
   score_a: number; score_b: number;
+  ranked_prestige_loss_points: 6 | 9 | null;
 };
 type BonusRow = { id: string; player_id: string; delta: number; created_at: string };
 
@@ -43,10 +44,10 @@ function clampMmr(value: number) {
 async function recalculateAttempt(targetPlayerId: string | null) {
   const revision = await supabaseServer.from("ranked_replay_revision").select("revision").eq("id", 1).single();
   if (revision.error) throw new Error(`ranked_schema_required: ${revision.error.message}`);
-  const [players, tournaments, matches, members, results, bonuses, ratings, manualHistory, notebooks] = await Promise.all([
+  const [players, tournaments, matches, members, results, bonuses, ratings, manualHistory, notebooks, penalties] = await Promise.all([
     readAll<PlayerRow>("players", "id,mmr,prestige_points,rating_override,mmr_manual_override"),
     readAll<TournamentRow>("tournaments", "id,format,mode,created_at,event_at,started_at,name_day_number"),
-    readAll<MatchRow>("tournament_matches", "id,tournament_id,team_a_id,team_b_id,winner_team_id,status,created_at,updated_at,ranked_finished_at,round_no,match_no,score_a,score_b"),
+    readAll<MatchRow>("tournament_matches", "id,tournament_id,team_a_id,team_b_id,winner_team_id,status,created_at,updated_at,ranked_finished_at,round_no,match_no,score_a,score_b,ranked_prestige_loss_points"),
     readAll<{ team_id: string; player_id: string }>("team_members", "team_id,player_id", ["team_id", "player_id"]),
     readAll<{ tournament_id: string; team_id: string; placement: number }>("tournament_results", "tournament_id,team_id,placement", ["tournament_id", "placement", "team_id"]),
     readAll<BonusRow>("player_performance_bonuses", "id,player_id,delta,created_at"),
@@ -56,6 +57,7 @@ async function recalculateAttempt(targetPlayerId: string | null) {
       { column: "reason", values: ["admin_set_mmr", "admin_reset_mmr"] }),
     readAll<{ tournament_id: string; match_id: string; game_no: number; document: unknown; roster: NotebookPlayer[] }>(
       "match_notebooks", "tournament_id,match_id,game_no,document,roster", ["match_id", "game_no"]),
+    readAll<{ id: string; player_id: string; points: number; created_at: string }>("player_ranked_penalties", "id,player_id,points,created_at"),
   ]);
   if (targetPlayerId && !players.some((p) => p.id === targetPlayerId)) throw new Error("player_not_found");
   const ranked = new Map(tournaments.filter((t) => t.mode === "ranked").map((t) => [t.id, t]));
@@ -69,12 +71,16 @@ async function recalculateAttempt(targetPlayerId: string | null) {
     const tournament = ranked.get(match.tournament_id);
     if (!tournament || match.status !== "finished" || !match.team_a_id || !match.team_b_id ||
       !match.winner_team_id || ![match.team_a_id, match.team_b_id].includes(match.winner_team_id)) continue;
+    if (match.ranked_prestige_loss_points !== 6 && match.ranked_prestige_loss_points !== 9) {
+      throw new Error("ranked_loss_policy_missing");
+    }
     const at = match.ranked_finished_at ?? match.updated_at ?? match.created_at ?? tournament.created_at;
     const loser = match.winner_team_id === match.team_a_id ? match.team_b_id : match.team_a_id;
     events.push({
       kind: "match", id: match.id, at, tournamentId: tournament.id,
       winners: teamPlayers.get(match.winner_team_id) ?? [], losers: teamPlayers.get(loser) ?? [],
       oneVsOne: isOneVsOneFormat(tournament.format), order: (match.round_no ?? 0) * 10000 + (match.match_no ?? 0),
+      prestigeLossPoints: match.ranked_prestige_loss_points,
     });
     if (!lastMatch.has(tournament.id) || Date.parse(at) > Date.parse(lastMatch.get(tournament.id)!)) {
       lastMatch.set(tournament.id, at);
@@ -88,6 +94,9 @@ async function recalculateAttempt(targetPlayerId: string | null) {
   }
   for (const bonus of bonuses) {
     events.push({ kind: "performance", id: bonus.id, at: bonus.created_at, playerId: bonus.player_id, delta: Number(bonus.delta) });
+  }
+  for (const penalty of penalties) {
+    events.push({ kind: "penalty", id: penalty.id, at: penalty.created_at, playerId: penalty.player_id, points: Number(penalty.points) });
   }
   const hitPlan = buildHitRewards(tournaments, matches.filter(m => m.winner_team_id &&
     (m.winner_team_id === m.team_a_id || m.winner_team_id === m.team_b_id)), notebooks);
@@ -122,7 +131,7 @@ async function recalculateAttempt(targetPlayerId: string | null) {
   }
   const affected = new Set(saved.keys()); // Includes players whose last tournament was reset/deleted.
   for (const event of events) {
-    const ids = event.kind === "performance" || event.kind === "manual" || event.kind === "hits" ? [event.playerId] : event.kind === "champion" ? event.players : [...event.winners, ...event.losers];
+    const ids = event.kind === "performance" || event.kind === "manual" || event.kind === "hits" || event.kind === "penalty" ? [event.playerId] : event.kind === "champion" ? event.players : [...event.winners, ...event.losers];
     ids.forEach((id) => affected.add(id));
   }
   hitRewards.entries.forEach(e => affected.add(e.player_id));
@@ -149,7 +158,7 @@ async function recalculateAttempt(targetPlayerId: string | null) {
   }));
   const history = replay.history.filter((row) => persist(row.player_id));
   // History and player totals commit together; retry if a result or bonus arrived during replay.
-  const commit = await supabaseServer.rpc("persist_ranked_replay_with_hit_rewards", {
+  const commit = await supabaseServer.rpc("persist_ranked_replay_with_penalties", {
     expected_revision: revision.data.revision, player_updates: updates, history_rows: history,
     hit_rewards: hitRewards.entries.filter(e => persist(e.player_id)),
   });

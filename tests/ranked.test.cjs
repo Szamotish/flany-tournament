@@ -9,7 +9,7 @@ require.extensions['.ts'] = (module, filename) => {
   module._compile(source, filename);
 };
 const { replayRanked } = require('../lib/rankedReplay.ts');
-const { applyRankedDelta } = require('../lib/ranked.ts');
+const { applyRankedDelta, applyRankedPenalty } = require('../lib/ranked.ts');
 const { lossStreakTier } = require('../lib/rankedStreak.ts');
 const at = (i) => new Date(Date.UTC(2026, 0, 1, 0, i)).toISOString();
 const baseline = () => new Map([['p', { mmr: 5, prestigePoints: 0 }], ['q', { mmr: 5, prestigePoints: 0 }]]);
@@ -171,4 +171,44 @@ test('correcting or resetting matches rebuilds lose streak deterministically', (
 
 test('losestreak is hidden below 3, frosted at 3–5 and frozen from 6', () => {
   assert.deepEqual([0, 1, 2, 3, 5, 6, 12].map(lossStreakTier), ['none', 'none', 'none', 'frost', 'frost', 'frozen', 'frozen']);
+});
+
+test('old losses stay -9 PP; new ordinary losses cost -6 PP without changing duels or MMR losses', () => {
+  const initial = new Map([['p', { mmr: 10, prestigePoints: 100 }], ['q', { mmr: 10, prestigePoints: 100 }]]);
+  const old = { ...match(1, { won: false }), prestigeLossPoints: 9 };
+  const current = { ...match(2, { won: false }), prestigeLossPoints: 6 };
+  const events = [old, current, { ...match(3, { won: false, duel: true }), prestigeLossPoints: 6 }];
+  const result = replayRanked(initial, events);
+  assert.deepEqual(playerHistory(result).map(h => h.prestige_points), [91,85,82]);
+  assert.deepEqual(result, replayRanked(initial, events.slice().reverse()));
+  assert.equal(replayRanked(initial, [old]).states.get('p').prestigePoints, 91);
+  assert.equal(replayRanked(baseline(), [current]).states.get('p').mmr, 4.7);
+  initial.set('p', { mmr: 10, prestigePoints: 2 });
+  assert.deepEqual(replayRanked(initial, [current]).states.get('p'), { mmr: 10, prestigePoints: 0 });
+  initial.set('p', { mmr: 10, prestigePoints: 0 });
+  assert.deepEqual(replayRanked(initial, [current]).states.get('p'), { mmr: 9.7, prestigePoints: 0 });
+});
+
+test('official penalties subtract exact points across PP/MMR, cap at zero and never get loss multipliers', () => {
+  assert.deepEqual(applyRankedPenalty({ mmr: 10, prestigePoints: 50 }, 6), { mmr: 10, prestigePoints: 44 });
+  assert.deepEqual(applyRankedPenalty({ mmr: 10, prestigePoints: 2 }, 6), { mmr: 9.6, prestigePoints: 0 });
+  assert.deepEqual(applyRankedPenalty({ mmr: 5, prestigePoints: 0 }, 6), { mmr: 4.4, prestigePoints: 0 });
+  assert.deepEqual(applyRankedPenalty({ mmr: 0.2, prestigePoints: 0 }, 6), { mmr: 0, prestigePoints: 0 });
+  for (const points of [0,-1,1.1,101,NaN,Infinity]) assert.throws(() => applyRankedPenalty({mmr:5,prestigePoints:0},points));
+});
+
+test('official penalties survive replay and do not touch win/loss streaks or other players', () => {
+  const penalty = { kind: 'penalty', id: 'penalty', at: at(4), playerId: 'p', points: 6 };
+  const events = [...wins(3), performance(4), penalty];
+  const result = replayRanked(baseline(), events);
+  assert.equal(result.states.get('p').mmr, 5.8);
+  assert.equal(result.streaks.get('p').wins, 3);
+  assert.deepEqual(result.states.get('q'), replayRanked(baseline(), events.slice(0,-1)).states.get('q'));
+  assert.deepEqual(result, replayRanked(baseline(), events.slice().reverse()));
+  assert.deepEqual(playerHistory(result).slice(-2).map(h => h.reason), ['performance_bonus','admin_penalty']);
+  const row = playerHistory(result).at(-1);
+  assert.equal(row.tournament_id, null); assert.equal(row.match_id, null); assert.equal(row.delta, -0.6);
+  const lost = replayRanked(baseline(), [match(1, { won: false }), penalty]);
+  assert.equal(lost.lossStreaks.get('p'), 1);
+  assert.equal(replayRanked(baseline(), [penalty]).states.get('p').mmr, 4.4, 'penalties remain after match resets');
 });

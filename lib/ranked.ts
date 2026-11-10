@@ -33,7 +33,7 @@ export function normalizeMode(value: unknown): TournamentMode {
   return value === "ranked" ? "ranked" : "normal";
 }
 
-export function applyRankedDelta(state: RankedState, delta: number): RankedState {
+export function applyRankedDelta(state: RankedState, delta: number, prestigeLossMultiplier = PRESTIGE_LOSS_MULTIPLIER): RankedState {
   if (!Number.isFinite(delta) || delta === 0) return state;
 
   let mmr = clampMmr(state.mmr);
@@ -52,11 +52,22 @@ export function applyRankedDelta(state: RankedState, delta: number): RankedState
   const lossAbs = Math.abs(delta);
 
   if (prestigePoints > 0) {
-    const prestigeLoss = Math.ceil(lossAbs * PRESTIGE_POINTS_PER_MMR * PRESTIGE_LOSS_MULTIPLIER);
+    const prestigeLoss = Math.ceil(lossAbs * PRESTIGE_POINTS_PER_MMR * prestigeLossMultiplier);
     prestigePoints = Math.max(0, prestigePoints - prestigeLoss);
     return { mmr, prestigePoints };
   }
 
   mmr = clampMmr(mmr - lossAbs);
   return { mmr, prestigePoints };
+}
+
+// An official penalty is an exact deduction, not a match loss. Spend PP first;
+// any remainder reduces MMR at 10 points/MMR, down to zero.
+export function applyRankedPenalty(state: RankedState, points: number): RankedState {
+  if (!Number.isInteger(points) || points < 1 || points > 100) throw new Error("invalid_penalty_points");
+  const prestige = normalizePrestigePoints(state.prestigePoints);
+  return {
+    mmr: clampMmr(clampMmr(state.mmr) - Math.max(0, points - prestige) / PRESTIGE_POINTS_PER_MMR),
+    prestigePoints: Math.max(0, prestige - points),
+  };
 }

@@ -113,11 +113,11 @@ test('ranking service persists per-game ledger and pool atomically and retries s
   const f = fixture(); const calls = [];
   const baselines = new Map(roster.map(p => [p.id, { playerId: p.id, mmr: 5, prestigePoints: 0 }]));
   const tables = { players: roster.map(p => ({ id: p.id, mmr: 5, prestige_points: 0 })), tournaments: f.tournaments,
-    tournament_matches: f.matches, team_members: roster.map(p => ({ player_id: p.id, team_id: p.teamId })),
-    tournament_results: [], player_performance_bonuses: [], ratings: [], player_mmr_history: [], match_notebooks: f.notes };
+    tournament_matches: f.matches.map(m => ({...m, ranked_prestige_loss_points: 6})), team_members: roster.map(p => ({ player_id: p.id, team_id: p.teamId })),
+    tournament_results: [], player_performance_bonuses: [], player_ranked_penalties: [], ratings: [], player_mmr_history: [], match_notebooks: f.notes };
   const server = { from(table) { return { select() { return this; }, eq() { return this; }, in() { return this; }, order() { return this; },
     single() { return { data: { revision: calls.length }, error: null }; }, range(a,b) { return { data: tables[table].slice(a,b+1), error: null }; } }; },
-    rpc(name, payload) { calls.push(payload); assert.equal(name, 'persist_ranked_replay_with_hit_rewards'); return { data: calls.length > 1, error: null }; } };
+    rpc(name, payload) { calls.push(payload); assert.equal(name, 'persist_ranked_replay_with_penalties'); return { data: calls.length > 1, error: null }; } };
   const mocks = { '@/lib/supabaseServer': { supabaseServer: server }, '@/lib/rating': { trimmedMean: () => 5 },
     '@/lib/tournamentFormat': { isOneVsOneFormat: () => false }, '@/lib/rankedReplay': { replayRanked },
     '@/lib/hitRewards': { buildHitRewards }, '@/lib/matchStatsServer': { invalidateMatchStatsCache() {} },
@@ -130,8 +130,13 @@ test('ranking service persists per-game ledger and pool atomically and retries s
   assert.equal(calls[1].hit_rewards.reduce((s,e) => s + e.points, 0), 3);
   assert.equal(calls[1].history_rows.filter(r => r.reason === 'hit_bonus').length, 1);
   assert.equal(calls[1].player_updates.find(p => p.id === id(1)).ranked_hit_remainder, 0);
+  tables.player_ranked_penalties.push({id:id(777),player_id:id(1),points:6,created_at:'2027-01-01T12:00:00Z'});
+  await mod.exports.recalculateRankedMmr();
+  const penaltyRow=calls[2].history_rows.find(r=>r.reason==='admin_penalty');
+  assert.equal(penaltyRow.delta,-0.6);
+  assert.equal(calls[2].hit_rewards.reduce((s,e)=>s+e.points,0),3,'penalties preserve hit ledger');
   tables.players = tables.players.filter(p => p.id !== id(1));
   baselines.delete(id(1));
   await mod.exports.recalculateRankedMmr();
-  assert.equal(calls[2].hit_rewards.length, 0, 'deleted players retained in notebook snapshots cannot break league recalculation');
+  assert.equal(calls[3].hit_rewards.length, 0, 'deleted players retained in notebook snapshots cannot break league recalculation');
 });

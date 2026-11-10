@@ -29,7 +29,7 @@ async function readRows<T>(table: string, columns: string, order: string[], cap:
 }
 async function readSnapshot(): Promise<LeagueSnapshot> {
   const queries = [
-    readRows("players", "id,name,active,mmr,prestige_points,rating_override,mmr_manual_override,performance_bonus_until,ranked_win_streak,ranked_loss_streak", ["id"], 200),
+    readRows("players", "id,name,active,mmr,prestige_points,rating_override,mmr_manual_override,performance_bonus_until,ranked_penalty_applied,ranked_win_streak,ranked_loss_streak", ["id"], 200),
     readRows("ratings", "rated_player_id,value", ["id"], 5000),
     readRows("team_members", "player_id,team_id", ["player_id", "team_id"], 2000),
     readRows("tournament_matches", "id,tournament_id,team_a_id,team_b_id,winner_team_id,status,created_at", ["id"], 2000),

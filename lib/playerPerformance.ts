@@ -48,7 +48,7 @@ export async function loadPlayerPerformance(
   const [playersPrimary, ratingsResult] = await Promise.all([
     supabaseServer
       .from("players")
-      .select("id,mmr,prestige_points,rating_override,mmr_manual_override,ranked_win_streak,ranked_loss_streak,ranked_duel_wins,performance_bonus_until")
+      .select("id,mmr,prestige_points,rating_override,mmr_manual_override,ranked_win_streak,ranked_loss_streak,ranked_duel_wins,performance_bonus_until,ranked_penalty_applied")
       .in("id", ids),
     supabaseServer.from("ratings").select("rated_player_id,value").in("rated_player_id", ids),
   ]);
@@ -64,6 +64,7 @@ export async function loadPlayerPerformance(
         ranked_loss_streak?: number;
         ranked_duel_wins?: number;
         performance_bonus_until?: string | null;
+        ranked_penalty_applied?: boolean;
       }>
     | null;
   let playerErr = playersPrimary.error;
@@ -223,7 +224,7 @@ export async function loadPlayerPerformance(
       prestigePoints: row.prestigePoints,
       hasFinishedMatch,
       mmrManualOverride: row.mmrManualOverride,
-      effectiveMmr: rankAllowed || awards?.performance_bonus_until ? row.mmr : rating,
+      effectiveMmr: rankAllowed || awards?.performance_bonus_until || awards?.ranked_penalty_applied ? row.mmr : rating,
       rankedWinStreak: awards?.ranked_win_streak ?? 0,
       rankedLossStreak: awards?.ranked_loss_streak ?? 0,
       rankedDuelWins: awards?.ranked_duel_wins ?? 0,
