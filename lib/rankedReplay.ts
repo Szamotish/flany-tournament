@@ -1,11 +1,11 @@
 import {
-  applyRankedDelta, applyRankedPenalty, PRESTIGE_POINTS_PER_MMR, RANKED_MATCH_LOSS_DELTA,
+  applyRankedDelta, applyRankedPenalty, DUEL_PRESTIGE_LOSS_MULTIPLIER, PRESTIGE_POINTS_PER_MMR, RANKED_MATCH_LOSS_DELTA,
   RANKED_MATCH_WIN_DELTA, RANKED_TOURNAMENT_WIN_BONUS, type RankedState,
 } from "./ranked";
 import { advanceStreak, streakBonus, type RankedStreak } from "./rankedStreak";
 
 export type RankedEvent =
-  | { kind: "match"; id: string; at: string; tournamentId: string; winners: string[]; losers: string[]; oneVsOne: boolean; order: number; prestigeLossPoints?: 6 | 9 }
+  | { kind: "match"; id: string; at: string; tournamentId: string; winners: string[]; losers: string[]; oneVsOne: boolean; order: number }
   | { kind: "champion"; id: string; at: string; tournamentId: string; players: string[] }
   | { kind: "performance"; id: string; at: string; playerId: string; delta: number }
   | { kind: "penalty"; id: string; at: string; playerId: string; points: number }
@@ -32,8 +32,9 @@ export function replayRanked(baselines: Map<string, RankedState>, input: RankedE
   const apply = (id: string, delta: number, event: RankedEvent, reason: RankedHistoryRow["reason"]) => {
     const current = states.get(id);
     if (!current) return;
-    const multiplier = event.kind === "match" && !event.oneVsOne
-      ? (event.prestigeLossPoints ?? 9) / 3 : undefined;
+    // Apply the current ordinary-match policy to the entire history. Duels
+    // retain their separate scoring, regardless of the old per-match snapshot.
+    const multiplier = event.kind === "match" && event.oneVsOne ? DUEL_PRESTIGE_LOSS_MULTIPLIER : undefined;
     const next = event.kind === "penalty" ? applyRankedPenalty(current, event.points) : applyRankedDelta(current, delta, multiplier);
     states.set(id, next);
     history.push({

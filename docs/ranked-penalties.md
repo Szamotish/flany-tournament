@@ -4,11 +4,11 @@
 
 1. W Supabase SQL Editor uruchom `supabase/migrations/20261110_ranked_penalties.sql`. Wymaga wdrożonej wcześniej migracji premii za trafienia (`persist_ranked_replay_with_hit_rewards`).
 2. Wdróż kod aplikacji. Migracja powinna poprzedzać wdrożenie; w czasie pomiędzy nimi nie zapisuj nowych wyników.
-3. Nie trzeba przeliczać dawnych wyników: ich zasady pozostają takie same. Późniejsze „Przelicz MMR ranked” zachowa stare stawki i odtworzy kary.
+3. Po wdrożeniu kliknij globalne „Przelicz MMR ranked”, aby przeliczyć wszystkich graczy i historię wykresów od początku z karą −6 PP. Jeśli migracja kar była już wykonana, ta korekta nie wymaga kolejnej migracji SQL — wystarczy nowy kod i przeliczenie.
 
 ## Przegrane
 
-Zakończone mecze dostają w migracji zapamiętaną stawkę 9 PP. Pierwszy zapis zakończenia kolejnego meczu zapisuje stawkę 6 PP. Stawka jest niezmienna przy poprawkach, cofnięciu wyniku i ponownym rozegraniu tego samego wpisu meczu. Powtórzenie migracji również jej nie zmienia. Liczy się pierwszy zapis wyniku, nie edytowalny termin turnieju: zaległy mecz wpisany po wdrożeniu otrzymuje nową stawkę.
+Wszystkie zwykłe przegrane z PP kosztują 6 PP, również historyczne. Przeliczanie odtwarza pełną historię według tej zasady, bez daty granicznej. Pole `ranked_prestige_loss_points` utworzone w pierwszej wersji migracji nie jest już odczytywane ani używane do naliczania punktów; stare wartości 9 nie wpływają na wynik. Pozostaje w bazie dla zgodności, bez potrzeby usuwania danych.
 
 Dotyczy to zwykłych przegranych z PP. Gdy PP jest mniej niż stawka, spadają do zera; dotychczasowa ochrona MMR w tym kroku pozostaje. Przy zerowych PP przegrana nadal odejmuje 0,3 MMR. Punktacja 1v1, zyski i serie pozostają bez zmian.
 

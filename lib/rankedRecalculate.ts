@@ -18,7 +18,6 @@ type MatchRow = {
   winner_team_id: string | null; status: string; created_at: string; updated_at: string | null;
   ranked_finished_at: string | null; round_no: number; match_no: number;
   score_a: number; score_b: number;
-  ranked_prestige_loss_points: 6 | 9 | null;
 };
 type BonusRow = { id: string; player_id: string; delta: number; created_at: string };
 
@@ -47,7 +46,7 @@ async function recalculateAttempt(targetPlayerId: string | null) {
   const [players, tournaments, matches, members, results, bonuses, ratings, manualHistory, notebooks, penalties] = await Promise.all([
     readAll<PlayerRow>("players", "id,mmr,prestige_points,rating_override,mmr_manual_override"),
     readAll<TournamentRow>("tournaments", "id,format,mode,created_at,event_at,started_at,name_day_number"),
-    readAll<MatchRow>("tournament_matches", "id,tournament_id,team_a_id,team_b_id,winner_team_id,status,created_at,updated_at,ranked_finished_at,round_no,match_no,score_a,score_b,ranked_prestige_loss_points"),
+    readAll<MatchRow>("tournament_matches", "id,tournament_id,team_a_id,team_b_id,winner_team_id,status,created_at,updated_at,ranked_finished_at,round_no,match_no,score_a,score_b"),
     readAll<{ team_id: string; player_id: string }>("team_members", "team_id,player_id", ["team_id", "player_id"]),
     readAll<{ tournament_id: string; team_id: string; placement: number }>("tournament_results", "tournament_id,team_id,placement", ["tournament_id", "placement", "team_id"]),
     readAll<BonusRow>("player_performance_bonuses", "id,player_id,delta,created_at"),
@@ -71,16 +70,12 @@ async function recalculateAttempt(targetPlayerId: string | null) {
     const tournament = ranked.get(match.tournament_id);
     if (!tournament || match.status !== "finished" || !match.team_a_id || !match.team_b_id ||
       !match.winner_team_id || ![match.team_a_id, match.team_b_id].includes(match.winner_team_id)) continue;
-    if (match.ranked_prestige_loss_points !== 6 && match.ranked_prestige_loss_points !== 9) {
-      throw new Error("ranked_loss_policy_missing");
-    }
     const at = match.ranked_finished_at ?? match.updated_at ?? match.created_at ?? tournament.created_at;
     const loser = match.winner_team_id === match.team_a_id ? match.team_b_id : match.team_a_id;
     events.push({
       kind: "match", id: match.id, at, tournamentId: tournament.id,
       winners: teamPlayers.get(match.winner_team_id) ?? [], losers: teamPlayers.get(loser) ?? [],
       oneVsOne: isOneVsOneFormat(tournament.format), order: (match.round_no ?? 0) * 10000 + (match.match_no ?? 0),
-      prestigeLossPoints: match.ranked_prestige_loss_points,
     });
     if (!lastMatch.has(tournament.id) || Date.parse(at) > Date.parse(lastMatch.get(tournament.id)!)) {
       lastMatch.set(tournament.id, at);

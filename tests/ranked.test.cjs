@@ -155,7 +155,7 @@ test('performance and manual points do not clear losses or add extra PP penaltie
   const losses = Array.from({ length: 6 }, (_, i) => match(i, { won: false }));
   const r = replayRanked(initial, [...losses, performance(7)]);
   assert.equal(r.lossStreaks.get('p'), 6);
-  assert.deepEqual(r.states.get('p'), { mmr: 10, prestigePoints: 48 });
+  assert.deepEqual(r.states.get('p'), { mmr: 10, prestigePoints: 66 });
   const manual = { kind: 'manual', id: 'edit', at: at(8), playerId: 'p', state: { mmr: 9, prestigePoints: 0 } };
   assert.equal(replayRanked(initial, [...losses, manual]).lossStreaks.get('p'), 6);
 });
@@ -173,15 +173,16 @@ test('losestreak is hidden below 3, frosted at 3–5 and frozen from 6', () => {
   assert.deepEqual([0, 1, 2, 3, 5, 6, 12].map(lossStreakTier), ['none', 'none', 'none', 'frost', 'frost', 'frozen', 'frozen']);
 });
 
-test('old losses stay -9 PP; new ordinary losses cost -6 PP without changing duels or MMR losses', () => {
+test('all ordinary losses cost -6 PP even with legacy snapshots; duels and MMR losses keep their rules', () => {
   const initial = new Map([['p', { mmr: 10, prestigePoints: 100 }], ['q', { mmr: 10, prestigePoints: 100 }]]);
   const old = { ...match(1, { won: false }), prestigeLossPoints: 9 };
   const current = { ...match(2, { won: false }), prestigeLossPoints: 6 };
   const events = [old, current, { ...match(3, { won: false, duel: true }), prestigeLossPoints: 6 }];
   const result = replayRanked(initial, events);
-  assert.deepEqual(playerHistory(result).map(h => h.prestige_points), [91,85,82]);
+  assert.deepEqual(playerHistory(result).map(h => h.prestige_points), [94,88,85]);
   assert.deepEqual(result, replayRanked(initial, events.slice().reverse()));
-  assert.equal(replayRanked(initial, [old]).states.get('p').prestigePoints, 91);
+  assert.equal(replayRanked(initial, [old]).states.get('p').prestigePoints, 94);
+  assert.equal(replayRanked(initial, [match(0, { won: false })]).states.get('p').prestigePoints, 94);
   assert.equal(replayRanked(baseline(), [current]).states.get('p').mmr, 4.7);
   initial.set('p', { mmr: 10, prestigePoints: 2 });
   assert.deepEqual(replayRanked(initial, [current]).states.get('p'), { mmr: 10, prestigePoints: 0 });
