@@ -82,12 +82,13 @@ function mapApiError(error: unknown): string {
 
 export default function AdminTournamentsPage() {
   const [isMainAdmin, setIsMainAdmin] = useState<boolean | null>(null);
+  const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
   const [editingTournamentName, setEditingTournamentName] = useState("");
-  const [format, setFormat] = useState<"single_elim" | "double_elim" | "one_vs_one">("double_elim");
-  const [mode, setMode] = useState<"normal" | "ranked">("normal");
+  const [format, setFormat] = useState<"single_elim" | "double_elim" | "one_vs_one">("single_elim");
+  const [mode, setMode] = useState<"normal" | "ranked">("ranked");
   const [boDefault, setBoDefault] = useState<1 | 3 | 5>(1);
-  const [boFinals, setBoFinals] = useState<1 | 3 | 5>(3);
-  const [gfResetEnabled, setGfResetEnabled] = useState(true);
+  const [boFinals, setBoFinals] = useState<1 | 3 | 5>(1);
+  const [gfResetEnabled, setGfResetEnabled] = useState(false);
   const [eventAt, setEventAt] = useState("");
   const [eventLocation, setEventLocation] = useState("");
   const [joinDeadlineAt, setJoinDeadlineAt] = useState("");
@@ -97,8 +98,10 @@ export default function AdminTournamentsPage() {
 
   const [q, setQ] = useState("");
   const [players, setPlayers] = useState<Player[]>([]);
+  const [knownPlayers, setKnownPlayers] = useState<Record<string, Player>>({});
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [localAdminSelectedIds, setLocalAdminSelectedIds] = useState<string[]>([]);
+  const [selfAdminChoiceChanged, setSelfAdminChoiceChanged] = useState(false);
   const [playerActionMenu, setPlayerActionMenu] = useState<{
     player: Player;
     x: number;
@@ -128,21 +131,25 @@ export default function AdminTournamentsPage() {
   const localAdminOptions = useMemo(
     () =>
       selectedIds
-        .map((id) => players.find((player) => player.id === id))
+        .map((id) => knownPlayers[id])
         .filter((player): player is Player => Boolean(player && player.has_account === true))
         .sort((a, b) => a.name.localeCompare(b.name, "pl")),
-    [selectedIds, players]
+    [selectedIds, knownPlayers]
   );
   const localAdminIds = useMemo(
-    () =>
-      localAdminSelectedIds.filter(
+    () => {
+      const defaults = !editingTournamentId && !selfAdminChoiceChanged && currentPlayerId ? [currentPlayerId] : [];
+      const choices = [...localAdminSelectedIds, ...defaults];
+      return choices.filter(
         (id, index) =>
-          localAdminOptions.some((player) => player.id === id) && localAdminSelectedIds.indexOf(id) === index
-      ),
-    [localAdminSelectedIds, localAdminOptions]
+          localAdminOptions.some((player) => player.id === id) && choices.indexOf(id) === index
+      );
+    },
+    [localAdminSelectedIds, localAdminOptions, editingTournamentId, selfAdminChoiceChanged, currentPlayerId]
   );
 
   function toggleLocalAdmin(playerId: string, checked: boolean) {
+    if (playerId === currentPlayerId) setSelfAdminChoiceChanged(true);
     setLocalAdminSelectedIds((prev) => {
       if (checked) {
         if (prev.includes(playerId)) return prev;
@@ -159,6 +166,7 @@ export default function AdminTournamentsPage() {
     const json = await res.json().catch(() => ({}));
     if (res.ok) {
       setPlayers(json.players ?? []);
+      setKnownPlayers(prev => ({ ...prev, ...Object.fromEntries((json.players ?? []).map((p: Player) => [p.id, p])) }));
     }
   }
 
@@ -172,17 +180,18 @@ export default function AdminTournamentsPage() {
     setEditingTournamentId(null);
     setEditingStarted(false);
     setEditingTournamentName("");
-    setFormat("double_elim");
-    setMode("normal");
+    setFormat("single_elim");
+    setMode("ranked");
     setBoDefault(1);
-    setBoFinals(3);
-    setGfResetEnabled(true);
+    setBoFinals(1);
+    setGfResetEnabled(false);
     setEventAt("");
     setEventLocation("");
     setJoinDeadlineAt("");
     setIsPrivate(false);
     setSelected({});
     setLocalAdminSelectedIds([]);
+    setSelfAdminChoiceChanged(false);
   }
 
   async function loadTournamentForEdit(tournamentId: string) {
@@ -246,8 +255,12 @@ export default function AdminTournamentsPage() {
 
       if (cancelled) return;
       setIsMainAdmin(authJson.authenticated === true && authJson.isMainAdmin === true);
+      setCurrentPlayerId(typeof authJson.player?.id === "string" ? authJson.player.id : null);
 
-      if (playersRes.ok) setPlayers(playersJson.players ?? []);
+      if (playersRes.ok) {
+        setPlayers(playersJson.players ?? []);
+        setKnownPlayers(Object.fromEntries((playersJson.players ?? []).map((p: Player) => [p.id, p])));
+      }
       if (tournamentsRes.ok) setTournaments(tournamentsJson.tournaments ?? []);
       if (
         backgroundRes.ok &&
@@ -317,14 +330,7 @@ export default function AdminTournamentsPage() {
     }
 
     setMsg(`Utworzono turniej ${json.name}.`);
-    setEditingTournamentName("");
-    setMode("normal");
-    setEventAt("");
-    setEventLocation("");
-    setJoinDeadlineAt("");
-    setIsPrivate(false);
-    setSelected({});
-    setLocalAdminSelectedIds([]);
+    resetTournamentForm();
     await loadTournaments();
   }
 
@@ -798,80 +804,6 @@ export default function AdminTournamentsPage() {
           <h1 className="tour-title">Turnieje - panel glowny</h1>
         </section>
 
-        <section className="tour-admin-panel mt-4">
-          <div className="tour-card-head">
-            <p className="tour-card-title">Ustawienia glowne</p>
-            <Link className="tour-action-btn" href="/admin/rules">
-              Zasady
-            </Link>
-          </div>
-          <div className="tour-admin-settings-row mt-3">
-            <div className="tour-admin-settings-card">
-              <label className="tour-admin-label">Wariant tla</label>
-              <select
-                className="tour-admin-input"
-                value={backgroundChoice}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  if (next === "finn_bmo" || next === "finn_beer") setBackgroundChoice(next);
-                }}
-              >
-                <option value="finn_bmo">BMO</option>
-                <option value="finn_beer">Finn z piwem</option>
-              </select>
-              <div className="tour-admin-actions mt-2">
-                <button className="tour-action-btn" type="button" disabled={savingBackground} onClick={saveBackgroundChoice}>
-                  {savingBackground ? "Zapisywanie..." : "Zapisz tlo"}
-                </button>
-              </div>
-            </div>
-            <div className="tour-admin-settings-card">
-              <label className="tour-admin-label">Piwo dnia</label>
-              <details className="tour-admin-beer-dropdown">
-                <summary className="tour-admin-input tour-admin-beer-summary">
-                  {beerOfDayChoice ?? "Automatyczne (wg dnia)"}
-                </summary>
-                <div className="tour-admin-beer-dropdown-list">
-                  <label className="tour-admin-checklist-item">
-                    <input
-                      type="checkbox"
-                      checked={beerOfDayChoice === null}
-                      onChange={() => setBeerOfDayChoice(null)}
-                    />
-                    <span>Automatyczne (wg dnia)</span>
-                  </label>
-                  {BEER_LIST.map((beer) => (
-                    <label key={beer.name} className="tour-admin-checklist-item">
-                      <input
-                        type="checkbox"
-                        checked={beerOfDayChoice === beer.name}
-                        onChange={() => setBeerOfDayChoice(beer.name)}
-                      />
-                      <span>{beer.name}</span>
-                    </label>
-                  ))}
-                </div>
-              </details>
-              <div className="tour-admin-actions mt-2">
-                <button className="tour-action-btn" type="button" disabled={savingBeerOfDay} onClick={saveBeerOfDayChoice}>
-                  {savingBeerOfDay ? "Zapisywanie..." : "Zapisz piwo dnia"}
-                </button>
-              </div>
-            </div>
-            <div className="tour-admin-settings-card">
-              <label className="tour-admin-label">Ranking MMR</label>
-              <p className="tour-muted">
-                Odbuduj MMR i historie MMR z zakonczonych turniejow ranked, gdy wyniki byly zapisane bez naliczenia punktow.
-              </p>
-              <div className="tour-admin-actions mt-2">
-                <button className="tour-action-btn" type="button" disabled={recalculatingRanked} onClick={recalculateRankedMmr}>
-                  {recalculatingRanked ? "Przeliczanie..." : "Przelicz MMR ranked"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
-
         <div className="tour-admin-split mt-4">
           <section className="tour-admin-panel">
             <div className="tour-card-head">
@@ -898,8 +830,9 @@ export default function AdminTournamentsPage() {
 
               <div className="tour-admin-grid-2">
                 <div>
-                  <label className="tour-admin-label">Format</label>
+                  <label className="tour-admin-label" htmlFor="tournament-format">Format</label>
                   <select
+                    id="tournament-format"
                     className="tour-admin-input"
                     value={format}
                     onChange={(e) => {
@@ -916,8 +849,9 @@ export default function AdminTournamentsPage() {
                 </div>
 
                 <div>
-                  <label className="tour-admin-label">Tryb</label>
+                  <label className="tour-admin-label" htmlFor="tournament-mode">Tryb</label>
                   <select
+                    id="tournament-mode"
                     className="tour-admin-input"
                     value={mode}
                     onChange={(e) => {
@@ -933,8 +867,9 @@ export default function AdminTournamentsPage() {
                 </div>
 
                 <div>
-                  <label className="tour-admin-label">BO domyslne</label>
+                  <label className="tour-admin-label" htmlFor="tournament-bo-default">BO domyslne</label>
                   <select
+                    id="tournament-bo-default"
                     className="tour-admin-input"
                     value={boDefault}
                     onChange={(e) => {
@@ -949,8 +884,9 @@ export default function AdminTournamentsPage() {
                 </div>
 
                 <div className={format === "one_vs_one" ? "tour-admin-field-disabled" : ""}>
-                  <label className="tour-admin-label">BO finalu</label>
+                  <label className="tour-admin-label" htmlFor="tournament-bo-finals">BO finalu</label>
                   <select
+                    id="tournament-bo-finals"
                     className="tour-admin-input"
                     value={boFinals}
                     disabled={format === "one_vs_one"}
@@ -966,8 +902,9 @@ export default function AdminTournamentsPage() {
                 </div>
 
                 <div className={format === "one_vs_one" ? "tour-admin-field-disabled" : ""}>
-                  <label className="tour-admin-label">Grand final reset</label>
+                  <label className="tour-admin-label" htmlFor="tournament-gf-reset">Grand final reset</label>
                   <select
+                    id="tournament-gf-reset"
                     className="tour-admin-input"
                     value={gfResetEnabled ? "with_reset" : "no_reset"}
                     disabled={format === "one_vs_one"}
@@ -1154,7 +1091,7 @@ export default function AdminTournamentsPage() {
             {tournaments.length === 0 ? (
               <p className="tour-muted mt-3">Brak turniejow.</p>
             ) : (
-              <div className="tour-list mt-3">
+              <div className="tour-list tour-admin-tournament-list mt-3" tabIndex={0} role="region" aria-label="Lista turniejów">
                 {tournaments.map((t) => (
                   <article
                     key={t.id}
@@ -1207,6 +1144,80 @@ export default function AdminTournamentsPage() {
             )}
           </section>
         </div>
+        <section className="tour-admin-panel mt-4">
+          <div className="tour-card-head">
+            <p className="tour-card-title">Ustawienia glowne</p>
+            <Link className="tour-action-btn" href="/admin/rules">
+              Zasady
+            </Link>
+          </div>
+          <div className="tour-admin-settings-row mt-3">
+            <div className="tour-admin-settings-card">
+              <label className="tour-admin-label">Wariant tla</label>
+              <select
+                className="tour-admin-input"
+                value={backgroundChoice}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  if (next === "finn_bmo" || next === "finn_beer") setBackgroundChoice(next);
+                }}
+              >
+                <option value="finn_bmo">BMO</option>
+                <option value="finn_beer">Finn z piwem</option>
+              </select>
+              <div className="tour-admin-actions mt-2">
+                <button className="tour-action-btn" type="button" disabled={savingBackground} onClick={saveBackgroundChoice}>
+                  {savingBackground ? "Zapisywanie..." : "Zapisz tlo"}
+                </button>
+              </div>
+            </div>
+            <div className="tour-admin-settings-card">
+              <label className="tour-admin-label">Piwo dnia</label>
+              <details className="tour-admin-beer-dropdown">
+                <summary className="tour-admin-input tour-admin-beer-summary">
+                  {beerOfDayChoice ?? "Automatyczne (wg dnia)"}
+                </summary>
+                <div className="tour-admin-beer-dropdown-list">
+                  <label className="tour-admin-checklist-item">
+                    <input
+                      type="checkbox"
+                      checked={beerOfDayChoice === null}
+                      onChange={() => setBeerOfDayChoice(null)}
+                    />
+                    <span>Automatyczne (wg dnia)</span>
+                  </label>
+                  {BEER_LIST.map((beer) => (
+                    <label key={beer.name} className="tour-admin-checklist-item">
+                      <input
+                        type="checkbox"
+                        checked={beerOfDayChoice === beer.name}
+                        onChange={() => setBeerOfDayChoice(beer.name)}
+                      />
+                      <span>{beer.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </details>
+              <div className="tour-admin-actions mt-2">
+                <button className="tour-action-btn" type="button" disabled={savingBeerOfDay} onClick={saveBeerOfDayChoice}>
+                  {savingBeerOfDay ? "Zapisywanie..." : "Zapisz piwo dnia"}
+                </button>
+              </div>
+            </div>
+            <div className="tour-admin-settings-card">
+              <label className="tour-admin-label">Ranking MMR</label>
+              <p className="tour-muted">
+                Odbuduj MMR i historie MMR z zakonczonych turniejow ranked, gdy wyniki byly zapisane bez naliczenia punktow.
+              </p>
+              <div className="tour-admin-actions mt-2">
+                <button className="tour-action-btn" type="button" disabled={recalculatingRanked} onClick={recalculateRankedMmr}>
+                  {recalculatingRanked ? "Przeliczanie..." : "Przelicz MMR ranked"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
       </div>
       {bonusPlayer && isMainAdmin ? (
         <PerformanceBonusDialog player={bonusPlayer} onClose={() => setBonusPlayer(null)} onSaved={() => {

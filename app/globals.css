@@ -2506,6 +2506,20 @@ body {
   grid-template-columns: 1fr;
 }
 
+.tour-admin-tournament-list {
+  max-height: min(70dvh, 48rem);
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  align-content: start;
+  padding: 0.15rem 0.35rem 0.15rem 0.15rem;
+}
+.tour-admin-tournament-list:focus-visible {
+  outline: 2px solid #825413;
+  outline-offset: 3px;
+  border-radius: 0.8rem;
+}
+
 @media (min-width: 980px) {
   .tour-admin-settings-row {
     grid-template-columns: minmax(250px, 0.62fr) minmax(0, 1fr);
