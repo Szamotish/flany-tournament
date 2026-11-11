@@ -272,7 +272,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
   }
 
   async function searchPlayers(query: string, currentTournamentPlayers = tournamentPlayers) {
-    const res = await fetch(`/api/public/players/search?q=${encodeURIComponent(query)}`);
+    const res = await authedFetch(`/api/public/players/search?q=${encodeURIComponent(query)}`);
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
       setMsg(`Blad wyszukiwania zawodnikow: ${json.error ?? res.statusText}`);
