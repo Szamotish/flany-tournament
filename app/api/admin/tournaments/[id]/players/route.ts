@@ -121,6 +121,9 @@ export async function POST(
 
   const auth = await assertTournamentAdmin(req, tournamentId);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status ?? 401 });
+  if (auth.ctx.isMainAdmin !== true) {
+    return NextResponse.json({ error: "forbidden_main_admin_only" }, { status: 403 });
+  }
 
   const started = await ensureNotStarted(tournamentId);
   if (!started.ok) return NextResponse.json({ error: started.error }, { status: started.status });

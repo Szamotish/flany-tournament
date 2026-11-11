@@ -23,6 +23,7 @@ export async function GET(
       pendingRequest: false,
       pendingInvite: false,
       isTournamentAdmin: false,
+      canDirectAddPlayers: false,
       tournamentStarted: await hasTournamentStarted(tournamentId),
     });
   }
@@ -35,6 +36,7 @@ export async function GET(
       pendingRequest: false,
       pendingInvite: false,
       isTournamentAdmin: false,
+      canDirectAddPlayers: false,
       tournamentStarted: await hasTournamentStarted(tournamentId),
     });
   }
@@ -89,6 +91,7 @@ export async function GET(
     pendingRequest: Boolean(requestRes.data),
     pendingInvite: Boolean(inviteRes.data),
     isTournamentAdmin: auth.ctx.isMainAdmin || Boolean(adminRes.data),
+    canDirectAddPlayers: auth.ctx.isMainAdmin === true,
     tournamentStarted: started,
   });
 }

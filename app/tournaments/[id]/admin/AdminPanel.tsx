@@ -51,6 +51,7 @@ const TEAM_GENERATION_ITERATIONS = 2000;
 export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
   const [accessChecked, setAccessChecked] = useState(false);
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
+  const [canDirectAddPlayers, setCanDirectAddPlayers] = useState(false);
   const [teamSizeInput, setTeamSizeInput] = useState("");
   const [mode, setMode] = useState<"reset" | "overwrite">("reset");
   const [generationMode, setGenerationMode] = useState<"balanced" | "full_random">("balanced");
@@ -133,6 +134,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
 
       const canAccess = res.ok && json.isTournamentAdmin === true;
       setHasAdminAccess(canAccess);
+      setCanDirectAddPlayers(canAccess && json.canDirectAddPlayers === true);
       setAccessChecked(true);
 
       if (!canAccess) {
@@ -327,6 +329,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
   }, [hasAdminAccess, playerSearch, tournamentPlayers]);
 
   async function addPlayer(playerId: string) {
+    if (!canDirectAddPlayers) return;
     setMsg(null);
     const res = await authedFetch(`/api/admin/tournaments/${tournamentId}/players`, {
       method: "POST",
@@ -714,7 +717,7 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
 
             <article className="tour-card" style={{ padding: "0.75rem" }}>
               <div className="tour-card-head">
-                <p className="tour-card-title">Dodaj zawodnika do turnieju</p>
+                <p className="tour-card-title">{canDirectAddPlayers ? "Dodaj zawodnika do turnieju" : "Zaproś zawodnika do turnieju"}</p>
               </div>
 
               <div className="tour-admin-search-row mt-2">
@@ -736,13 +739,13 @@ export default function AdminPanel({ tournamentId }: { tournamentId: string }) {
                         <span>{p.name}</span>
                       </div>
                       <div className="tour-admin-actions">
-                        <button
+                        {canDirectAddPlayers ? <button
                           className="tour-action-btn"
                           type="button"
                           onClick={() => void addPlayer(p.id)}
                         >
                           Dodaj
-                        </button>
+                        </button> : null}
                         <button
                           className="tour-action-btn"
                           type="button"
