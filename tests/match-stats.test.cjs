@@ -96,6 +96,46 @@ test('leaders preserve ties and enforce accuracy sample; penalty award appears o
   assert.equal(awards.some(a => a.category === 'penalty'), false);
   assert.equal(stats.statsAwards(s, s.matches, games).some(a => a.category === 'accuracy'), false);
 });
+
+test('home rare awards total all ranked history while other awards retain the recent window', () => {
+  const s = fixture();
+  s.tournaments[0].is_private = true;
+  s.tournaments[0].name = 'OLD PRIVATE EVENT';
+  s.notebooks[0].document.rotations[0].entries[id(1)].cheats = 2;
+  for (let n = 0; n < 10; n++) {
+    s.tournaments.push({ ...s.tournaments[1], id: id(300+n), event_at: `2026-11-${String(n+1).padStart(2,'0')}T10:00:00Z` });
+    s.matches.push({ ...s.matches[1], id: id(400+n), tournament_id: id(300+n) });
+  }
+  // A recent game contributes to the same totals and remains eligible for recent awards.
+  s.notebooks.push({ ...s.notebooks[0], match_id: id(409), tournament_id: id(309) });
+  // Normal and unfinished matches must never inflate all-time ranked awards.
+  for (const [n, mode, status] of [[500, 'normal', 'finished'], [600, 'ranked', 'pending']]) {
+    s.tournaments.push({ ...s.tournaments[0], id: id(n), mode });
+    s.matches.push({ ...s.matches[0], id: id(n+1), tournament_id: id(n), status });
+    s.notebooks.push({ ...s.notebooks[0], match_id: id(n+1), tournament_id: id(n) });
+  }
+  const home = stats.recentStatsAwards(s);
+  const award = category => home.awards.find(a => a.category === category);
+  assert.equal(home.count, 10);
+  assert.equal(award('opponent').scope, 'all');
+  assert.equal(award('opponent').value, 2);
+  assert.equal(award('cheats').scope, 'all');
+  assert.equal(award('cheats').value, 4);
+  for (const category of ['hits', 'penalty']) {
+    assert.equal(award(category).scope, 'recent');
+    assert.equal(award(category).value, 1);
+  }
+  const serialized = JSON.stringify(home);
+  for (const secret of ['OLD PRIVATE EVENT', id(100), id(101)]) assert.equal(serialized.includes(secret), false);
+  const oracle = load('lib/oracleMatchStats.ts', { './matchStats': stats, './oracleLeague': { resolveOraclePlayers: () => ({ players: [] }) } });
+  assert.match(oracle.oracleMatchStatsFacts(s, 'Kto oszukuje?', id(1))[0], /wszystkie mecze rankingowe.*wynik 4/);
+  // Rare awards still appear if their only recorded occurrence is outside the recent window.
+  s.notebooks = [s.notebooks[0]];
+  const oldOnly = stats.recentStatsAwards(s).awards;
+  assert.equal(oldOnly.length, 2);
+  assert.equal(oldOnly.find(a => a.category === 'opponent').value, 1);
+  assert.equal(oldOnly.find(a => a.category === 'cheats').value, 2);
+});
 test('tournament detail separates games and keeps players without entries explicit', () => {
   const data = tournamentStats.tournamentStats(fixture(), id(100));
   assert.equal(data.matches.length, 1); assert.equal(data.matches[0].players.length, 2);

@@ -98,5 +98,14 @@ export function recentStatsAwards(snapshot: StatsSnapshot) {
   const tournaments = snapshot.tournaments.filter(t => t.mode === "ranked" && t.tournament_results.some(r => r.placement === 1))
     .sort((a, b) => Date.parse(statsDate(b)) - Date.parse(statsDate(a)) || (b.name_day_number ?? 0) - (a.name_day_number ?? 0) || b.id.localeCompare(a.id)).slice(0, 10);
   const ids = new Set(tournaments.map(t => t.id));
-  return { count: tournaments.length, awards: statsAwards(snapshot, orderedStatsMatches(snapshot).filter(m => ids.has(m.tournament_id))) };
+  const matches = orderedStatsMatches(snapshot);
+  const games = buildGameStats(snapshot);
+  const isAllTime = (category: StatCategory) => category === "opponent" || category === "cheats";
+  const recent = statsAwards(snapshot, matches.filter(m => ids.has(m.tournament_id)), games)
+    .filter(a => !isAllTime(a.category)).map(a => ({ ...a, scope: "recent" as const }));
+  const allTime = statsAwards(snapshot, matches, games)
+    .filter(a => isAllTime(a.category)).map(a => ({ ...a, scope: "all" as const }));
+  const categories = Object.keys(STAT_CATEGORIES) as StatCategory[];
+  return { count: tournaments.length, awards: [...recent, ...allTime]
+    .sort((a, b) => categories.indexOf(a.category) - categories.indexOf(b.category)) };
 }

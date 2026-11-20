@@ -11,7 +11,7 @@ export default function HomeStatsCarousel({ performance, stats }: { performance:
   return <StatsCarousel title="Wyróżnienia ligi" className={`glass-card landing-performance ${styles.home}`} auto
     labels={["Best Performance", ...awards.map(a => STAT_CATEGORIES[a.category])]}>
     {[<BestPerformance key="wins" data={performance} embedded />, ...awards.map(award => <div key={award.category}>
-      <StatsAwards award={award} hideTitle /><p className={styles.coverage}>Ostatnie {stats!.count} turniejów rankingowych · zapisane statystyki</p>
+      <StatsAwards award={award} hideTitle /><p className={styles.coverage}>{award.scope === "all" ? "Wszystkie mecze rankingowe" : `Ostatnie ${stats!.count} turniejów rankingowych`} · zapisane statystyki</p>
     </div>)]}
   </StatsCarousel>;
 }

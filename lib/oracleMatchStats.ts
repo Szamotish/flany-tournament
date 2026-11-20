@@ -15,7 +15,8 @@ export function oracleMatchStatsFacts(snapshot: StatsSnapshot, question: string,
     const categories = /pij|pic|piw|szybk/.test(q) ? ["drinking"] : /oszuk|kombin/.test(q) ? ["cheats"] : /karn/.test(q) ? ["penalty"] : /przeciwn|puszk/.test(q) ? ["opponent"] : ["accuracy", "hits"];
     for (const award of data.awards.filter(a => categories.includes(a.category))) {
       const names = award.leaders.slice(0, 4).map(p => safe(p.name)).join(", ");
-      facts.push(`${STAT_CATEGORIES[award.category]} (${data.count} ostatnich turniejów): ${names}${award.leaders.length > 4 ? " i inni współliderzy" : ""}, wynik ${fmt(award.value)}${award.category === "accuracy" ? "% (min.5 rzutów)" : ""}.`);
+      const scope = award.scope === "all" ? "wszystkie mecze rankingowe" : `${data.count} ostatnich turniejów`;
+      facts.push(`${STAT_CATEGORIES[award.category]} (${scope}): ${names}${award.leaders.length > 4 ? " i inni współliderzy" : ""}, wynik ${fmt(award.value)}${award.category === "accuracy" ? "% (min.5 rzutów)" : ""}.`);
     }
   }
   for (const id of ids) {
